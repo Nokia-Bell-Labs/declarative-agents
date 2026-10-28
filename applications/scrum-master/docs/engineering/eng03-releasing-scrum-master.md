@@ -97,12 +97,17 @@ CGO_ENABLED=0 for linux and darwin on amd64 and arm64, composed with the
 scrum-master words (GH-27) and stamped with the tag, writes the profiles
 archive, scrum-master-profiles.tar.gz — the profiles, agent-core's tools
 tree, and the release — writes SHA256SUMS over them, creates the tag's
-GitHub release, and uploads the assets to it (GH-34). The agents are named
+GitHub release as a draft, uploads the assets to it (GH-34), and makes it
+visible only once it holds every asset install.sh downloads; a release
+missing one stays a draft, the error naming it, so install.sh's latest
+never names a release whose binaries are still uploading (GH-2751). A
+GitLab release has no draft state, so there it is visible as created. The agents are named
 agent_<os>_<arch>, the convention the declarative-agents releases follow,
 so one naming rule and one checksum check serve both. install.sh
 downloads the agent for the machine and the profiles archive from a named
 release, or the latest, verifies both against SHA256SUMS, installs the
-agent, and unpacks the profiles; the README gives that, and the init
+agent, and unpacks the profiles; a file it cannot download it names, with
+the release and the URL, rather than leaving curl's bare status (GH-2751); the README gives that, and the init
 profile a program starts from.
 
 The release is created with the gh account magefiles/tag.go names

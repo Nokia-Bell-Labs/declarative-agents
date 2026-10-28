@@ -66,6 +66,8 @@ func (f *fakeImageTools) run(dir string, env []string, name string, args ...stri
 		view["body"] = f.notes
 		b, err := json.Marshal(view)
 		return string(b), err
+	case name == "gh" && len(args) > 1 && args[1] == "edit" && slices.Contains(args, "--draft=false"):
+		return f.fakeTools.run(dir, env, name, args...)
 	case name == "gh" && len(args) > 1 && args[1] == "edit":
 		b, err := os.ReadFile(args[slices.Index(args, "--notes-file")+1])
 		f.notes = string(b)

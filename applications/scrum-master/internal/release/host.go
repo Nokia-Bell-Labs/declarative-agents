@@ -33,6 +33,9 @@ type host interface {
 	release(tag string) (exists bool, assets []publishedAsset, notes string, err error)
 	create(tag, notesFile string) error
 	upload(tag string, paths []string) error
+	// publish makes a release created as a draft visible, once it holds
+	// every asset (GH-2751); a forge with no drafts has nothing to do.
+	publish(tag string) error
 	setNotes(tag, notesFile string) error
 	// registryLogin logs docker in to the registry image lives in.
 	registryLogin(image string) error
@@ -96,7 +99,18 @@ func (h githubHost) create(tag, notesFile string) error {
 	if err != nil {
 		return err
 	}
-	_, err = h.p.Run(h.p.Root, env, "gh", "release", "create", tag, "--repo", h.p.Repo, "--verify-tag", "--title", tag, "--notes-file", notesFile)
+	// A draft, so install.sh's latest never names a release whose binaries
+	// are still uploading (GH-2751).
+	_, err = h.p.Run(h.p.Root, env, "gh", "release", "create", tag, "--repo", h.p.Repo, "--verify-tag", "--draft", "--title", tag, "--notes-file", notesFile)
+	return err
+}
+
+func (h githubHost) publish(tag string) error {
+	env, err := h.env()
+	if err != nil {
+		return err
+	}
+	_, err = h.p.Run(h.p.Root, env, "gh", "release", "edit", tag, "--repo", h.p.Repo, "--draft=false")
 	return err
 }
 
@@ -194,6 +208,9 @@ func (h gitlabHost) create(tag, notesFile string) error {
 	_, err := h.p.Run(h.p.Root, nil, "glab", "release", "create", tag, "--repo", h.p.Repo, "--name", tag, "--notes-file", notesFile, "--no-update")
 	return err
 }
+
+// publish has nothing to do: a GitLab release has no draft state.
+func (h gitlabHost) publish(string) error { return nil }
 
 func (h gitlabHost) upload(tag string, paths []string) error {
 	_, err := h.p.Run(h.p.Root, nil, "glab", append([]string{"release", "upload", tag, "--repo", h.p.Repo}, paths...)...)

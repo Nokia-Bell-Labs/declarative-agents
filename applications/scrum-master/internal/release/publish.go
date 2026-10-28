@@ -345,12 +345,30 @@ func (p Publisher) Binaries(tag string) error {
 	}
 	if len(upload) == 0 {
 		fmt.Fprintf(p.Out, "publish: the release %s already holds every binary\n", tag)
-		return nil
+	} else {
+		if err := h.upload(tag, upload); err != nil {
+			return fmt.Errorf("upload to the release %s: %w; it stays a draft; run mage publish again to complete it", tag, err)
+		}
+		fmt.Fprintf(p.Out, "publish: uploaded %d assets to the release %s\n", len(upload), tag)
 	}
-	if err := h.upload(tag, upload); err != nil {
-		return fmt.Errorf("upload to the release %s: %w; run mage publish again to complete it", tag, err)
+	// Only a release holding every asset install.sh downloads is made
+	// visible; one missing any stays a draft, naming it (GH-2751).
+	_, now, _, err := h.release(tag)
+	if err != nil {
+		return err
 	}
-	fmt.Fprintf(p.Out, "publish: uploaded %d assets to the release %s\n", len(upload), tag)
+	var missing []string
+	for _, a := range assets {
+		if !slices.ContainsFunc(now, func(pa publishedAsset) bool { return pa.Name == a.Name }) {
+			missing = append(missing, a.Name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("the release %s lacks %s, so it stays a draft; run mage publish again to complete it", tag, strings.Join(missing, ", "))
+	}
+	if err := h.publish(tag); err != nil {
+		return fmt.Errorf("publish the release %s: %w", tag, err)
+	}
 	return nil
 }
 
