@@ -66,7 +66,7 @@ func Read(t tracker.Tracker, repo, dir string, keep func(path string) bool) ([]F
 		}
 	}
 	if co, ok := sys.(tracker.Checkouts); ok && !co.HasCheckout(repo) {
-		return nil, "the host serves no files and no checkout of it sits beside this one"
+		return nil, "the host serves no files and no checkout of it sits beside this one; scrum-master checkouts lays it down (GH-2812)"
 	}
 	ref, err := sys.DefaultBranch(repo)
 	if err != nil {
