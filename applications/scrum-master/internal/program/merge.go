@@ -153,7 +153,10 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 	}
 	if _, err := inMain("merge-base", "--is-ancestor", "refs/heads/"+branch, upstream); err == nil {
 		exact := "--grep=" + regexp.QuoteMeta(fmt.Sprintf("%s#%d", issueProject, iid)) + "([^0-9]|$)"
-		r.Commit, _ = inMain("rev-list", "-1", "--merges", "-E", exact, upstream)
+		r.Commit, err = mergeOf(inMain, branch, exact, upstream)
+		if err != nil {
+			return r, err
+		}
 		if r.Commit == "" {
 			return r, fmt.Errorf("%s has no commits over %s; commit the work first", branch, base)
 		}
@@ -235,6 +238,29 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 	_ = others
 	r.ToClose = closes
 	return r, nil
+}
+
+// mergeOf is the merge, among those on upstream citing the issue (grep),
+// that brought branch in: its second parent's history holds the branch's
+// tip and its first parent's does not. A branch at the base's tip, or one
+// an earlier merge of another issue with the same reference cites, has
+// none, so it is not taken for merged (GH-2801).
+func mergeOf(inMain func(...string) (string, error), branch, grep, upstream string) (string, error) {
+	tip, err := inMain("rev-parse", "refs/heads/"+branch)
+	if err != nil {
+		return "", err
+	}
+	list, _ := inMain("rev-list", "--merges", "-E", grep, upstream)
+	for _, c := range strings.Fields(list) {
+		if _, err := inMain("merge-base", "--is-ancestor", tip, c+"^2"); err != nil {
+			continue
+		}
+		if _, err := inMain("merge-base", "--is-ancestor", tip, c+"^1"); err == nil {
+			continue
+		}
+		return c, nil
+	}
+	return "", nil
 }
 
 // CloseDelivered is the close word (GH-201, srd013 R5.7): on the merge
