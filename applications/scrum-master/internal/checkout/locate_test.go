@@ -116,3 +116,65 @@ func TestAPathNamesItsCheckout(t *testing.T) {
 		t.Error("a path with no checkout located one")
 	}
 }
+
+// homeRoot is a home folder for a test whose checkouts sit below it, so
+// Levels searches up to it.
+func homeRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	if r, err := filepath.EvalSymlinks(root); err == nil {
+		root = r
+	}
+	t.Setenv("HOME", root)
+	return root
+}
+
+// A system repository at the top of its group finds a project in a
+// subgroup checked out at its group path, below the group's folder or
+// below any level above it, and two projects sharing a last segment each
+// find their own; the side-by-side layout still works (GH-2803).
+func TestLocateFindsCheckoutsAtTheirGroupPath(t *testing.T) {
+	root := homeRoot(t)
+	g := filepath.Join(root, "GITLABS", "g")
+	system := filepath.Join(g, "program")
+	repoAt(t, system, "https://gitlab.example.com/g/program.git", TrackersFile)
+	sub := filepath.Join(g, "sub", "tpm")
+	other := filepath.Join(g, "other", "tpm")
+	repoAt(t, sub, "https://gitlab.example.com/g/sub/tpm.git")
+	repoAt(t, other, "https://gitlab.example.com/g/other/tpm.git")
+	for project, want := range map[string]string{"g/sub/tpm": sub, "g/other/tpm": other} {
+		if got, ok := Locate(system, project); !ok || got != want {
+			t.Errorf("Locate(%s) from the system = %q, %v; want %s", project, got, ok, want)
+		}
+	}
+	// Below a level above the group's folder, at the full group path.
+	x := filepath.Join(root, "x")
+	far := filepath.Join(x, "g", "deep", "tool")
+	repoAt(t, far, "https://gitlab.example.com/g/deep/tool.git")
+	inX := filepath.Join(x, "g", "program2")
+	repoAt(t, inX, "https://gitlab.example.com/g/program2.git")
+	if got, ok := Locate(inX, "g/deep/tool"); !ok || got != far {
+		t.Errorf("Locate(g/deep/tool) from %s = %q, %v; want %s", inX, got, ok, far)
+	}
+	// Side by side, named for the last segment, as today.
+	beside := filepath.Join(g, "lone")
+	repoAt(t, beside, "https://gitlab.example.com/g/team/lone.git")
+	if got, ok := Locate(system, "g/team/lone"); !ok || got != beside {
+		t.Errorf("Locate(g/team/lone) side by side = %q, %v; want %s", got, ok, beside)
+	}
+}
+
+// A folder at a matching path whose origin is another project is passed
+// over, and the lookup goes on to the next candidate (GH-2803, GH-2744).
+func TestLocatePassesOverAPathOfAnotherProject(t *testing.T) {
+	root := homeRoot(t)
+	g := filepath.Join(root, "GITLABS", "g")
+	system := filepath.Join(g, "program")
+	repoAt(t, system, "https://gitlab.example.com/g/program.git", TrackersFile)
+	repoAt(t, filepath.Join(g, "sub", "tpm"), "https://gitlab.example.com/g/elsewhere/tpm.git")
+	right := filepath.Join(g, "tpm")
+	repoAt(t, right, "https://gitlab.example.com/g/sub/tpm.git")
+	if got, ok := Locate(system, "g/sub/tpm"); !ok || got != right {
+		t.Fatalf("Locate(g/sub/tpm) = %q, %v; want %s, passing over the other project's checkout", got, ok, right)
+	}
+}

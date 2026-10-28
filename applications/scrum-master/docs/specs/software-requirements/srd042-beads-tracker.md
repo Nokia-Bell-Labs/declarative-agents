@@ -80,8 +80,13 @@ other host; else it refuses, naming the folders searched and both
 remedies. That checkout is the system repository's, and a word that reads
 the policy without --control reads it there, from any repository of the
 program. A project's files are read from the checkout whose origin is that
-project, found the same way; a checkout whose origin is another project
-is never read for it, and a project with no checkout is an error naming
+project, found the same way: at each of those folders, nearest first, at
+each trailing part of the project's path, longest first, the full group
+path, the path below each group, and last the final segment, so
+checkouts laid out by their group path below a common folder find each
+other and two projects sharing a last segment can sit side by side
+(GH-2803); a checkout whose origin is another project is never read for
+it, and the lookup goes on to the next candidate, and a project with no checkout is an error naming
 the folders searched, never another repository's files or an empty set
 (GH-2744). A checkout's own project is its origin's, whatever its folder
 is called, so a worktree pop opens, named for its branch, names the same
