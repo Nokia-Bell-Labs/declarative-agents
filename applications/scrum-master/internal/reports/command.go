@@ -239,13 +239,9 @@ func init() {
 			// system repository the checkout's reports.md names, whose roster
 			// wins when it names a reporter, so aggregate reads what
 			// sprint-end facts and the site read.
-			system := aggArgs.control
-			if system == "" && IsCentral(aggArgs.dir) {
-				central, err := LoadConfig(aggArgs.dir)
-				if err != nil {
-					return err
-				}
-				system = central.System
+			system, err := aggregateSystem(aggArgs.control, aggArgs.dir)
+			if err != nil {
+				return err
 			}
 			s, err := ChooseSource(t, system, aggArgs.ref, aggArgs.dir)
 			if err != nil {
@@ -332,4 +328,25 @@ func init() {
 			return nil
 		},
 	})
+}
+
+// aggregateSystem is the system repository aggregate reads the roster of:
+// --control, else the one a central checkout's reports.md names, else the
+// one the trackers document in or beside the checkout names, as the site
+// and most words find it, so aggregate runs in a reports checkout that is
+// the site's home only, or in the system checkout itself (GH-2791).
+func aggregateSystem(control, dir string) (string, error) {
+	if control != "" {
+		return control, nil
+	}
+	if IsCentral(dir) {
+		central, err := LoadConfig(dir)
+		if err != nil {
+			return "", err
+		}
+		if central.System != "" {
+			return central.System, nil
+		}
+	}
+	return program.ControlFor("", dir, ""), nil
 }

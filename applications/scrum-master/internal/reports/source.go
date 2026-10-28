@@ -41,8 +41,16 @@ func IsCentral(dir string) bool {
 // the roster as it stands. init writes the roster into every system
 // repository, so its existence alone says nothing; its reporters do.
 func ChooseSource(t tracker.Forge, system, ref, central string) (Source, error) {
+	// A checkout without reports.md, such as a reports repository that is
+	// the site's home only, is no central one: it is named as not read,
+	// never dropped in silence (GH-2791).
+	given := central
 	if !IsCentral(central) {
 		central = ""
+	}
+	notRead := ""
+	if given != "" && central == "" {
+		notRead = fmt.Sprintf("; %s holds no %s, so it is no central reports checkout and is not read", given, ConfigFile)
 	}
 	if system != "" {
 		cfg, err := LoadControl(t, system, ref)
@@ -53,6 +61,7 @@ func ChooseSource(t tracker.Forge, system, ref, central string) (Source, error) 
 			if central != "" {
 				s.Reason += fmt.Sprintf("; the central reports at %s are not read", central)
 			}
+			s.Reason += notRead
 			return s, nil
 		case err != nil && !errors.Is(err, tracker.ErrNotFound):
 			return Source{}, err
@@ -63,7 +72,7 @@ func ChooseSource(t tracker.Forge, system, ref, central string) (Source, error) 
 				cfg.defaults()
 			}
 			return Source{InPlace: true, System: system, Config: cfg,
-				Reason: fmt.Sprintf("in place: the roster in %s %s names no reporter, and no central reports checkout was given", system, ControlFile)}, nil
+				Reason: fmt.Sprintf("in place: the roster in %s %s names no reporter, and no central reports checkout was given", system, ControlFile) + notRead}, nil
 		}
 	}
 	if central == "" {
