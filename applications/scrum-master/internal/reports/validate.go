@@ -20,6 +20,8 @@ type Finding struct {
 // and returns the ones that break their format (srd018 R2; GH-2725). A
 // file under status/rollups/ is a rollup; every other one is a report.
 func Validate(dir string, paths []string) (checked int, findings []Finding, err error) {
+	// Every report passing prints findings [], not null (GH-2792).
+	findings = []Finding{}
 	if len(paths) == 0 {
 		for _, root := range []string{filepath.Join(StatusDir, "reports"), filepath.Join(StatusDir, "rollups"), "reports"} {
 			err = filepath.WalkDir(filepath.Join(dir, root), func(p string, d fs.DirEntry, err error) error {

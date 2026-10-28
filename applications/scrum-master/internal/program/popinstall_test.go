@@ -63,16 +63,16 @@ func TestPopInstallsSkillsIntoWorktree(t *testing.T) {
 	}
 	// A second pop into the same worktree writes nothing, so it reports no
 	// agent installed.
-	if again, err := InstallSkills(checkout, worktree); err != nil || len(again) != 0 {
-		t.Fatalf("a second pop: agents=%v err=%v, want none", again, err)
+	if again, err := InstallSkills(checkout, worktree); err != nil || again == nil || len(again) != 0 {
+		t.Fatalf("a second pop: agents=%#v err=%v, want an empty list, which prints [] (GH-2792)", again, err)
 	}
 }
 
 func TestPopWithoutInstalledSkillsInstallsNothing(t *testing.T) {
 	checkout, worktree, git := checkoutWithWorktree(t)
 	agents, err := InstallSkills(checkout, worktree)
-	if err != nil || agents != nil {
-		t.Fatalf("agents=%v err=%v", agents, err)
+	if err != nil || agents == nil || len(agents) != 0 {
+		t.Fatalf("agents=%#v err=%v, want an empty list (GH-2792)", agents, err)
 	}
 	if status := git(worktree, "status", "--porcelain", "--untracked-files=all"); status != "" {
 		t.Fatalf("worktree status %q", status)

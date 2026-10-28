@@ -82,7 +82,7 @@ func TestValidatePassesPerObjectiveReport(t *testing.T) {
 	writeReport(t, dir, "reports/2026-Q4/2026-W42-po-2.md", Render("po-2", "2026-W42", []Entry{
 		{"objective": "g/po-2#1", "component": "fleet", "status": "on-track", "complete": "no", "problems": "none"}}, nil))
 	checked, findings, err := Validate(dir, nil)
-	if err != nil || checked != 2 || len(findings) != 0 {
+	if err != nil || checked != 2 || findings == nil || len(findings) != 0 {
 		t.Fatalf("checked %d findings %+v err %v", checked, findings, err)
 	}
 	r, _ := ParseReport("x", []byte(report))

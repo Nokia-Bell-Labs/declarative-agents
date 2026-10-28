@@ -149,7 +149,8 @@ func profileCredentials() ([]ProfileEnv, error) {
 	slices.Sort(names)
 	var out []ProfileEnv
 	for _, name := range names {
-		p := ProfileEnv{Profile: name}
+		// A profile that reads no variable lists none: [], not null (GH-2792).
+		p := ProfileEnv{Profile: name, Vars: []EnvVar{}}
 		for _, v := range env[name] {
 			_, set := os.LookupEnv(v) //nolint:forbidigo // Reads the documented SCRUM_MASTER_* environment interface.
 			p.Vars = append(p.Vars, EnvVar{Name: v, Set: set})
