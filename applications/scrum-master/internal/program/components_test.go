@@ -30,7 +30,7 @@ title: "Subsystem: system"
 
 | name | repository | path |
 | --- | --- | --- |
-| tpm | https://gitlab.example.com/an-gc-group/tpm | / |
+| tpm | https://gitlab.example.com/acme/tpm | / |
 `
 
 // The one-component rule gives one verdict for an issue of the Platform
@@ -45,12 +45,12 @@ func TestOneComponentReadsTheSameSRDsEitherWay(t *testing.T) {
 		home = h
 	}
 	t.Setenv("HOME", home)
-	system := filepath.Join(home, "GITLABS", "an-gc-group", "tpm")
-	scrum := filepath.Join(home, "GITLABS", "an-gc-group", "platform", "tpm")
+	system := filepath.Join(home, "GITLABS", "acme", "tpm")
+	scrum := filepath.Join(home, "GITLABS", "acme", "platform", "tpm")
 	checkoutWith(t, system, map[string]string{checkout.TrackersFile: "bd\n", filepath.Join(SRDDir, "srd001-system.md"): systemSRD})
-	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/tpm.git")
+	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/acme/tpm.git")
 	checkoutWith(t, scrum, nil)
-	beadstest.Git(t, scrum, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/platform/tpm.git")
+	beadstest.Git(t, scrum, "remote", "add", "origin", "https://gitlab.example.com/acme/platform/tpm.git")
 
 	onDisk := Defaults()
 	subs, err := SubsystemsIn(system)
@@ -58,14 +58,14 @@ func TestOneComponentReadsTheSameSRDsEitherWay(t *testing.T) {
 		t.Fatal(err)
 	}
 	onDisk.Components, onDisk.ComponentsRead = subs.Components(), true
-	through, err := LoadPolicy(codeFiles{fake.New(), &checkout.Code{Dir: scrum}}, "an-gc-group/tpm", "main")
+	through, err := LoadPolicy(codeFiles{fake.New(), &checkout.Code{Dir: scrum}}, "acme/tpm", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !slices.Equal(through.Components, onDisk.Components) || !slices.Equal(onDisk.Components, []string{"tpm"}) {
 		t.Fatalf("components through the tracker %v, on disk %v", through.Components, onDisk.Components)
 	}
-	issue := tracker.Issue{Project: "an-gc-group/platform/tpm", IID: 7, Labels: []string{"plane::data", "kind::build"}}
+	issue := tracker.Issue{Project: "acme/platform/tpm", IID: 7, Labels: []string{"plane::data", "kind::build"}}
 	want := "needs exactly one component:: label, has 0"
 	for name, p := range map[string]Policy{"on disk": onDisk, "through the tracker": through} {
 		if got := oneComponent(issue, p); !slices.Contains(got, want) {
@@ -90,9 +90,9 @@ func (failingDir) ListDir(string, string, string) ([]string, error) {
 // A tracker that cannot read the SRDs fails LoadPolicy, naming the project
 // and the folder, never reads as a program with no component (GH-2744).
 func TestLoadPolicyFailsOnUnreadableSRDs(t *testing.T) {
-	_, err := LoadPolicy(failingDir{fake.New()}, "an-gc-group/tpm", "main")
-	if err == nil || !strings.Contains(err.Error(), "an-gc-group/tpm "+SRDDir) {
-		t.Fatalf("LoadPolicy = %v, want an error naming an-gc-group/tpm %s", err, SRDDir)
+	_, err := LoadPolicy(failingDir{fake.New()}, "acme/tpm", "main")
+	if err == nil || !strings.Contains(err.Error(), "acme/tpm "+SRDDir) {
+		t.Fatalf("LoadPolicy = %v, want an error naming acme/tpm %s", err, SRDDir)
 	}
 }
 
@@ -105,14 +105,14 @@ title: "Platform"
 ## Context
 
 - owner: Product Owner, platform
-- scrum_repository: https://gitlab.example.com/an-gc-group/platform/tpm
+- scrum_repository: https://gitlab.example.com/acme/platform/tpm
 
 <!-- field: implementation_targets -->
 ## Implementation targets
 
 | name | repository | path |
 | --- | --- | --- |
-| platform | https://gitlab.example.com/an-gc-group/platform/tpm | / |
+| platform | https://gitlab.example.com/acme/platform/tpm | / |
 `
 
 // A team with a scrum repository and no code repository yet declares its
@@ -127,14 +127,14 @@ func TestAScrumWithNoCodeRepositoryYetDeclaresItsComponents(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := fake.New()
-	f.AddFile("an-gc-group/tpm", "main", SRDDir+"/srd002-platform.md", []byte(platformSRD))
-	through, err := LoadSubsystems(f, "an-gc-group/tpm", "main")
+	f.AddFile("acme/tpm", "main", SRDDir+"/srd002-platform.md", []byte(platformSRD))
+	through, err := LoadSubsystems(f, "acme/tpm", "main")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for name, subs := range map[string]Subsystems{"on disk": onDisk, "through the tracker": through} {
-		c, sub, ok := subs.ComponentFor("an-gc-group/platform/tpm")
-		if !ok || sub.ID != "srd002-platform" || c.Name != "platform" || sub.ScrumRepository() != "an-gc-group/platform/tpm" {
+		c, sub, ok := subs.ComponentFor("acme/platform/tpm")
+		if !ok || sub.ID != "srd002-platform" || c.Name != "platform" || sub.ScrumRepository() != "acme/platform/tpm" {
 			t.Errorf("%s: %+v %+v %v", name, c, sub, ok)
 		}
 		if got := Labels("data", "build", "", c.Name); !slices.Contains(got, "component::platform") {

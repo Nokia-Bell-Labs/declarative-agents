@@ -38,15 +38,15 @@ func worktree(t *testing.T, dir, branch string) string {
 // origin, never the worktree's folder, and its policy reads from the
 // worktree (GH-2752).
 func TestASystemWorktreeIsNamedByItsOrigin(t *testing.T) {
-	root := filepath.Join(home(t), "GITLABS", "an-gc-group")
+	root := filepath.Join(home(t), "GITLABS", "acme")
 	system := filepath.Join(root, "tpm")
 	checkoutWith(t, system, map[string]string{checkout.TrackersFile: "bd\n", PolicyFile: approvalPolicy})
-	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/tpm.git")
+	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/acme/tpm.git")
 	wt := worktree(t, system, "46-take-scrum-master-v0-20261026-6")
 
 	control := ControlFor("", wt, "")
-	if control != "an-gc-group/tpm" {
-		t.Fatalf("the worktree's control = %q, want an-gc-group/tpm", control)
+	if control != "acme/tpm" {
+		t.Fatalf("the worktree's control = %q, want acme/tpm", control)
 	}
 	p, err := LoadPolicy(codeFiles{fake.New(), &checkout.Code{Dir: wt}}, control, "main")
 	if err != nil || !p.RequireApproval {
@@ -58,17 +58,17 @@ func TestASystemWorktreeIsNamedByItsOrigin(t *testing.T) {
 // forge's groups, the system above is found and named by its origin, and
 // its policy reads from its checkout (GH-2752, GH-2743).
 func TestAScrumWorktreeFindsTheSystemAbove(t *testing.T) {
-	root := filepath.Join(home(t), "GITLABS", "an-gc-group")
+	root := filepath.Join(home(t), "GITLABS", "acme")
 	system, scrum := filepath.Join(root, "tpm"), filepath.Join(root, "platform", "tpm")
 	checkoutWith(t, system, map[string]string{checkout.TrackersFile: "bd\n", PolicyFile: approvalPolicy})
-	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/tpm.git")
+	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/acme/tpm.git")
 	checkoutWith(t, scrum, nil)
-	beadstest.Git(t, scrum, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/platform/tpm.git")
+	beadstest.Git(t, scrum, "remote", "add", "origin", "https://gitlab.example.com/acme/platform/tpm.git")
 	wt := worktree(t, scrum, "12-plan-the-sprint")
 
 	control := ControlFor("", wt, "")
-	if control != "an-gc-group/tpm" {
-		t.Fatalf("the scrum worktree's control = %q, want an-gc-group/tpm", control)
+	if control != "acme/tpm" {
+		t.Fatalf("the scrum worktree's control = %q, want acme/tpm", control)
 	}
 	p, err := LoadPolicy(codeFiles{fake.New(), &checkout.Code{Dir: wt}}, control, "main")
 	if err != nil || !p.RequireApproval {
@@ -80,26 +80,26 @@ func TestAScrumWorktreeFindsTheSystemAbove(t *testing.T) {
 // by its origin, and a refusal to read a project with no checkout names the
 // project, never a folder (GH-2752).
 func TestARefusalNamesTheProjectByOrigin(t *testing.T) {
-	root := filepath.Join(home(t), "GITLABS", "an-gc-group")
+	root := filepath.Join(home(t), "GITLABS", "acme")
 	system := filepath.Join(root, "tpm-renamed")
 	checkoutWith(t, system, map[string]string{checkout.TrackersFile: "bd\n"})
-	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/tpm.git")
-	if got := SystemControl(system); got != "an-gc-group/tpm" {
-		t.Fatalf("SystemControl = %q, want an-gc-group/tpm", got)
+	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/acme/tpm.git")
+	if got := SystemControl(system); got != "acme/tpm" {
+		t.Fatalf("SystemControl = %q, want acme/tpm", got)
 	}
-	_, err := (&checkout.Code{Dir: system}).GetFile("an-gc-group/elsewhere", PolicyFile, "main")
-	if !errors.Is(err, checkout.ErrNoCheckout) || !strings.HasPrefix(err.Error(), "an-gc-group/elsewhere:") || strings.Contains(err.Error(), "tpm-renamed:") {
-		t.Fatalf("refusal = %v, want it to name an-gc-group/elsewhere", err)
+	_, err := (&checkout.Code{Dir: system}).GetFile("acme/elsewhere", PolicyFile, "main")
+	if !errors.Is(err, checkout.ErrNoCheckout) || !strings.HasPrefix(err.Error(), "acme/elsewhere:") || strings.Contains(err.Error(), "tpm-renamed:") {
+		t.Fatalf("refusal = %v, want it to name acme/elsewhere", err)
 	}
 }
 
 // A word given the system as a worktree's path, as plan write's --system
 // is documented, reads the policy there (GH-2769).
 func TestThePolicyReadsFromASystemPath(t *testing.T) {
-	root := filepath.Join(home(t), "GITLABS", "an-gc-group")
+	root := filepath.Join(home(t), "GITLABS", "acme")
 	system := filepath.Join(root, "tpm")
 	checkoutWith(t, system, map[string]string{checkout.TrackersFile: "bd\n", PolicyFile: approvalPolicy})
-	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/an-gc-group/tpm.git")
+	beadstest.Git(t, system, "remote", "add", "origin", "https://gitlab.example.com/acme/tpm.git")
 	wt := worktree(t, system, "4-plan-release-1")
 	p, err := LoadPolicy(codeFiles{fake.New(), &checkout.Code{Dir: wt}}, wt, "main")
 	if err != nil || !p.RequireApproval {

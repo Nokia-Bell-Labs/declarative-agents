@@ -29,8 +29,8 @@ func repoAt(t *testing.T, dir, origin string, files ...string) {
 }
 
 // mirrored lays checkouts out as the forge's groups are, under a home
-// folder: the system an-gc-group/tpm and the Platform scrum's repository
-// an-gc-group/platform/tpm, which shares the system's last segment.
+// folder: the system acme/tpm and the Platform scrum's repository
+// acme/platform/tpm, which shares the system's last segment.
 func mirrored(t *testing.T) (home, system, scrum string) {
 	t.Helper()
 	home = t.TempDir()
@@ -38,10 +38,10 @@ func mirrored(t *testing.T) (home, system, scrum string) {
 		home = h
 	}
 	t.Setenv("HOME", home)
-	system = filepath.Join(home, "GITLABS", "an-gc-group", "tpm")
-	scrum = filepath.Join(home, "GITLABS", "an-gc-group", "platform", "tpm")
-	repoAt(t, system, "https://gitlab.example.com/an-gc-group/tpm.git", TrackersFile)
-	repoAt(t, scrum, "https://gitlab.example.com/an-gc-group/platform/tpm.git")
+	system = filepath.Join(home, "GITLABS", "acme", "tpm")
+	scrum = filepath.Join(home, "GITLABS", "acme", "platform", "tpm")
+	repoAt(t, system, "https://gitlab.example.com/acme/tpm.git", TrackersFile)
+	repoAt(t, scrum, "https://gitlab.example.com/acme/platform/tpm.git")
 	return home, system, scrum
 }
 
@@ -64,8 +64,8 @@ func TestFindTrackersRefusesAmbiguityAndOtherGroups(t *testing.T) {
 	if got, err := FindTrackers(scrum); err != nil || got != filepath.Join(system, TrackersFile) {
 		t.Fatalf("with another group's system above: %q, %v", got, err)
 	}
-	second := filepath.Join(home, "GITLABS", "an-gc-group", "tpm-next")
-	repoAt(t, second, "https://gitlab.example.com/an-gc-group/tpm-next.git", TrackersFile)
+	second := filepath.Join(home, "GITLABS", "acme", "tpm-next")
+	repoAt(t, second, "https://gitlab.example.com/acme/tpm-next.git", TrackersFile)
 	_, err := FindTrackers(scrum)
 	if err == nil || !strings.Contains(err.Error(), system) || !strings.Contains(err.Error(), second) {
 		t.Fatalf("two systems of the group: %v, want both named", err)
@@ -73,23 +73,23 @@ func TestFindTrackersRefusesAmbiguityAndOtherGroups(t *testing.T) {
 }
 
 // A project's checkout is the one whose origin is the project: from the
-// Platform scrum's repository, an-gc-group/tpm is the system's checkout,
+// Platform scrum's repository, acme/tpm is the system's checkout,
 // never the scrum's own though both are named tpm, and a project with no
 // checkout is an error naming the folders searched, never another
 // repository's files (GH-2744).
 func TestLocateMatchesTheOrigin(t *testing.T) {
 	_, system, scrum := mirrored(t)
-	if got, ok := Locate(scrum, "an-gc-group/tpm"); !ok || got != system {
-		t.Fatalf("Locate(an-gc-group/tpm) = %q, %v, want %s", got, ok, system)
+	if got, ok := Locate(scrum, "acme/tpm"); !ok || got != system {
+		t.Fatalf("Locate(acme/tpm) = %q, %v, want %s", got, ok, system)
 	}
-	if got, ok := Locate(scrum, "an-gc-group/platform/tpm"); !ok || got != scrum {
+	if got, ok := Locate(scrum, "acme/platform/tpm"); !ok || got != scrum {
 		t.Fatalf("Locate(its own) = %q, %v", got, ok)
 	}
 	c := &Code{Dir: scrum}
-	if _, err := c.GetFile("an-gc-group/elsewhere", TrackersFile, "main"); !errors.Is(err, ErrNoCheckout) || !strings.Contains(err.Error(), "an-gc-group/elsewhere") {
+	if _, err := c.GetFile("acme/elsewhere", TrackersFile, "main"); !errors.Is(err, ErrNoCheckout) || !strings.Contains(err.Error(), "acme/elsewhere") {
 		t.Fatalf("a project with no checkout: %v", err)
 	}
-	if c.HasCheckout("an-gc-group/elsewhere") || !c.HasCheckout("an-gc-group/tpm") {
+	if c.HasCheckout("acme/elsewhere") || !c.HasCheckout("acme/tpm") {
 		t.Error("HasCheckout does not follow Locate")
 	}
 }

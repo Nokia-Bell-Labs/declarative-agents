@@ -275,17 +275,17 @@ func TestOpenForReadsTheTrackersThroughTheForge(t *testing.T) {
 	t.Setenv("SCRUM_MASTER_SYSTEM", "")
 	dir := filepath.Join(t.TempDir(), "platform", "tpm")
 	os.MkdirAll(dir, 0o755)
-	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"remote", "add", "origin", "https://gitlab.example.com/an-gc-group/platform/tpm.git"}} {
+	for _, args := range [][]string{{"init", "-q", "-b", "main"}, {"remote", "add", "origin", "https://gitlab.example.com/acme/platform/tpm.git"}} {
 		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
 			t.Fatalf("git %v: %v: %s", args, err, out)
 		}
 	}
-	host := hostFake{Fake: fake.New(), served: map[string][]byte{"an-gc-group/tpm:" + File: Document(Config{Group: "an-gc-group", Default: System{Name: GitLab}})}}
+	host := hostFake{Fake: fake.New(), served: map[string][]byte{"acme/tpm:" + File: Document(Config{Group: "acme", Default: System{Name: GitLab}})}}
 	saved := openers[GitLab]
 	t.Cleanup(func() { openers[GitLab] = saved })
 	openers[GitLab] = func(System) (tracker.Tracker, error) { return host, nil }
 
-	got, err := OpenFor(dir, "an-gc-group/tpm")
+	got, err := OpenFor(dir, "acme/tpm")
 	if err != nil {
 		t.Fatalf("OpenFor with --system: %v", err)
 	}
