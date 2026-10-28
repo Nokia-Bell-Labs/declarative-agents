@@ -5304,6 +5304,12 @@ document_types:
     required_fields: []
     purpose: Provides prose-heavy operator or developer guidance.
     markdown: native Markdown already (format markdown); it declares no structure, so it takes no rule data.
+  tutorial:
+    location: docs/tutorials/name.md
+    format: markdown
+    required_fields: []
+    purpose: Walks a person through one workflow end to end, in ordered steps.
+    markdown: native Markdown already (format markdown); it declares no structure, so it takes no rule data.
   stats_baseline:
     location: docs/stats/name.json
     format: json

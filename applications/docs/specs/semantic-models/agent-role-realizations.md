@@ -2804,6 +2804,110 @@ applications/scrum-master/plugin/agents/onboard/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-checkouts -->
+#### scrum-master-checkouts
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/checkouts/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-clean-up -->
+#### scrum-master-clean-up
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/clean-up/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-reports-collect -->
+#### scrum-master-reports-collect
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/reports-collect/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-reports-path -->
+#### scrum-master-reports-path
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/reports-path/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-reports-previous -->
+#### scrum-master-reports-previous
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/reports-previous/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-status-report -->
+#### scrum-master-status-report
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/status-report/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-status-rollup -->
+#### scrum-master-status-rollup
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/status-rollup/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-upgrade -->
+#### scrum-master-upgrade
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/upgrade/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- field: deployment_realizations -->
 ## Deployment realizations
 
