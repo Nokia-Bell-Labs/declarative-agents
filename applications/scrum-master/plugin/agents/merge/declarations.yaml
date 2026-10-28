@@ -189,3 +189,50 @@ tools:
     condition: a close does not land and the word exits non-zero
     message_shape: 'merged <commit>, but <reference> did not close: <reason>'
     state_after_failure: the merge stands; a re-run with the same commit finishes the delivery
+- name: clean_up
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - clean-up
+  - --json
+  visibility: internal
+  description: Remove the delivered issue's worktree, its branch in the main checkout, and the branch on origin, keeping a worktree with changes and an unmerged branch, each with its reason (GH-2796).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      branch:
+        type: string
+        description: The branch the merge word merged.
+        flag: --branch
+        source: $from(deliver).branch
+    required: [branch]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The clean-up word's JSON report — the worktree, the branch, and origin's branch, each removed, kept with its reason, or none.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: the issue's worktree
+    description: Removes the worktree pop opened for the issue, from the main checkout.
+  - kind: external_api_call
+    target: origin
+    description: Deletes the merged branch on origin.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The branch is merged into the default branch; pop opens a new worktree when one is needed.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or the branch parameter is missing
+    message_shape: 'clean_up: <error>'
+    state_after_failure: nothing removed by a process that did not start
+  - signal: ToolFailed
+    condition: the word cannot read the repository the worktree belongs to
+    message_shape: 'clean-up needs a local checkout: <reason>'
+    state_after_failure: the delivery stands; the worktree and branches are as they were

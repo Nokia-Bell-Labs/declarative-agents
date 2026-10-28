@@ -34,8 +34,11 @@ lifecycle: |-
      and each closes on the commit the merge word reported, and reports
      complete each closed Sprint Goal
   5. Deliver → Refused (ToolFailed): the merge was refused
-  6. Close → Done (ToolDone): the delivery is complete
-  7. Close → PartiallyDelivered (ToolFailed): merged but not closed; re-run
+  6. Close → Cleanup (ToolDone): scrum-master issue clean-up removes the
+     issue's worktree and its branch, here and on origin (GH-2796)
+  7. Cleanup → Done (ToolDone, ToolFailed): the delivery is complete; what
+     the clean-up kept, and why, is in its output
+  8. Close → PartiallyDelivered (ToolFailed): merged but not closed; re-run
      close-delivered with the named commit
 initial_state: Idle
 budget:
@@ -65,6 +68,13 @@ states:
     closes reference still open on the reported commit, and posts a
     reported_complete event on each closed Sprint Goal's ledger (srd038
     R2.2). The commit and the closes come from the merge word's output.
+- name: Cleanup
+  meaning: |
+    The clean-up word: scrum-master issue clean-up, from the main checkout,
+    removes the worktree pop opened for the issue unless it holds a change
+    git status shows, deletes the merged branch there (git branch -d keeps
+    one not merged), and deletes it on origin (GH-2796). What it keeps it
+    names with the reason; the delivery has landed either way.
 - name: Done
   run_status: succeeded
   meaning: |
@@ -125,6 +135,14 @@ transitions:
   next: Refused
 - state: Close
   signal: ToolDone
+  next: Cleanup
+  action: clean_up
+  summary: true
+- state: Cleanup
+  signal: ToolDone
+  next: Done
+- state: Cleanup
+  signal: ToolFailed
   next: Done
 - state: Close
   signal: ToolFailed
@@ -139,5 +157,8 @@ transitions:
   signal: CommandError
   next: Failed
 - state: Close
+  signal: CommandError
+  next: Failed
+- state: Cleanup
   signal: CommandError
   next: Failed

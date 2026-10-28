@@ -56,10 +56,13 @@ states:
        with one closes entry per Sprint Goal the owner reports complete; the
        merge closes the issue and those Sprint Goals.
     6. Ask the owner to confirm the release and its version (facts recommends
-       one). With no confirmation, or nothing to release, stop here.
+       one). With no confirmation, or nothing to release, go to 8.
     7. Once the summary merges, on main: release_gate, then
        release_tag, both with the artifact, the version, and the issue.
        Show the tag.
+    8. Last, run clean_up: it removes the issue's worktree and its merged
+       branch, here and on origin, and names what it kept (GH-2796). Then
+       call done.
 - name: Parse
   meaning: |
     The model's response is parsed into one tool call. A parse failure is

@@ -11,6 +11,7 @@ tools:
   - issue_merge
   - release_gate
   - release_tag
+  - clean_up
 
   # File words
   - read

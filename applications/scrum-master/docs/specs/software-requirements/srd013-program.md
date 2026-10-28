@@ -134,6 +134,11 @@ scrum-master issue approve posts the approval as the person running it: a commen
 
 merge decomposes into two words the merge profile composes (GH-201, design.md D14): scrum-master issue merge-branch — the gates, the --no-ff merge citing the issue and each closes, and the push, closing nothing — and scrum-master issue close-delivered, which closes the issue and each closes reference on the commit the merge word reports and posts a reported_complete event on each closed Sprint Goal (srd038 R2.2). scrum-master issue merge runs the same code as one command, and scrum-master issue merge --dry-run is the gate word, running every gate and writing nothing. A close that fails after the push is the machine's PartiallyDelivered state, finished by a re-run of close-delivered with the named commit.
 
+<!-- req: R5.8 -->
+### R5.8
+
+Once a delivery has landed, what pop opened for the issue is removed (GH-2796): scrum-master issue clean-up, from the main checkout, removes the worktree that has the branch checked out, deletes the branch with git branch -d, and deletes it on origin. It keeps a worktree holding a change git status shows, and removes nothing for a branch the main checkout has not merged, naming each with the reason; nothing it keeps fails the delivery, and a second run finds nothing and says so. The merge profile runs it after close-delivered; scrum-master issue merge runs it unless --clean-up=false, which a skill that runs words in the worktree after its merge passes, running the clean-up last.
+
 <!-- req: R6 -->
 ## R6 - scrum-master issue labels
 
@@ -336,6 +341,7 @@ A run of the merge profile with the pinned runtime over a popped issue with comm
 #### Traces
 
 - [R5.7](#r57)
+- [R5.8](#r58)
 
 <!-- ac: AC12 -->
 ### AC12
@@ -346,3 +352,13 @@ A run of the pop profile with the pinned runtime over an admitted issue claims i
 #### Traces
 
 - [R7.5](#r75)
+
+<!-- ac: AC13 -->
+### AC13
+
+After a merge, the issue's worktree, its branch, and origin's branch are gone and the result says so; a worktree with an uncommitted change is kept with its branches, as is a branch not merged, each with the reason; a dry run removes nothing; a second run finds nothing left.
+
+<!-- field: traces -->
+#### Traces
+
+- [R5.8](#r58)

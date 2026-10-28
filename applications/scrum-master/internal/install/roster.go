@@ -37,9 +37,9 @@ type group struct {
 }
 
 var groups = []group{
-	{"issue", "File, list, lint, comment on, close, admit, approve, and recur the program's issues, and keep its labels, each with the model-free profile that runs one scrum-master word.",
+	{"issue", "File, list, lint, comment on, close, clean up after, admit, approve, and recur the program's issues, and keep its labels, each with the model-free profile that runs one scrum-master word.",
 		"Use these for one issue operation; to work an issue from pop to merge, use the pop and merge skills, and implement for the whole loop.",
-		[]string{"issue-file", "issue-list", "issue-lint", "comment", "close", "recur", "admit", "approve", "labels"}},
+		[]string{"issue-file", "issue-list", "issue-lint", "comment", "close", "clean-up", "recur", "admit", "approve", "labels"}},
 	{"backlog", "List and check the planning hierarchy, print a document's template or the components ARCHITECTURE declares, route a guide, and render the architecture status, each with the model-free profile that runs one scrum-master word.",
 		"Use these to read or check the backlog; to write a document, use the draft skill, and design for the architecture.",
 		[]string{"backlog-list", "backlog-check", "backlog-template", "backlog-components", "backlog-guide", "architecture-status"}},

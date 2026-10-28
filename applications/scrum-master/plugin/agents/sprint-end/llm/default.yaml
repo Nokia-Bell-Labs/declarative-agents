@@ -59,9 +59,10 @@ tools:
       the done stories, commit (stage_all, commit), and run issue_merge with
       one closes entry per complete Sprint Goal. Ask the owner to confirm the
       release and its version (facts recommends one); with no confirmation, or
-      nothing to release, call done there. Once the summary merges, on main run
+      nothing to release, skip the release. Once the summary merges, on main run
       release_gate then release_tag with the artifact, version, and
-      issue, and show the tag.
+      issue, and show the tag. Last, run clean_up, which removes the issue's
+      worktree and branch, and call done.
 
       Constraints:
       - Every fact comes from sprint_end_facts; invent nothing
