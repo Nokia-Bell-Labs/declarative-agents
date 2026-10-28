@@ -1,8 +1,9 @@
 # Copyright (c) 2026 Nokia
 # SPDX-License-Identifier: BSD-3-Clause
-# Tool selection for the merge machine: three words, no model anywhere
-# (design.md D10, D14; GH-201).
+# Tool selection for the merge machine: four words, no model anywhere
+# (design.md D10, D14; GH-201, GH-2796).
 tools:
   - merge_gate
   - merge_branch
   - close_delivered
+  - clean_up

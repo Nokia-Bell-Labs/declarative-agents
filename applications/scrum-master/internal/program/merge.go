@@ -49,6 +49,9 @@ type MergeResult struct {
 	// emits; the exit status is non-zero (GH-22).
 	Refused string `json:"refused,omitempty"`
 	DryRun  bool   `json:"dry_run"`
+	// Cleanup is what scrum-master issue merge removed after the closes:
+	// the issue's worktree and its branch, here and on origin (GH-2796).
+	Cleanup *Cleanup `json:"cleanup,omitempty"`
 }
 
 // MergedByTrailer names, on a merge commit, the tracker user who ran the
@@ -58,9 +61,10 @@ const MergedByTrailer = "Merged-by:"
 
 // Merge is delivery on the beads tracker, which delivers by local merge
 // (srd042 R2.3): the gates and the merge of MergeBranch, then the closes of
-// CloseDelivered — the two words the merge profile composes, so the command
-// and the machine run the same code (GH-201, srd013 R5.7). A branch already
-// merged is not merged again; its issues still close.
+// CloseDelivered — the two words the merge profile composes before its
+// clean-up, so the command and the machine run the same code (GH-201,
+// srd013 R5.7). A branch already merged is not merged again; its issues
+// still close. scrum-master issue merge then cleans up (GH-2796).
 func Merge(t tracker.Tracker, git Git, project, issueProject string, iid int, branch, dir string, gate MergeGate, closes []string, dryRun bool) (MergeResult, error) {
 	r, err := MergeBranch(t, git, project, issueProject, iid, branch, dir, gate, closes, dryRun)
 	if err != nil || dryRun {
@@ -68,6 +72,22 @@ func Merge(t tracker.Tracker, git Git, project, issueProject string, iid int, br
 	}
 	r.Closed, r.Reported, r.AlreadyReported, r.AlreadyClosed, err = CloseDelivered(t, git, dir, r.Commit, issueProject, iid, closes)
 	return r, err
+}
+
+// MergeAndCleanUp is Merge, then, unless keep or a dry run, CleanUp of the
+// branch it delivered: a clean-up that cannot remove something reports why
+// and fails nothing, since the delivery has landed (GH-2796).
+func MergeAndCleanUp(t tracker.Tracker, git Git, project, issueProject string, iid int, branch, dir string, gate MergeGate, closes []string, dryRun, keep bool) (MergeResult, error) {
+	r, err := Merge(t, git, project, issueProject, iid, branch, dir, gate, closes, dryRun)
+	if err != nil || dryRun || keep {
+		return r, err
+	}
+	c, cerr := CleanUp(git, dir, r.Branch, false)
+	if cerr != nil {
+		c.Reasons = append(c.Reasons, cerr.Error())
+	}
+	r.Cleanup = &c
+	return r, nil
 }
 
 // MergeBranch is the merge word (GH-201, srd013 R5.7): the gates — the

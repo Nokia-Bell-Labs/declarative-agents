@@ -471,6 +471,7 @@ func init() {
 		project, issueProject, branch, audit, dir, control, ref string
 		iid                                                     int
 		closes                                                  cli.Strings
+		cleanUp                                                 bool
 	}
 	cli.Default.Register(&cli.Command{
 		Group: "issue", Name: "merge", Summary: "deliver an issue by a local merge that closes it (beads tracker)",
@@ -487,6 +488,7 @@ func init() {
 			fs.StringVar(&mergeArgs.control, "control", "", "program repository holding control/ files; empty is the system repository beside the checkout, else --project, else the defaults")
 			fs.StringVar(&mergeArgs.ref, "ref", "main", "ref of the control files")
 			fs.Var(&mergeArgs.closes, "closes", "another issue the merge closes, project#iid; repeat for each (srd038 R2.1)")
+			fs.BoolVar(&mergeArgs.cleanUp, "clean-up", true, "once delivered, remove the issue's worktree and its branch, here and on origin; false leaves them for scrum-master issue clean-up, as a skill that runs words after its merge does (GH-2796)")
 		},
 		Run: func(ctx *cli.Context) error {
 			if mergeArgs.project == "" || mergeArgs.iid == 0 {
@@ -518,7 +520,7 @@ func init() {
 			if issueProject == "" {
 				issueProject = mergeArgs.project
 			}
-			r, err := Merge(t, ExecGit{}, mergeArgs.project, issueProject, mergeArgs.iid, branch, mergeArgs.dir, gate, mergeArgs.closes, ctx.DryRun)
+			r, err := MergeAndCleanUp(t, ExecGit{}, mergeArgs.project, issueProject, mergeArgs.iid, branch, mergeArgs.dir, gate, mergeArgs.closes, ctx.DryRun, !mergeArgs.cleanUp)
 			if err != nil && r.Project == "" {
 				return refuse(err)
 			} else if err != nil {
@@ -557,6 +559,9 @@ func init() {
 				}
 			} else if !r.Merged {
 				human = fmt.Sprintf("%s was already merged on %s; closed %s", r.Branch, r.Commit, strings.Join(r.Closed, ", "))
+			}
+			if r.Cleanup != nil {
+				human += "\n" + r.Cleanup.Human()
 			}
 			// closes and issue_project are always in the output, so the
 			// merge profile's later words can read them from the gate (GH-47).
@@ -702,6 +707,29 @@ func init() {
 				human += "; already reported complete " + strings.Join(wasReported, ", ")
 			}
 			return ctx.Emit(r, human)
+		},
+	})
+
+	var cuArgs struct{ branch, dir string }
+	cli.Default.Register(&cli.Command{
+		Group: "issue", Name: "clean-up", Summary: "the clean-up word: remove a delivered issue's worktree and its branch, here and on origin (GH-2796)",
+		Flags: func(fs *flag.FlagSet) {
+			fs.StringVar(&cuArgs.branch, "branch", "", "the merged branch; empty uses the current branch of --dir")
+			fs.StringVar(&cuArgs.dir, "dir", ".", "the issue's worktree, or any checkout of the repository")
+		},
+		Run: func(ctx *cli.Context) error {
+			branch := cuArgs.branch
+			if branch == "" {
+				out, err := ExecGit{}.Run(cuArgs.dir, "branch", "--show-current")
+				if branch = strings.TrimSpace(out); err != nil || branch == "" {
+					return fmt.Errorf("%w: clean-up needs --branch, or --dir on the issue's branch", cli.ErrUsage)
+				}
+			}
+			c, err := CleanUp(ExecGit{}, cuArgs.dir, branch, ctx.DryRun)
+			if err != nil {
+				return err
+			}
+			return ctx.Emit(c, c.Human())
 		},
 	})
 

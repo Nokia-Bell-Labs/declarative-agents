@@ -59,6 +59,8 @@ states:
     7. Run plan_push (--version, --end); show the milestone, the sprint
        issue, the sprint-end issues, the planned events, and anything skipped.
     8. Run tasks for the release.
+    9. Last, run clean_up: it removes the planning issue's worktree and its
+       merged branch, here and on origin, and names what it kept (GH-2796).
     Sprint Planning, in a team's repository once tasks filed its Sprint Goal:
     run plan_candidates (--dir) and show the backlog — stories by rank with
     points, the velocity, and the recommended stories, asking the Product Owner

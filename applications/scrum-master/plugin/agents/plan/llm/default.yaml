@@ -56,8 +56,9 @@ tools:
       the release and confirm the recommended version, end date, and tag; then
       plan_write, commit docs/road-map.md (stage_all, commit),
       issue_merge, and once merged release_gate then release_tag
-      (--artifact corpus), and plan_push with the end date. Show each
-      command's result as you go.
+      (--artifact corpus), and plan_push with the end date; last, clean_up,
+      which removes the issue's worktree and branch. Show each command's
+      result as you go.
 
       Sprint Planning in a team's repository: plan_candidates, show the
       backlog by rank with points and velocity (ask the Product Owner for an
