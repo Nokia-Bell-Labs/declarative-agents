@@ -159,6 +159,16 @@ func TestInPlaceReportsHaveImpactAndNext(t *testing.T) {
 			t.Errorf("an in-place report without %s = %v; want that section named", c.name, problems)
 		}
 	}
+	// Named absolutely, as a profile's file parameter is, or through
+	// --dir, the same report is held to the same sections (GH-2790).
+	dir := t.TempDir()
+	writeReport(t, dir, inPlace, RenderWith("po-1", "2026-W42", work, nil, []string{"x"}, nil))
+	for _, paths := range [][]string{{filepath.Join(dir, inPlace)}, {inPlace}, nil} {
+		_, findings, err := Validate(dir, paths)
+		if err != nil || len(findings) != 1 || !strings.Contains(strings.Join(findings[0].Problems, " "), "no ## Next section") {
+			t.Errorf("validate %v without Next = %+v, %v; want it refused", paths, findings, err)
+		}
+	}
 	if problems := CheckFile(ReportPath(w42, "po-1"), []byte(Render("po-1", "2026-W42", work, nil))); len(problems) != 0 {
 		t.Errorf("a central report without Impact and Next = %v; want valid, as before", problems)
 	}

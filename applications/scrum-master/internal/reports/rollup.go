@@ -243,6 +243,13 @@ func IsRollupPath(p string) bool {
 	return strings.Contains("/"+p, "/"+StatusDir+"/rollups/")
 }
 
+// IsInPlaceReportPath reports whether a status file is a report written in
+// place, under status/reports/ of the repository where its author worked,
+// however the path names it: relative, absolute, or under --dir (GH-2790).
+func IsInPlaceReportPath(p string) bool {
+	return strings.Contains("/"+filepath.ToSlash(p), "/"+StatusDir+"/reports/")
+}
+
 // LatestProgramRollup is the newest program rollup in the checkout at dir,
 // status/rollups/<quarter>/<week>-program.md; empty when there is none.
 func LatestProgramRollup(dir string) string {
