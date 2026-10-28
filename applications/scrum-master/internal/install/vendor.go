@@ -204,6 +204,13 @@ func sortedKeys[V any](m map[string]V) []string {
 	return keys
 }
 
+// VendoredRelease is the release the repository at dir vendors, from its
+// manifest; empty when it vendors none (GH-2813).
+func VendoredRelease(dir string) (string, error) {
+	m, err := readManifest(dir)
+	return m.Release, err
+}
+
 // CheckVendored reports each vendored file that differs from the manifest:
 // edited, since its digest is not the one vendored, or missing. It reads no
 // release, so a repository checks the same wherever it runs (GH-35). A

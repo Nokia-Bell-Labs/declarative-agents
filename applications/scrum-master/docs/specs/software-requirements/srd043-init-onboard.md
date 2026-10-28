@@ -1,6 +1,6 @@
 ---
 id: srd043-init-onboard
-title: "Script: init, onboard, doctor, and checkouts (scrum-master init, scrum-master onboard, scrum-master doctor, scrum-master checkouts)"
+title: "Script: init, onboard, doctor, checkouts, and roll (scrum-master init, scrum-master onboard, scrum-master doctor, scrum-master checkouts, scrum-master roll)"
 ---
 <!-- Copyright (c) 2026 Nokia -->
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
@@ -215,6 +215,24 @@ A repository already checked out, as the lookup finds it, is fetched and fast-fo
 
 The output is one line per repository — cloned, updated, kept with the reason, or failed with the reason — with the counts, and the JSON mirrors it. A repository that cannot be reached fails alone, and the run goes on. A dry run reports what would be cloned or updated and touches nothing. Where a reader notes a registered repository has no checkout (GH-2726), the note names this word as the remedy.
 
+<!-- req: R7 -->
+## R7 - scrum-master roll
+
+<!-- req: R7.1 -->
+### R7.1
+
+roll, run from the system checkout, reads the registry and, for each registered repository, compares the scrum-master release its pin vendors — its .scrum-master manifest — against the release an upgrade here would vendor, the one install.sh installed or the source tree overrides name. A repository already at it is skipped, and the output says at which release. With no release installed to roll, it refuses, touching nothing.
+
+<!-- req: R7.2 -->
+### R7.2
+
+For each repository behind, roll files one issue there — plane data, kind consume, filed by roll (op::upgrade, srd001 R34.1) — and opens a branch and merge request that takes the release: the upgrade profile's steps (srd037 R7.4) — vendor, doctor, skills — committed once on the branch, cut from the repository's default branch in a temporary worktree its checkout never leaves its own branch for, pushed to the origin, the merge request closing the issue where the tracking system's host reviews branches (srd013 R5.5); never a push to a default branch. One branch per release, so an upgrade already open at the origin is reported, not duplicated, and its issue found by its marker rather than filed again.
+
+<!-- req: R7.3 -->
+### R7.3
+
+roll works on checkouts (R6): a registered repository with no checkout at its group path fails alone, the checkouts word named as the remedy, and the run goes on. The output is one line per repository — skipped at its release, opened with its issue, branch, and merge request, or failed with the reason — with the counts, and the JSON mirrors it; one repository's failure does not stop the rest. A dry run reports what would be opened and changes nothing.
+
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -346,3 +364,15 @@ From a system checkout below its group path, checkouts clones every registered r
 - [R6.1](#r61)
 - [R6.2](#r62)
 - [R6.3](#r63)
+
+<!-- ac: AC11 -->
+### AC11
+
+With two registered repositories, one at the running release and one behind, roll skips the first naming its release and files an issue in the second — plane data, kind consume, op::upgrade — and opens a branch at its origin taking the release, the upgrade's steps committed once, the checkout's own branch untouched; run again with the upgrade open, it reports the open merge request and opens nothing — no second issue, no second commit; a registered repository with no checkout fails alone naming checkouts as the remedy, and the rest are still processed; and a dry run reports what would be opened, files nothing, and pushes nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R7.1](#r71)
+- [R7.2](#r72)
+- [R7.3](#r73)

@@ -2908,6 +2908,19 @@ applications/scrum-master/plugin/agents/upgrade/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-roll -->
+#### scrum-master-roll
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/roll/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- field: deployment_realizations -->
 ## Deployment realizations
 

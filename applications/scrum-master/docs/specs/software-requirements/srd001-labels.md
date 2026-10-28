@@ -638,7 +638,7 @@ It carries Requirements and Acceptance Criteria, and its branch changes docs/ an
 <!-- req: R34.1 -->
 ### R34.1
 
-Every issue scrum-master files carries one op::<operation> label naming the operation that filed it: op::file (scrum-master issue file), op::plan (scrum-master plan push), op::goals (scrum-master goals push), op::onboard (scrum-master onboard), op::report (an actionable signal from scrum-master reports), op::status (a weekly status issue), and op::recur (the next instance scrum-master issue recur opens).
+Every issue scrum-master files carries one op::<operation> label naming the operation that filed it: op::file (scrum-master issue file), op::plan (scrum-master plan push), op::goals (scrum-master goals push), op::onboard (scrum-master onboard), op::report (an actionable signal from scrum-master reports), op::status (a weekly status issue), op::recur (the next instance scrum-master issue recur opens), and op::upgrade (an upgrade scrum-master roll files; GH-2813).
 
 <!-- req: R34.2 -->
 ### R34.2

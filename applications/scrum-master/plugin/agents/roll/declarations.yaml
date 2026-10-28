@@ -1,0 +1,50 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The roll machine's word (GH-2813); the directory is a parameter from
+# the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-roll-declarations
+tools:
+- name: roll
+  type: exec
+  binary: scrum-master
+  args:
+  - roll
+  - --json
+  visibility: internal
+  description: Roll the installed scrum-master release across the program; for every registered repository behind it, file an upgrade issue and open a branch and merge request taking the release — the upgrade profile's steps committed on the branch — never a push to a default branch; a repository already at the release is skipped and an upgrade already open is reported, not duplicated (GH-2813).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The system repository's checkout; empty is the git root.
+        flag: --dir
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The roll word's JSON report — the release being rolled and each registered repository, skipped at its release, opened with its issue, branch, and merge request, or failed with the reason.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: each registered repository's tracker and origin
+    description: Files one upgrade issue per repository behind the release, pushes one upgrade branch to its origin, and opens its merge request where the host reviews branches.
+  - kind: filesystem_write
+    target: temporary worktrees of the registered checkouts
+    description: Commits the upgrade's files on each branch in a temporary worktree, removed after the push; no checkout leaves its branch.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: An upgrade lands only when its merge request is merged; closing the issue and deleting the branch undoes an open one.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'roll: <error>'
+    state_after_failure: nothing filed by a process that did not start
+  - signal: ToolFailed
+    condition: the directory is no system checkout, has no forge origin, its registry names no repositories, or no scrum-master release is installed to roll
+    message_shape: 'no scrum-master profiles installed at <home>; install them with install.sh, or set SCRUM_MASTER_HOME'
+    state_after_failure: the repositories are as they were
