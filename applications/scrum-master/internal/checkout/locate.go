@@ -145,10 +145,14 @@ func Levels(dir string) []string {
 }
 
 // Locate is project's checkout as seen from the checkout at dir: dir's own
-// when it is the project's, else the nearest folder of Levels holding a
-// checkout named for the project whose origin is the project. A checkout
-// named for the project whose origin is another is never taken for it
-// (GH-2744).
+// when it is the project's, else, at the nearest folder of Levels that
+// holds one, a checkout at a trailing part of the project's path whose
+// origin is the project. At each level the parts are tried longest first:
+// the full path, the path below each group, and last the final segment,
+// so checkouts laid out by their group path below a common folder find
+// each other, and two projects sharing a last segment can be checked out
+// side by side (GH-2803). A checkout at a matching path whose origin is
+// another project is never taken for it (GH-2744).
 func Locate(dir, project string) (string, bool) {
 	// A project named by a checkout's path is that checkout, whatever its
 	// origin: words document --system as the system repository's path
@@ -161,9 +165,24 @@ func Locate(dir, project string) (string, bool) {
 		return root, true
 	}
 	for _, level := range Levels(root) {
-		if c := filepath.Join(level, path.Base(project)); c != root && Of(c, project) {
-			return c, true
+		for _, tail := range trailingPaths(project) {
+			if c := filepath.Join(level, filepath.FromSlash(tail)); c != root && Of(c, project) {
+				return c, true
+			}
 		}
 	}
 	return "", false
+}
+
+// trailingPaths are the trailing parts of project's path, longest first:
+// group/sub/name, sub/name, name (GH-2803).
+func trailingPaths(project string) []string {
+	parts := strings.Split(strings.Trim(ProjectPath(project), "/"), "/")
+	out := make([]string, 0, len(parts))
+	for i := range parts {
+		if tail := path.Join(parts[i:]...); tail != "" && tail != "." {
+			out = append(out, tail)
+		}
+	}
+	return out
 }
