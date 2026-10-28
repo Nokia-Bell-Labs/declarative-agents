@@ -158,9 +158,12 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 			walk(id, 1)
 		}
 	}
-	if len(teams) > 0 {
+	scrums := slices.DeleteFunc(slices.Clone(teams), func(t timeline.Team) bool { return t.Initiative != "" })
+	if len(scrums) > 0 {
 		b.WriteString("- [Scrums](/" + ScrumsDir + "/index.md)\n")
-		for _, t := range teams {
+		for _, t := range scrums {
+			// An initiative repository is no scrum and has no page here:
+			// its documents are on the plan, under its initiative (GH-2811).
 			chip := `<span class="kb kb-scrum" title="Scrum">S</span> `
 			if t.Program {
 				chip = `<span class="kb kb-program" title="Program">P</span> `

@@ -16,13 +16,18 @@ import (
 )
 
 // TeamSource is one team repository whose documents roll up to this one's:
-// its name, which its documents carry as <name>/<id>, and a directory
-// holding its docs/ to read as a checkout's.
+// its name, which its documents carry as <name>/<id> — its project path
+// below the program's group (GH-2811) — and a directory holding its docs/
+// to read as a checkout's.
 type TeamSource struct {
 	Name       string `json:"name"`
 	Repository string `json:"repository,omitempty"`
 	Dir        string `json:"-"`
 	Source     string `json:"source"`
+	// Initiative is the initiative document the repository's SRD declares
+	// with its initiative item: the repository holds that initiative's
+	// epics and features, which attach under it (GH-2811).
+	Initiative string `json:"initiative,omitempty"`
 }
 
 // SourceSibling names a team read from a checkout beside this one, as
@@ -61,15 +66,17 @@ func RegistrySources(t tracker.Tracker, system, ref, scratch string) (sources []
 	// A team that names a scrum repository plans there alone; one that
 	// does not plans in its component repositories (GH-2738).
 	var repos []string
-	urls := map[string]string{}
+	urls, initiatives := map[string]string{}, map[string]string{}
 	for _, sub := range teams {
 		for _, r := range sub.PlanningRepositories() {
 			if r != "" && !slices.Contains(repos, r) {
 				repos = append(repos, r)
 				urls[r] = repositoryURL(sub, r)
+				initiatives[r] = sub.Initiative
 			}
 		}
 	}
+	group := path.Dir(program.ProjectPath(system))
 	for _, repo := range repos {
 		files, reason := repofiles.Read(t, repo, "docs", teamFile)
 		if reason != "" {
@@ -90,7 +97,7 @@ func RegistrySources(t tracker.Tracker, system, ref, scratch string) (sources []
 		if len(files) > 0 {
 			src = files[0].Source
 		}
-		sources = append(sources, TeamSource{Name: path.Base(repo), Repository: repo, Dir: dir, Source: src})
+		sources = append(sources, TeamSource{Name: program.RepositoryName(group, repo), Repository: repo, Dir: dir, Source: src, Initiative: initiatives[repo]})
 	}
 	return sources, unread, true, nil
 }

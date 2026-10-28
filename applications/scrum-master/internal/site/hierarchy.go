@@ -63,9 +63,18 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 		return err == nil
 	}
 	nodes, tracked := hierarchyNodes(f)
+	// An initiative with a repository of its own: the SRD that declares it
+	// names the initiative, and the initiative's page names the repository
+	// (GH-2811).
+	inits := map[string]timeline.Team{}
+	for _, tm := range f.Teams {
+		if tm.Initiative != "" {
+			inits[tm.Initiative] = tm
+		}
+	}
 	pages = map[string][]byte{}
 	for _, n := range nodes {
-		pages[Dir+"/"+n.Page] = []byte(nodePage(n, nodes, tracked, corpus, f.Parent))
+		pages[Dir+"/"+n.Page] = []byte(nodePage(n, nodes, tracked, corpus, f.Parent, inits))
 	}
 	pages[Dir+"/"+HierarchyDir+"/index.md"] = []byte(treePage(nodes, f.Parent))
 	out := make([]Node, 0, len(nodes))
@@ -190,7 +199,7 @@ func parentPage(url string, parent *timeline.ProgramRef) (label, href string) {
 	return id, url
 }
 
-func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item, corpus func(string) bool, parent *timeline.ProgramRef) string {
+func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item, corpus func(string) bool, parent *timeline.ProgramRef, inits map[string]timeline.Team) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts"))
 	b.WriteString(crumbs(n, nodes))
@@ -204,6 +213,9 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	b.WriteString(strings.Join(facts, " · ") + "\n\n")
 	if n.Statement != "" {
 		fmt.Fprintf(&b, "> %s\n\n", n.Statement)
+	}
+	if tm, ok := inits[n.ID]; ok {
+		b.WriteString(initiativeRepo(tm))
 	}
 	link := func(id string) string {
 		c := nodes[id]
@@ -273,6 +285,21 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 		b.WriteString("No forge to link: the repository's origin is not one a browser opens.\n")
 	}
 	return b.String()
+}
+
+// initiativeRepo is the line on an initiative's page naming the repository
+// that holds its epics and features, the one whose SRD's initiative item
+// names it, linked on the forge with its ARCHITECTURE where its URL opens
+// in a browser (GH-2811).
+func initiativeRepo(tm timeline.Team) string {
+	if tm.URL == "" {
+		return fmt.Sprintf("Its epics and features live in %s, its repository.\n\n", tm.Scrum)
+	}
+	blob := tm.URL + "/-/blob/HEAD/"
+	if strings.Contains(tm.URL, "github.com/") {
+		blob = tm.URL + "/blob/HEAD/"
+	}
+	return fmt.Sprintf("Its epics and features live in [%s](%s), its repository, whose [ARCHITECTURE](%sdocs/ARCHITECTURE.md) says how they are built.\n\n", tm.Scrum, tm.URL, blob)
 }
 
 func sourceName(n *Node) string {

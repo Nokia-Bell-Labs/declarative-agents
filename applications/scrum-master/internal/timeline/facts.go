@@ -126,9 +126,17 @@ type Facts struct {
 	// Teams are the program's scrums, as the system's subsystem SRDs
 	// declare them; a tag's facts hold none.
 	Teams []Team `json:"teams,omitempty"`
+	// Group is the program's forge group, the system repository's project
+	// path without its last segment: what each team's Name is named below
+	// (GH-2811).
+	Group string `json:"group,omitempty"`
 	// Parent is the larger program this one is a team of, when its
 	// control/program.md names one (GH-2740).
 	Parent *ProgramRef `json:"parent,omitempty"`
+	// Notes say what the facts could not place, an initiative item naming
+	// a document the system repository does not hold among them, never
+	// skipped silently (GH-2811).
+	Notes []string `json:"notes,omitempty"`
 }
 
 // ProgramRef names another program: its system repository and its site.
@@ -151,7 +159,8 @@ type Program struct {
 
 // Team is one scrum: the subsystem it owns, its Product Owner, the
 // components of its area, and the repositories they live in. Name is what
-// its documents carry as <name>/<id>, its scrum repository's name.
+// its documents carry as <name>/<id>: its scrum repository's project path
+// below the program's group (GH-2811).
 type Team struct {
 	Name         string   `json:"name"`
 	Subsystem    string   `json:"subsystem"`
@@ -167,6 +176,10 @@ type Team struct {
 	// repository: a sub-program, whose own site Site is (GH-2740).
 	Program bool   `json:"program,omitempty"`
 	Site    string `json:"site,omitempty"`
+	// Initiative is the initiative document whose epics and features the
+	// repository holds, when its SRD's initiative item names one: no scrum,
+	// its documents drawn under that initiative (GH-2811).
+	Initiative string `json:"initiative,omitempty"`
 	// URL is its scrum repository's page on the forge, when the SRD names
 	// one a browser opens.
 	URL string `json:"url,omitempty"`
@@ -432,7 +445,10 @@ func article(role string) string {
 // names, and a team's document's own link is in its team, under its
 // checkout's name (GH-135).
 func docDeps(d *hierarchy.Doc) []string {
-	team, _, isTeam := strings.Cut(d.ID, "/")
+	// A team's name is its repository's path below the group, so a team
+	// document's id is everything before its last segment (GH-2811).
+	team := path.Dir(d.ID)
+	isTeam := team != "."
 	var out []string
 	for _, key := range []string{"depends_on", "blocked_by"} {
 		for _, t := range d.Links[key] {

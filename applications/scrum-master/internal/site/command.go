@@ -102,12 +102,14 @@ var words = []word{
 				return err
 			}
 			defer s.Close()
-			pages, _, err := TimelinePages(system, s)
+			pages, now, err := TimelinePages(system, s)
 			if err != nil {
 				return err
 			}
 			published, err := Publish(dir, "timeline", pages, install.Version(), ctx.DryRun)
-			r.Pages, r.Notes = append(r.Pages, published...), append(r.Notes, s.Notes...)
+			// The facts' own notes, an initiative item naming no document
+			// among them, reach the run's report too (GH-2811).
+			r.Pages, r.Notes = append(r.Pages, published...), append(append(r.Notes, s.Notes...), now.Notes...)
 			return err
 		}},
 }
@@ -206,7 +208,9 @@ var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, ini
 		if err != nil {
 			return err
 		}
-		scrumPages, err := Publish(dir, ScrumsDir, scrums, install.Version(), ctx.DryRun)
+		// A scrum's page sits at its repository's path below the group,
+		// which may nest (GH-2811), so the folder publishes as a tree.
+		scrumPages, err := PublishTree(dir, ScrumsDir, scrums, install.Version(), ctx.DryRun)
 		r.Pages = append(r.Pages, scrumPages...)
 		if err != nil {
 			return err

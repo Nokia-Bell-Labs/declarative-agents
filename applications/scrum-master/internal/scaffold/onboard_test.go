@@ -227,6 +227,65 @@ func TestOnboardAScrumRepositoryCreatesItsSRD(t *testing.T) {
 	}
 }
 
+// initiativeJoining is an initiative's repository joining a program: it
+// holds in001's epics and features (GH-2811).
+func initiativeJoining(dir string) OnboardOptions {
+	o := joining(dir)
+	o.Subsystem, o.Repository, o.Role, o.Owner = "srd003-model-evaluation", "https://git.example.invalid/g/analytics/model-evaluation", RoleInitiative, "Product Owner, evaluation"
+	o.Initiative = "in001-reliable-agents"
+	return o
+}
+
+// An initiative repository joining a subsystem with no SRD files one issue
+// that creates the SRD with the initiative context item; joining an existing
+// SRD asks to set the item; one already named files nothing; and the role
+// refuses to run without the initiative document (srd043 R2; GH-2811).
+func TestOnboardAnInitiativeRepository(t *testing.T) {
+	f := system(t)
+	f.AddFile("g/system", "main", systemSRDPath, []byte(strings.Replace(subsystemSRD, "srd010-ingest", "srd001-system", -1)+
+		"| system | https://git.example.invalid/g/system | / |\n"))
+	o := initiativeJoining(repo(t))
+	o.Initiative = ""
+	if _, err := Onboard(f, o); err == nil || !strings.Contains(err.Error(), "--initiative") {
+		t.Fatalf("onboard without the initiative document: %v", err)
+	}
+	r, err := Onboard(f, initiativeJoining(repo(t)))
+	if err != nil || !r.Registration.Filed {
+		t.Fatalf("registration: %+v, %v", r.Registration, err)
+	}
+	issues, _ := f.ListIssues("g/system", tracker.IssueQuery{State: "opened"})
+	if len(issues) != 1 {
+		t.Fatalf("%d issues, want 1", len(issues))
+	}
+	i := issues[0]
+	for _, want := range []string{"Create srd003-model-evaluation with g/analytics/model-evaluation", "id: srd003-model-evaluation",
+		"- owner: Product Owner, evaluation", "- initiative: in001-reliable-agents",
+		"| model-evaluation | https://git.example.invalid/g/analytics/model-evaluation | / |"} {
+		if !strings.Contains(i.Title+"\n"+i.Description, want) {
+			t.Errorf("the registration lacks %q:\n%s\n%s", want, i.Title, i.Description)
+		}
+	}
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd004-benchmarks.md", []byte(strings.NewReplacer("srd010-ingest", "srd004-benchmarks",
+		"| ingest | https://git.example.invalid/g/ingest | / |", "| benchmarks | https://git.example.invalid/g/analytics/benchmarks | / |").Replace(subsystemSRD)))
+	existing := initiativeJoining(repo(t))
+	existing.Subsystem, existing.Repository, existing.Initiative = "srd004-benchmarks", "https://git.example.invalid/g/analytics/benchmarks", "in002-benchmarks"
+	if r, err = Onboard(f, existing); err != nil || !r.Registration.Filed {
+		t.Fatalf("an initiative repository of an existing SRD: %+v, %v", r.Registration, err)
+	}
+	issues, _ = f.ListIssues("g/system", tracker.IssueQuery{State: "opened"})
+	if len(issues) != 2 || !strings.Contains(issues[1].Description, "add the context item initiative: in002-benchmarks") {
+		t.Fatalf("registration for an existing SRD: %+v", issues)
+	}
+	f.AddFile("g/system", "main", "docs/specs/software-requirements/srd005-named.md", []byte(strings.NewReplacer("srd010-ingest", "srd005-named",
+		"- owner: Product Owner, ingest", "- owner: Product Owner, named\n- initiative: in003-named",
+		"| ingest | https://git.example.invalid/g/ingest | / |", "| named | https://git.example.invalid/g/analytics/named | / |").Replace(subsystemSRD)))
+	named := initiativeJoining(repo(t))
+	named.Subsystem, named.Repository, named.Initiative = "srd005-named", "https://git.example.invalid/g/analytics/named", "in003-named"
+	if r, err = Onboard(f, named); err != nil || r.Registration.Filed || !strings.Contains(r.Registration.Reason, "already names g/analytics/named as in003-named's repository") {
+		t.Fatalf("an already named initiative repository: %+v, %v", r.Registration, err)
+	}
+}
+
 // A scrum repository already named as a subsystem's scrum_repository files
 // nothing and names the SRD; one joining an existing SRD asks to set its
 // scrum_repository, not to add a component row (GH-2745).

@@ -37,6 +37,10 @@ type Subsystem struct {
 	// team's planning repository, apart from its code (GH-2738). Empty,
 	// the team plans in its first component's repository.
 	Scrum string `yaml:"scrum_repository,omitempty"`
+	// Initiative is the initiative document its context's initiative item
+	// names (in001): the subsystem's repository holds that initiative's
+	// epics and features, and is no scrum (GH-2811).
+	Initiative string `yaml:"initiative,omitempty"`
 }
 
 // ScrumRepository is the team's planning repository as a project path:
@@ -150,6 +154,7 @@ func readSubsystem(f corpus.File) Subsystem {
 	sub.ID = f.Markdown.ID()
 	sub.Owner = corpus.TreeString(f.Markdown.Field("context").Tree(), "owner")
 	sub.Scrum = corpus.TreeString(f.Markdown.Field("context").Tree(), "scrum_repository")
+	sub.Initiative = corpus.TreeString(f.Markdown.Field("context").Tree(), "initiative")
 	for _, row := range f.Markdown.Field("implementation_targets").Table() {
 		sub.Components = append(sub.Components, Component{Name: row["name"], Repository: row["repository"], Path: row["path"]})
 	}
@@ -219,6 +224,26 @@ func (s Subsystems) ScrumRepositories() []string {
 // https or ssh URL, or the scp form user@host:group/repo that git's
 // url.insteadOf often rewrites an origin to (GH-67).
 func ProjectPath(repo string) string { return checkout.ProjectPath(repo) }
+
+// RepositoryName is how the facts and the site name a repository: its
+// project path below the program's group, so two pods' scrum repositories
+// both named tpm stay apart (GH-2811). A repository outside the group keeps
+// its whole project path; with no group to name below, as when the system's
+// origin names no project, the last segment serves, as before the group
+// scheme.
+func RepositoryName(group, repo string) string {
+	p := ProjectPath(repo)
+	if p == "" {
+		return path.Base(strings.TrimSuffix(repo, ".git"))
+	}
+	if group == "" || group == "." {
+		return path.Base(p)
+	}
+	if rest, ok := strings.CutPrefix(p, group+"/"); ok {
+		return rest
+	}
+	return p
+}
 
 // CheckProject refuses a filesystem path where a project path is expected
 // (GH-68): a checkout's path names no project, and a word that took one

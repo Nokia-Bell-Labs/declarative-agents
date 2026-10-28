@@ -18,6 +18,8 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/repofiles"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 )
@@ -387,60 +389,128 @@ func horizonLastWeek(h string) (time.Time, bool) {
 	return monday.AddDate(0, 0, 7*(week-1)), true
 }
 
+// teamGraph is the team sources' documents resolved into the program's
+// namespace: each a copy named <team>/<id>, its parent a system document's
+// id, another copy's — a pin by URL into a registered repository resolves to
+// that repository's copy, so a story in a scrum repository attaches under a
+// feature in an initiative repository (GH-2811) — or the initiative its
+// source's SRD declares, under which the repository's top documents attach.
+type teamGraph struct {
+	ours     map[string]*hierarchy.Doc
+	copies   map[string]*hierarchy.Doc
+	bySource [][]*hierarchy.Doc
+}
+
+func newTeamGraph(sources []TeamSource, docs []*hierarchy.Doc) *teamGraph {
+	g := &teamGraph{ours: map[string]*hierarchy.Doc{}, copies: map[string]*hierarchy.Doc{}, bySource: make([][]*hierarchy.Doc, len(sources))}
+	for _, d := range docs {
+		g.ours[d.ID] = d
+	}
+	byProject := map[string]string{}
+	for _, src := range sources {
+		if src.Repository != "" {
+			byProject[program.ProjectPath(src.Repository)] = src.Name
+		}
+	}
+	for i, src := range sources {
+		theirs, err := hierarchy.Load(src.Dir)
+		if err != nil {
+			continue
+		}
+		for _, d := range theirs {
+			c := *d
+			c.ID = src.Name + "/" + d.ID
+			switch {
+			case strings.Contains(d.Parent, "://"):
+				c.Parent = resolvedID(d.Parent, byProject)
+			case d.Parent == "" && src.Initiative != "":
+				// An initiative repository's top documents attach under
+				// the initiative its SRD declares (GH-2811).
+				c.Parent = src.Initiative
+			case d.Parent != "":
+				c.Parent = src.Name + "/" + d.Parent
+			}
+			g.copies[c.ID] = &c
+			g.bySource[i] = append(g.bySource[i], &c)
+		}
+	}
+	return g
+}
+
+// serves reports whether a copy's parent chain reaches a document of this
+// repository: only what serves the plan rolls up to it (GH-2726).
+func (g *teamGraph) serves(id string) bool {
+	seen := map[string]bool{}
+	for !seen[id] {
+		seen[id] = true
+		c, ok := g.copies[id]
+		if !ok {
+			return false
+		}
+		if g.ours[c.Parent] != nil {
+			return true
+		}
+		id = c.Parent
+	}
+	return false
+}
+
+// resolvedID is the document id a pinned URL names: a pin into a registered
+// team repository is that team's copy, <team>/<id> (GH-2811); any other is
+// read as a document of this repository, by its file's base name.
+func resolvedID(url string, byProject map[string]string) string {
+	if ref, err := links.Parse(url); err == nil {
+		if name, ok := byProject[ref.Project]; ok {
+			return name + "/" + linkedID(url)
+		}
+	}
+	return linkedID(url)
+}
+
 // TeamProgress is the story points of the team repositories' agreed stories
 // that roll up to this repository's documents through a parent pinned by
 // URL, read from the team sources with each one's sprint-end summaries,
-// added to each document up the chain as RollUp adds them (GH-89, GH-2726);
-// read reports whether any source holds hierarchy documents.
+// added to each document up the chain as RollUp adds them (GH-89, GH-2726).
+// The chain may pass through other team repositories' documents, a feature
+// in an initiative repository among them, before it reaches this
+// repository's (GH-2811); read reports whether any source holds hierarchy
+// documents.
 func TeamProgress(sources []TeamSource, docs []*hierarchy.Doc) (points map[string]hierarchy.Progress, read bool) {
 	points = map[string]hierarchy.Progress{}
-	ours := map[string]*hierarchy.Doc{}
-	for _, d := range docs {
-		ours[d.ID] = d
-	}
-	for _, src := range sources {
-		sib := src.Dir
-		theirs, err := hierarchy.Load(sib)
-		if err != nil || len(theirs) == 0 {
+	g := newTeamGraph(sources, docs)
+	for i, src := range sources {
+		theirs := g.bySource[i]
+		if len(theirs) == 0 {
 			continue
 		}
 		read = true
-		done, _ := sprintgoal.StoriesDone(sib)
-		local := map[string]*hierarchy.Doc{}
-		for _, d := range theirs {
-			local[d.ID] = d
-		}
+		done, _ := sprintgoal.StoriesDone(src.Dir)
 		for _, s := range theirs {
 			if s.Kind != hierarchy.Story || s.Status != "agreed" {
 				continue
 			}
-			target := ""
+			_, isDone := done.Release[path.Base(s.ID)]
 			seen := map[string]bool{}
-			for cur := s; cur != nil && !seen[cur.ID]; cur = local[cur.Parent] {
-				seen[cur.ID] = true
-				if strings.Contains(cur.Parent, "://") {
-					target = linkedID(cur.Parent)
-					break
-				}
-			}
-			_, isDone := done.Release[s.ID]
-			seen = map[string]bool{}
-			for id := target; id != "" && !seen[id]; {
+			for id := s.Parent; id != "" && !seen[id]; {
 				seen[id] = true
 				// The theme counts them too, as RollUp sums a theme from
 				// its initiatives (GH-141).
-				p, ok := ours[id]
+				if p, ok := g.ours[id]; ok {
+					sum := points[id]
+					sum.Kind = p.Kind
+					sum.Total += s.PointsValue()
+					if isDone {
+						sum.Done += s.PointsValue()
+					}
+					points[id] = sum
+					id = p.Parent
+					continue
+				}
+				c, ok := g.copies[id]
 				if !ok {
 					break
 				}
-				sum := points[id]
-				sum.Kind = p.Kind
-				sum.Total += s.PointsValue()
-				if isDone {
-					sum.Done += s.PointsValue()
-				}
-				points[id] = sum
-				id = p.Parent
+				id = c.Parent
 			}
 		}
 	}
@@ -448,54 +518,29 @@ func TeamProgress(sources []TeamSource, docs []*hierarchy.Doc) (points map[strin
 }
 
 // TeamDocs are the hierarchy documents of the team sources that roll up to
-// docs through a parent pinned by URL, as TeamProgress counts them, for a
-// view that draws them under the documents they serve (GH-109, GH-2726).
-// Each is a copy named <team>/<id>, so two teams' st001 stay apart, with
-// its parent so named too, or, where it pins one, read as the document of
-// docs it names. done maps each done story, so named, to the release its
-// team's sprint-end summary records.
+// docs, as TeamProgress counts them, for a view that draws them under the
+// documents they serve (GH-109, GH-2726). Each is a copy named <team>/<id>,
+// the team's project path below the program's group, so two pods' st001
+// stay apart (GH-2811), with its parent so named too: a local parent in its
+// team, a pin by URL the document it names, this repository's or a
+// registered team repository's, and an initiative repository's top
+// documents the initiative its SRD declares. done maps each done story, so
+// named, to the release its team's sprint-end summary records.
 func TeamDocs(sources []TeamSource, docs []*hierarchy.Doc) (team []*hierarchy.Doc, done map[string]string) {
 	done = map[string]string{}
-	ours := map[string]bool{}
-	for _, d := range docs {
-		ours[d.ID] = true
-	}
-	for _, src := range sources {
-		sib := src.Dir
-		theirs, err := hierarchy.Load(sib)
-		if err != nil || len(theirs) == 0 {
+	g := newTeamGraph(sources, docs)
+	for i, src := range sources {
+		if len(g.bySource[i]) == 0 {
 			continue
 		}
-		name := src.Name
-		local := map[string]*hierarchy.Doc{}
-		for _, d := range theirs {
-			local[d.ID] = d
+		for _, c := range g.bySource[i] {
+			if g.serves(c.ID) {
+				team = append(team, c)
+			}
 		}
-		for _, d := range theirs {
-			serves := false
-			seen := map[string]bool{}
-			for cur := d; cur != nil && !seen[cur.ID]; cur = local[cur.Parent] {
-				seen[cur.ID] = true
-				if strings.Contains(cur.Parent, "://") {
-					serves = ours[linkedID(cur.Parent)]
-					break
-				}
-			}
-			if !serves {
-				continue
-			}
-			c := *d
-			c.ID = name + "/" + d.ID
-			if strings.Contains(d.Parent, "://") {
-				c.Parent = linkedID(d.Parent)
-			} else {
-				c.Parent = name + "/" + d.Parent
-			}
-			team = append(team, &c)
-		}
-		if summaries, err := sprintgoal.StoriesDone(sib); err == nil {
+		if summaries, err := sprintgoal.StoriesDone(src.Dir); err == nil {
 			for id, v := range summaries.Release {
-				done[name+"/"+id] = v
+				done[src.Name+"/"+id] = v
 			}
 		}
 	}

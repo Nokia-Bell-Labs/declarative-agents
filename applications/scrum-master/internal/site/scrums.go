@@ -10,11 +10,11 @@ import (
 	"html"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 )
 
@@ -27,6 +27,7 @@ const ScrumsDir = "scrums"
 type scrum struct {
 	timeline.Team
 	Page    string
+	names   []string // its repositories as the facts name documents (GH-2811)
 	Docs    []string // its features and stories, in kind and rank order
 	Serves  []string // a sub-program's documents this plan shows, its interior apart
 	Goals   []timeline.Item
@@ -37,10 +38,11 @@ type scrum struct {
 }
 
 // owns reports whether a document is one of the team's: the facts name a
-// team's documents <repository name>/<id>.
+// team's documents <name>/<id>, each repository's path below the program's
+// group (GH-2811).
 func (s scrum) owns(id string) bool {
-	for _, r := range s.Repositories {
-		if strings.HasPrefix(id, path.Base(r)+"/") {
+	for _, n := range s.names {
+		if strings.HasPrefix(id, n+"/") {
 			return true
 		}
 	}
@@ -54,11 +56,20 @@ func (s scrum) files(ref string) bool {
 	return slices.Contains(s.Repositories, project)
 }
 
-// scrumsIn gathers each team's work from the facts.
+// scrumsIn gathers each team's work from the facts. A team whose SRD
+// declares an initiative repository is no scrum: its epics and features are
+// the initiative's, drawn under it on the plan, and it gets no page or tile
+// here (GH-2811).
 func scrumsIn(f timeline.Facts, nodes map[string]*Node) []scrum {
 	var out []scrum
 	for _, t := range f.Teams {
+		if t.Initiative != "" {
+			continue
+		}
 		s := scrum{Team: t, Page: ScrumsDir + "/" + t.Name + ".md"}
+		for _, r := range t.Repositories {
+			s.names = append(s.names, program.RepositoryName(f.Group, r))
+		}
 		for _, id := range sortedNodes(nodes) {
 			n := nodes[id]
 			if !s.owns(id) {
@@ -220,10 +231,10 @@ func scrumPage(s scrum, nodes map[string]*Node, head string) string {
 // it serves the plan with, and a link to its own site for its teams,
 // epics, and stories, which this site does not show (GH-2740).
 func programPage(s scrum, nodes map[string]*Node, head string) string {
-	href := func(n *Node) string { return html.EscapeString("../" + n.Page) }
+	href := func(n *Node) string { return html.EscapeString(relLink(s.Page, n.Page)) }
 	var b strings.Builder
 	b.WriteString(head)
-	b.WriteString(`<div class="crumbs">` + "\n\n[Scrums](index.md)\n\n</div>\n\n")
+	b.WriteString(`<div class="crumbs">` + "\n\n[Scrums](" + relLink(s.Page, ScrumsDir+"/index.md") + ")\n\n</div>\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", s.Name)
 	b.WriteString(strings.Join([]string{programBadge, "Owner: " + s.Owner, "subsystem `" + s.Subsystem + "`", "system repository " + s.Scrum}, " · ") + "\n\n")
 	if s.Site != "" {
@@ -243,10 +254,10 @@ func programPage(s scrum, nodes map[string]*Node, head string) string {
 }
 
 func teamPage(s scrum, nodes map[string]*Node, head string) string {
-	href := func(n *Node) string { return html.EscapeString("../" + n.Page) }
+	href := func(n *Node) string { return html.EscapeString(relLink(s.Page, n.Page)) }
 	var b strings.Builder
 	b.WriteString(head)
-	b.WriteString(`<div class="crumbs">` + "\n\n[Scrums](index.md)\n\n</div>\n\n")
+	b.WriteString(`<div class="crumbs">` + "\n\n[Scrums](" + relLink(s.Page, ScrumsDir+"/index.md") + ")\n\n</div>\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", s.Name)
 	facts := []string{scrumBadge, "Product Owner: " + s.Owner, "subsystem `" + s.Subsystem + "`"}
 	scrumRepo := s.Scrum
@@ -295,7 +306,7 @@ func teamPage(s scrum, nodes map[string]*Node, head string) string {
 					done += n.Points
 				}
 			}
-			fmt.Fprintf(&b, "| [%s](../%s) | %s | %d | %d of %d | %s |\n", e.Title, e.Page, e.Owner, stories, done, total, points(e))
+			fmt.Fprintf(&b, "| [%s](%s) | %s | %d | %d of %d | %s |\n", e.Title, relLink(s.Page, e.Page), e.Owner, stories, done, total, points(e))
 		}
 		b.WriteString("\n")
 	}
