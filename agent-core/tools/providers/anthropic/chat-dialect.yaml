@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Anthropic's chat dialect (srd058 R1.3, GH-2805), through the OpenAI-compatible
+# layer the Claude API serves at /v1/chat/completions with a bearer credential
+# named ANTHROPIC_API_KEY; a deployment sets provider_url to
+# https://api.anthropic.com and model to a Claude model id. The layer hoists
+# system messages into the native top-level system field, so the conversation
+# travels as one message array like every other dialect. seed is accepted and
+# ignored there, and Claude 4.7-and-later models reject a temperature below 1,
+# so a deployment leaves both unset unless it knows its model takes them. The
+# native /v1/messages endpoint needs a static anthropic-version header the
+# dialect grammar does not carry, which keeps it out of a YAML library.
+unit: provider-anthropic-chat-dialect
+provider_name: anthropic
+path: /v1/chat/completions
+auth:
+  type: bearer
+  token_ref: ANTHROPIC_API_KEY
+body:
+  model: "{{ params.model }}"
+  messages: "{{ params.messages }}"
+  stream: false
+  temperature: "{{ params.temperature }}"
+  seed: "{{ params.seed }}"
+response:
+  text: $.choices.0.message.content
+  text_required: true
+  input_tokens: $.usage.prompt_tokens
+  output_tokens: $.usage.completion_tokens
+failures:
+- status: [401, 403]
+  signal: ProviderUnauthorized
+- status: [429]
+  signal: ProviderThrottled
+- status: [500, 502, 503, 504]
+  signal: ProviderUnavailable
+# Claude models answer tool calls inside the same [tool_call] envelope the
+# default profile reads, and may wrap them in a code fence.
+parser_profiles:
+- name: anthropic
+  match_prefixes: ["claude-"]
+  envelope: {open: "[tool_call]", close: "[/tool_call]"}
+  extraction_pipeline:
+  - strip_code_fences
+  - extract_envelope: {open: "[tool_call]", close: "[/tool_call]"}
