@@ -169,6 +169,12 @@ func vendorSource(dir string) (VendorSource, error) {
 		CoreTools: filepath.Join(home, "agent-core", "tools")}, nil
 }
 
+// Source is the release an upgrade vendors from, as the vendor word
+// resolves it: SourceEnv's tree, the sibling source checkout, else the
+// release install.sh installed. The roll compares every registered
+// repository's vendored release against it (GH-2813).
+func Source(dir string) (VendorSource, error) { return vendorSource(dir) }
+
 // CheckSource refuses, writing nothing, when the repository at dir has no
 // release to vendor the profiles from (GH-49), so init and onboard can
 // refuse before their first write rather than after.

@@ -22,6 +22,7 @@ const (
 	OpReport  = "report"
 	OpStatus  = "status"
 	OpRecur   = "recur"
+	OpUpgrade = "upgrade"
 )
 
 // Op is the op:: label naming the operation that filed an issue.
@@ -56,6 +57,7 @@ func DefaultLabels() []tracker.Label {
 		{Name: Op(OpReport), Color: "#95a5a6", Description: "Filed by reports aggregate --push"},
 		{Name: Op(OpStatus), Color: "#95a5a6", Description: "Filed by reports status"},
 		{Name: Op(OpRecur), Color: "#95a5a6", Description: "Opened by issue recur"},
+		{Name: Op(OpUpgrade), Color: "#95a5a6", Description: "Filed by roll"},
 		{Name: "needs-triage", Color: "#cc338b", Description: "Failed admission; not ready"},
 		{Name: "status::in-progress", Color: "#428bca", Description: "The assignee started it"},
 		{Name: "waiting", Color: "#e6e6fa", Description: "A link is unsatisfied; set by track-goals"},

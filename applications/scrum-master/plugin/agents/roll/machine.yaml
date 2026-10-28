@@ -1,0 +1,84 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: roll
+purpose: |-
+  Roll the installed scrum-master release across the program from the
+  system checkout (GH-2813): for every registered repository behind it, an
+  upgrade issue and a merge request taking the release — the upgrade
+  profile's steps committed on a branch — never a push to a default
+  branch. Use when a new scrum-master release should land in every
+  repository the registry names, rather than each taking it on its own.
+
+  This machine has no model state: scrum-master roll (design.md D10,
+  D14). It runs in the system checkout and works on the checkouts the
+  checkouts word lays down (GH-2812): a registered repository with no
+  checkout fails alone, that word the remedy, and the run goes on. A
+  repository already at the release is skipped, naming it, and an upgrade
+  already open is reported, never duplicated.
+configuration:
+  machine: plugin/agents/roll/machine.yaml
+  tools: plugin/agents/roll/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- No default branch is pushed; every upgrade lands through an issue and a merge request
+lifecycle: |-
+  1. Idle → Roll (Seed): scrum-master roll
+  2. Roll → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Roll
+  meaning: |
+    The roll word: from the system checkout, scrum-master roll reads the
+    registry, compares each registered repository's vendored release
+    against the installed one, and, per repository behind, files an
+    upgrade issue and opens a branch and merge request taking the
+    release; each is reported skipped, opened, or failed with the reason.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The directory is no system checkout, has no forge origin,
+    its registry names no repositories, or no release is installed to
+    roll, and the word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Roll
+  action: roll
+  summary: true
+- state: Roll
+  signal: ToolFailed
+  next: Refused
+- state: Roll
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Roll
+  signal: CommandError
+  next: Failed
