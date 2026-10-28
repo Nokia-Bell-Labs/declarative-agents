@@ -46,11 +46,17 @@ case $forge in
   *) echo "install.sh: no forge $forge; use github or gitlab" >&2; exit 1 ;;
 esac
 
+# fetch downloads $2 to $1, and on failure names what it could not get, the
+# release, and the URL, rather than leaving curl's bare status (GH-2751).
 fetch() {
   if [ "$forge" = gitlab ] && [ -n "${GITLAB_TOKEN:-}" ]; then
-    curl -fsSL --header "PRIVATE-TOKEN: $GITLAB_TOKEN" -o "$1" "$2"
+    ok=0; curl -fsSL --header "PRIVATE-TOKEN: $GITLAB_TOKEN" -o "$1" "$2" || ok=$?
   else
-    curl -fsSL -o "$1" "$2"
+    ok=0; curl -fsSL -o "$1" "$2" || ok=$?
+  fi
+  if [ "$ok" != 0 ]; then
+    echo "install.sh: could not download $(basename "$1") of release $tag from $2 (curl exit $ok); the release may lack it, or the forge refused the request" >&2
+    exit 1
   fi
 }
 

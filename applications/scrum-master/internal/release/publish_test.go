@@ -24,6 +24,12 @@ type fakeTools struct {
 	created   bool
 	uploaded  []string
 	uploadErr error
+	// draft is whether the release is a draft; published counts the edits
+	// that made it visible; dropOnUpload is an asset an upload loses, as a
+	// partial upload would (GH-2751).
+	draft        bool
+	published    int
+	dropOnUpload string
 }
 
 func (f *fakeTools) run(_ string, env []string, name string, args ...string) (string, error) {
@@ -55,14 +61,25 @@ func (f *fakeTools) run(_ string, env []string, name string, args ...string) (st
 		if !slices.Contains(args, "--verify-tag") {
 			return "", errors.New("a release created without --verify-tag")
 		}
-		f.created, f.release = true, map[string]string{}
+		f.created, f.draft, f.release = true, slices.Contains(args, "--draft"), map[string]string{}
+		return "", nil
+	case name == "gh" && args[1] == "edit" && slices.Contains(args, "--draft=false"):
+		f.draft = false
+		f.published++
 		return "", nil
 	case name == "gh" && args[1] == "upload":
 		if f.uploadErr != nil {
 			return "", f.uploadErr
 		}
+		if f.release == nil {
+			f.release = map[string]string{}
+		}
 		for _, p := range args[5:] {
 			f.uploaded = append(f.uploaded, filepath.Base(p))
+			if f.dropOnUpload != filepath.Base(p) {
+				b, _ := os.ReadFile(p)
+				f.release[filepath.Base(p)] = sha(b)
+			}
 		}
 		return "", nil
 	}
@@ -145,6 +162,28 @@ func TestPublishCreatesTheReleaseWithEveryAsset(t *testing.T) {
 	}
 	if !f.created || len(f.uploaded) != 6 || !slices.Contains(f.uploaded, SumsFile) {
 		t.Fatalf("created %v, uploaded %v", f.created, f.uploaded)
+	}
+	// Created as a draft, made visible once it holds every asset (GH-2751).
+	if f.draft || f.published != 1 {
+		t.Fatalf("draft %v after publishing, published %d times; want a draft made visible once", f.draft, f.published)
+	}
+}
+
+// An upload that leaves a release without an asset install.sh downloads
+// keeps it a draft and names the asset (GH-2751).
+func TestPublishKeepsAnIncompleteReleaseADraft(t *testing.T) {
+	dir, git := tagged(t, "v0.20261015.1")
+	f := &fakeTools{login: "org-owner", dropOnUpload: ProfilesArchive}
+	err := publisher(dir, git, f, io.Discard).Publish()
+	if err == nil || !strings.Contains(err.Error(), "lacks "+ProfilesArchive) || !strings.Contains(err.Error(), "stays a draft") {
+		t.Fatalf("an incomplete release published: %v", err)
+	}
+	if !f.draft || f.published != 0 {
+		t.Fatalf("draft %v, published %d; want it left a draft", f.draft, f.published)
+	}
+	f.dropOnUpload = ""
+	if err := publisher(dir, git, f, io.Discard).Publish(); err != nil || f.draft || f.published != 1 {
+		t.Fatalf("the rerun: draft %v, published %d, %v; want it completed and made visible", f.draft, f.published, err)
 	}
 }
 

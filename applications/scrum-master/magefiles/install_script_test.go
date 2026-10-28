@@ -201,4 +201,13 @@ func TestInstallScriptInstallsAVerifiedRelease(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(other, "agent")); !os.IsNotExist(err) {
 		t.Fatalf("a refused agent was written: %v", err)
 	}
+
+	// A release missing a file it should carry is refused naming the file
+	// and the release, not with curl's bare status (GH-2751).
+	served["/download/"+tag+"/"+assets[0].Name] = assets[0].Path
+	delete(served, "/download/"+tag+"/"+release.ProfilesArchive)
+	if out, err := install(filepath.Join(t.TempDir(), "bin"), filepath.Join(t.TempDir(), "home")); err == nil ||
+		!strings.Contains(out, "could not download "+release.ProfilesArchive+" of release "+tag) {
+		t.Fatalf("a release missing its profiles archive: %v\n%s", err, out)
+	}
 }
