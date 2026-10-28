@@ -43,9 +43,13 @@ tools:
         flag: --path
       role:
         type: string
-        description: What the repository is to its subsystem, component (a component's repository) or scrum (the team's scrum repository, where it plans and journals).
+        description: What the repository is to its subsystem, component (a component's repository), scrum (the team's scrum repository, where it plans and journals), or initiative (an initiative's repository, holding its epics and features; GH-2811).
         flag: --role
         default: component
+      initiative:
+        type: string
+        description: The initiative document the repository holds the epics and features of, such as in001-reliable-agents; required with role initiative.
+        flag: --initiative
       owner:
         type: string
         description: The subsystem's owner, for a subsystem SRD the registration asks to create.

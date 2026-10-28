@@ -92,7 +92,8 @@ func init() {
 			fs.StringVar(&o.Subsystem, "subsystem", "", "the subsystem SRD that lists the repository, e.g. srd010-ingest (required)")
 			fs.StringVar(&o.Repository, "repository", "", "the repository's URL (default: its origin)")
 			fs.StringVar(&o.Path, "path", "/", "the component's path in the repository")
-			fs.StringVar(&o.Role, "role", RoleComponent, "what the repository is to its subsystem: component, a component's repository, or scrum, the team's scrum repository where it plans")
+			fs.StringVar(&o.Role, "role", RoleComponent, "what the repository is to its subsystem: component, a component's repository; scrum, the team's scrum repository where it plans; or initiative, an initiative's repository holding its epics and features")
+			fs.StringVar(&o.Initiative, "initiative", "", "the initiative document the repository holds the epics and features of, such as in001-reliable-agents (required with --role initiative)")
 			fs.StringVar(&o.Owner, "owner", "", "the subsystem's owner, for an SRD the registration asks to create")
 			fs.Func("component", "a component of the subsystem, for an SRD the registration asks to create (repeatable, or comma-separated; default: the subsystem's short name)", func(v string) error {
 				for _, c := range strings.Split(v, ",") {

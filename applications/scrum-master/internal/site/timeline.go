@@ -88,15 +88,16 @@ type SubProgram struct {
 
 // subPrograms finds the scrums that are programs, by the control file a
 // system repository holds, and reads each one's lineage and the plan its
-// site publishes; what it cannot read is a note.
-func subPrograms(t tracker.Tracker, scrums program.Subsystems) (out []SubProgram, notes []string) {
+// site publishes; what it cannot read is a note. Each is named as its
+// documents are, by its project path below the program's group (GH-2811).
+func subPrograms(t tracker.Tracker, scrums program.Subsystems, group string) (out []SubProgram, notes []string) {
 	for _, sub := range scrums {
 		repo := sub.ScrumRepository()
 		if !program.IsProgram(t, repo) {
 			continue
 		}
 		ref := branchOf(t, repo)
-		sp := SubProgram{Name: path.Base(repo), Repository: repo}
+		sp := SubProgram{Name: program.RepositoryName(group, repo), Repository: repo}
 		lin, err := program.LoadLineage(t, repo, ref)
 		if err != nil {
 			notes = append(notes, fmt.Sprintf("%s: %v", repo, err))
@@ -178,7 +179,7 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 	}
 	if t != nil {
 		var notes []string
-		s.SubPrograms, notes = subPrograms(t, s.Scrums)
+		s.SubPrograms, notes = subPrograms(t, s.Scrums, s.Group)
 		s.Notes = append(s.Notes, notes...)
 	}
 	// The registry the tracker reads names the team repositories whose
@@ -198,10 +199,12 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 			continue
 		}
 		// A team's issues name its own stories, which the facts name
-		// <checkout>/<id> (GH-109); the system's name the system's.
+		// <team>/<id>, the repository's path below the group (GH-109,
+		// GH-2811); the system's name the system's.
 		story := func(id string) string { return id }
 		if n > 0 {
-			story = func(id string) string { return path.Base(p) + "/" + id }
+			name := program.RepositoryName(s.Group, p)
+			story = func(id string) string { return name + "/" + id }
 		}
 		issues, err := t.ListIssues(p, tracker.IssueQuery{State: "all"})
 		if err != nil {
@@ -333,12 +336,23 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 	f := timeline.Make(timeline.Input{AsOf: asOf, Today: s.Today, Docs: docs, Releases: Releases(roadMap, s),
 		Done: s.Done, Landed: s.Landed, Goals: s.Goals, Issues: s.Issues, Programs: served, Sources: sources, Paths: paths})
 	if asOf == "" {
-		f.Teams = teamFacts(s.Scrums)
+		f.Group = s.Group
+		f.Teams = teamFacts(s.Scrums, s.Group)
+		ids := map[string]bool{}
+		for _, d := range docs {
+			ids[d.ID] = true
+		}
 		for i, tm := range f.Teams {
 			for _, sp := range s.SubPrograms {
 				if sp.Repository == tm.Scrum {
 					f.Teams[i].Program, f.Teams[i].Site = true, sp.Site
 				}
+			}
+			// An initiative item naming a document the plan does not hold
+			// leaves the repository's documents unplaced; the facts say so,
+			// never silently (GH-2811).
+			if tm.Initiative != "" && !ids[tm.Initiative] {
+				f.Notes = append(f.Notes, fmt.Sprintf("%s: its initiative item names %s, which the system repository does not hold, so %s's epics and features attach nowhere", tm.Subsystem, tm.Initiative, tm.Name))
 			}
 		}
 		if p := s.Lineage.Parent; p != "" {
@@ -434,30 +448,44 @@ func scrumsOf(system string, t tracker.Tracker) program.Subsystems {
 }
 
 // teamFacts are the scrums as the facts carry them, each named by its
-// scrum repository, as its documents are.
-func teamFacts(subs program.Subsystems) []timeline.Team {
+// scrum repository's path below the program's group, as its documents are
+// (GH-2811).
+func teamFacts(subs program.Subsystems, group string) []timeline.Team {
 	var out []timeline.Team
 	for _, sub := range subs {
-		tm := timeline.Team{Subsystem: sub.ID, Owner: sub.Owner, Repositories: sub.Repositories(), Scrum: sub.ScrumRepository(), Apart: sub.Scrum != ""}
+		tm := timeline.Team{Subsystem: sub.ID, Owner: sub.Owner, Repositories: sub.Repositories(), Scrum: sub.ScrumRepository(), Apart: sub.Scrum != "", Initiative: sub.Initiative}
 		for _, c := range sub.Components {
 			tm.Components = append(tm.Components, c.Name)
 		}
 		if tm.Scrum == "" {
 			continue
 		}
-		if u := sub.ScrumURL(); strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
-			tm.URL = strings.TrimSuffix(u, ".git")
-		}
-		tm.Name = path.Base(tm.Scrum)
+		tm.URL = webOf(sub.ScrumURL())
+		tm.Name = program.RepositoryName(group, tm.Scrum)
 		out = append(out, tm)
 	}
 	return out
 }
 
+// webOf is a repository's page on its forge from a URL an SRD writes: an
+// https one as it is, the scp form git@host:group/repo rewritten to https,
+// without .git; empty for any other, which no browser opens.
+func webOf(u string) string {
+	u = strings.TrimSuffix(strings.TrimSpace(u), ".git")
+	if host, p, ok := strings.Cut(strings.TrimPrefix(u, "git@"), ":"); ok && strings.HasPrefix(u, "git@") && !strings.Contains(host, "/") {
+		u = "https://" + host + "/" + p
+	}
+	if strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://") {
+		return u
+	}
+	return ""
+}
+
 // implemented is the story an issue's Implements line names, as the facts
 // name it: a story pinned by URL in another program repository is that
-// repository's, named <its name>/<id>, the system's by its id alone; a
-// path is the issue's own repository's (GH-2738).
+// repository's, named <its name>/<id> — its path below the program's group
+// (GH-2811) — the system's by its id alone; a path is the issue's own
+// repository's (GH-2738).
 func implemented(target, own, system string, story func(string) string) string {
 	file, _, _ := strings.Cut(target, "#")
 	id := strings.TrimSuffix(path.Base(file), ".md")
@@ -468,7 +496,7 @@ func implemented(target, own, system string, story func(string) string) string {
 	case ref.Project == system:
 		return id
 	}
-	return path.Base(ref.Project) + "/" + id
+	return program.RepositoryName(path.Dir(system), ref.Project) + "/" + id
 }
 
 // docSources maps each document to its page on the forge of the repository

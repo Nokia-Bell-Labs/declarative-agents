@@ -106,6 +106,7 @@ docs/road-map.md.
 | tut03-plan-a-release-and-run-the-sprint | docs/tutorials/tut03-plan-a-release-and-run-the-sprint.md |
 | tut04-write-the-backlog | docs/tutorials/tut04-write-the-backlog.md |
 | tut05-weekly-status | docs/tutorials/tut05-weekly-status.md |
+| tut06-lay-out-a-program | docs/tutorials/tut06-lay-out-a-program.md |
 
 <!-- field: srd_index -->
 ## SRD index
