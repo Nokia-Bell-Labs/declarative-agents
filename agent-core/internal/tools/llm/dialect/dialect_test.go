@@ -98,12 +98,20 @@ func TestChatDialectLoadNamesThePath(t *testing.T) {
 
 func TestShippedChatDialectsLoad(t *testing.T) {
 	t.Parallel()
-	for provider, want := range map[string]string{"ollama": "none", "cohere": "bearer"} {
-		chat, err := Load(filepath.Join("..", "..", "..", "..", "tools", "providers", provider, FileName))
+	for library, want := range map[string]struct{ provider, auth string }{
+		"ollama":     {provider: "ollama", auth: "none"},
+		"cohere":     {provider: "cohere", auth: "bearer"},
+		"anthropic":  {provider: "anthropic", auth: "bearer"},
+		"vertex":     {provider: "gcp.vertex_ai", auth: "bearer"},
+		"openrouter": {provider: "openrouter", auth: "bearer"},
+	} {
+		chat, err := Load(filepath.Join("..", "..", "..", "..", "tools", "providers", library, FileName))
 
-		require.NoError(t, err, provider)
-		require.Equal(t, provider, chat.ProviderName)
-		require.Equal(t, want, chat.Auth.Type)
+		require.NoError(t, err, library)
+		require.Equal(t, want.provider, chat.ProviderName)
+		require.Equal(t, want.auth, chat.Auth.Type)
+		require.Equal(t, ProviderUnauthorized, chat.FailureSignal(401))
+		require.Equal(t, ProviderThrottled, chat.FailureSignal(429))
 		require.Equal(t, ProviderUnavailable, chat.FailureSignal(503))
 	}
 }
