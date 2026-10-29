@@ -2921,6 +2921,19 @@ applications/scrum-master/plugin/agents/roll/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-reconcile -->
+#### scrum-master-reconcile
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/reconcile/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- field: deployment_realizations -->
 ## Deployment realizations
 

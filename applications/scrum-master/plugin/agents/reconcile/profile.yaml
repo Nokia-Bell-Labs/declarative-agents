@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reconcile workflow as a declarative-agents profile (GH-2822,
+# design.md D14): a model-free machine of 1 word, which a skill runs with
+# the agent.
+name: reconcile
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

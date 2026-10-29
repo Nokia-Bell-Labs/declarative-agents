@@ -22,7 +22,7 @@ import (
 // workflows are the profiles installed as skills of their own: the
 // workflows a person starts.
 var workflows = []string{
-	"init", "onboard", "upgrade", "check", "checkouts", "roll",
+	"init", "onboard", "upgrade", "check", "checkouts", "roll", "reconcile",
 	"pop", "merge", "implement",
 	"draft", "design", "specify", "plan", "tasks",
 	"sprint-end", "release", "peer-read",

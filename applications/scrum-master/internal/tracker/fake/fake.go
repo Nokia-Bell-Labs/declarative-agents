@@ -26,7 +26,9 @@ type Fake struct {
 	Branches   map[string]string           // "project@branch" -> ref it was created from
 	Default    string                      // default branch of every project
 	MRs        map[string][]*tracker.Merge // project -> merged deliveries
-	Commits    map[string]string           // "project@ref:path" -> the commit that last changed it
+	// Projects lists each group's project paths for GroupProjects.
+	Projects map[string][]string
+	Commits  map[string]string // "project@ref:path" -> the commit that last changed it
 	// Writes counts every mutating call, so a dry run can prove it wrote nothing.
 	Writes int
 }
@@ -38,7 +40,7 @@ func New() *Fake {
 	return &Fake{Files: map[string][]byte{}, Tags: map[string]bool{}, Issues: map[string][]*tracker.Issue{},
 		Notes: map[string][]tracker.Note{}, Milestones: map[string]tracker.Milestone{}, Awards: map[string][]tracker.Award{}, Labels: map[string][]tracker.Label{},
 		Me: tracker.User{ID: 1, Username: "me"}, Branches: map[string]string{}, Default: "main",
-		MRs: map[string][]*tracker.Merge{}}
+		MRs: map[string][]*tracker.Merge{}, Projects: map[string][]string{}}
 }
 
 // AddFile stores content at project, ref, path.
@@ -246,6 +248,9 @@ func (f *Fake) AssignIssue(project string, iid int, user tracker.User) error {
 }
 
 func (f *Fake) DefaultBranch(string) (string, error) { return f.Default, nil }
+
+// GroupProjects lists the group's projects, as a host that can would.
+func (f *Fake) GroupProjects(group string) ([]string, error) { return f.Projects[group], nil }
 
 func (f *Fake) BranchExists(project, branch string) (bool, error) {
 	_, ok := f.Branches[project+"@"+branch]

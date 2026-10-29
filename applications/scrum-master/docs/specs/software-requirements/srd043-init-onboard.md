@@ -1,6 +1,6 @@
 ---
 id: srd043-init-onboard
-title: "Script: init, onboard, doctor, checkouts, and roll (scrum-master init, scrum-master onboard, scrum-master doctor, scrum-master checkouts, scrum-master roll)"
+title: "Script: init, onboard, doctor, checkouts, roll, and reconcile (scrum-master init, scrum-master onboard, scrum-master doctor, scrum-master checkouts, scrum-master roll, scrum-master reconcile)"
 ---
 <!-- Copyright (c) 2026 Nokia -->
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
@@ -233,6 +233,24 @@ For each repository behind, roll files one issue there — plane data, kind cons
 
 roll works on checkouts (R6): a registered repository with no checkout at its group path fails alone, the checkouts word named as the remedy, and the run goes on. The output is one line per repository — skipped at its release, opened with its issue, branch, and merge request, or failed with the reason — with the counts, and the JSON mirrors it; one repository's failure does not stop the rest. A dry run reports what would be opened and changes nothing.
 
+<!-- req: R8 -->
+## R8 - scrum-master reconcile
+
+<!-- req: R8.1 -->
+### R8.1
+
+reconcile, run from the system checkout, reads the registry and checks every registered repository against the forge: one whose URL cannot be reached is reported unreachable, and one the forge redirects — as a moved or renamed GitLab project does — is reported moved with the path the redirect names, each a finding asking to update the SRD row. The word never creates, moves, or deletes a repository on the forge; the infrastructure tooling owns that, and reconcile only says where the registry no longer matches it.
+
+<!-- req: R8.2 -->
+### R8.2
+
+For each registered repository, reconcile also checks what the documents declare, through the checkouts (R6): a checkout at the project's group path whose origin names another project than the registry; a parent pinned by URL to a project the registry does not name, or to a document the pinned repository's checkout does not hold (GH-2738, GH-2811); an initiative context item naming a document the system repository does not hold (srd048 R8.6); and the repository's doctor drift (R4), run dry, each line a finding naming the upgrade profile as the remedy. A repository with no checkout is a finding naming the checkouts word. Where the tracking system's host lists a group's projects, a project under the program's group the registry does not name is a finding suggesting its onboard, since membership is declared, never inferred (design.md D7); a tracking system that cannot list the group says so in the output rather than guessing.
+
+<!-- req: R8.3 -->
+### R8.3
+
+reconcile files one issue per repository with findings, in the system repository, plane management, filed by reconcile (op::reconcile, srd001 R34.1), listing each finding as a requirement and closing when the word reports the repository ok; an issue already open for the repository is reported, not duplicated, found by its marker. The output is one line per repository — ok, filed with the issue, open, or failed with the reason — with each finding under it and the counts, and the JSON mirrors it; one repository's failure does not stop the rest. A dry run reports every finding and files nothing.
+
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -376,3 +394,15 @@ With two registered repositories, one at the running release and one behind, rol
 - [R7.1](#r71)
 - [R7.2](#r72)
 - [R7.3](#r73)
+
+<!-- ac: AC12 -->
+### AC12
+
+With a registry naming a reachable repository, an unreachable one, and one whose checkout at the group path has another origin, reconcile reports the first ok and files one issue each for the others in the system repository, plane management and op::reconcile, naming the finding; a story pinned to a document the pinned repository's checkout does not hold, one pinned to a repository the registry does not name, and an initiative item naming a missing document are findings in their repositories' issues; where the host lists the group, an unregistered project is a finding suggesting onboard, and a host that cannot list says so; a rerun with the issues open reports each repository open and files nothing twice; and a dry run reports every finding and files nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R8.1](#r81)
+- [R8.2](#r82)
+- [R8.3](#r83)
