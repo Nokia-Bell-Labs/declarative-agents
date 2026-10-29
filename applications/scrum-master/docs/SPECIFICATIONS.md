@@ -137,7 +137,7 @@ docs/road-map.md.
 | [srd040-format-tools](specs/software-requirements/srd040-format-tools.md) | docs/specs/software-requirements/srd040-format-tools.md | Tooling: mage convert, fmt, specCheck, and the format gates | 01.2 |
 | [srd041-states](specs/software-requirements/srd041-states.md) | docs/specs/software-requirements/srd041-states.md | States and transitions of an issue | 00.1 |
 | [srd042-beads-tracker](specs/software-requirements/srd042-beads-tracker.md) | docs/specs/software-requirements/srd042-beads-tracker.md | Beads tracker: the program's facts live in a repository | 03.0 |
-| [srd043-init-onboard](specs/software-requirements/srd043-init-onboard.md) | docs/specs/software-requirements/srd043-init-onboard.md | Script: init, onboard, doctor, checkouts, and roll (scrum-master init, scrum-master onboard, scrum-master doctor, scrum-master checkouts, scrum-master roll) | 01.4 |
+| [srd043-init-onboard](specs/software-requirements/srd043-init-onboard.md) | docs/specs/software-requirements/srd043-init-onboard.md | Script: init, onboard, doctor, checkouts, roll, and reconcile (scrum-master init, scrum-master onboard, scrum-master doctor, scrum-master checkouts, scrum-master roll, scrum-master reconcile) | 01.4 |
 | [srd044-help](specs/software-requirements/srd044-help.md) | docs/specs/software-requirements/srd044-help.md | Script: help | 01.4 |
 | [srd045-backlog](specs/software-requirements/srd045-backlog.md) | docs/specs/software-requirements/srd045-backlog.md | The backlog hierarchy: themes, initiatives, epics, features, and stories | 04.0 |
 | [srd046-draft](specs/software-requirements/srd046-draft.md) | docs/specs/software-requirements/srd046-draft.md | Skill: draft | 04.2 |

@@ -334,7 +334,7 @@ func TestDoctorExtendsLabels(t *testing.T) {
 		t.Fatalf("doctor reported no %s", program.LabelsFile)
 		return Result{}
 	}
-	want := []string{"kind::question", "op::file", "op::plan", "op::goals", "op::onboard", "op::report", "op::status", "op::recur", "op::upgrade"}
+	want := []string{"kind::question", "op::file", "op::plan", "op::goals", "op::onboard", "op::report", "op::status", "op::recur", "op::upgrade", "op::reconcile"}
 
 	dry, err := Doctor(DoctorOptions{Dir: dir, DryRun: true})
 	if f := labelsResult(dry); err != nil || f.Action != "extended" || !slices.Equal(f.Labels, want) || !strings.Contains(f.Reason, "scrum-master issue labels") {

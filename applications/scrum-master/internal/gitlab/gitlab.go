@@ -128,6 +128,23 @@ func (t *Tracker) all(p string, each func(json.RawMessage) error) error {
 	}
 }
 
+// GroupProjects lists the project paths under a group, subgroups
+// included, so reconcile can sweep the program's group (GH-2822).
+func (t *Tracker) GroupProjects(group string) ([]string, error) {
+	var out []string
+	err := t.all("groups/"+id(group)+"/projects?include_subgroups=true", func(m json.RawMessage) error {
+		var p struct {
+			Path string `json:"path_with_namespace"`
+		}
+		if err := json.Unmarshal(m, &p); err != nil {
+			return err
+		}
+		out = append(out, p.Path)
+		return nil
+	})
+	return out, err
+}
+
 type glUser struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`

@@ -1,0 +1,47 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reconcile machine's word (GH-2822); the directory is a parameter
+# from the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-reconcile-declarations
+tools:
+- name: reconcile
+  type: exec
+  binary: scrum-master
+  args:
+  - reconcile
+  - --json
+  visibility: internal
+  description: Sweep the program for drift between the registry, the forge, and the checkouts — unreachable or moved repositories, checkouts on other origins, dead pins, missing initiative documents, unregistered group projects, and doctor drift — and file one issue per repository with findings in the system repository, never a second while one is open; nothing on the forge is created, moved, or deleted (GH-2822).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The system repository's checkout; empty is the git root.
+        flag: --dir
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The reconcile word's JSON report — each repository ok, filed with its issue and findings, open with the issue already filed, or failed with the reason, and the notes for what the sweep could not check.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: the system repository's tracker and each registered repository's origin
+    description: Reads the forge's view of each repository and files one issue per repository with findings; no repository is changed.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The issues are the only writes; closing one undoes its filing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'reconcile: <error>'
+    state_after_failure: nothing filed by a process that did not start
+  - signal: ToolFailed
+    condition: the directory is no system checkout, has no forge origin, or its registry names no repositories
+    message_shape: 'the registry names no repositories: <dir> holds no subsystem SRD under docs/specs/software-requirements'
+    state_after_failure: the repositories are as they were

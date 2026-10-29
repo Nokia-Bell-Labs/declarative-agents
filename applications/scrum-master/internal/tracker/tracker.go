@@ -201,6 +201,14 @@ type Reviewer interface {
 	Merge(project, branch, tip, message string) (string, error)
 }
 
+// GroupLister is a tracking system whose host lists a group's projects,
+// subgroups included, as GitLab's API does: reconcile sweeps the program's
+// group for repositories the registry does not name through it (GH-2822).
+// A tracking system without one says so rather than guessing.
+type GroupLister interface {
+	GroupProjects(group string) ([]string, error)
+}
+
 // Issues is the issue half of a tracking system: the issues, their notes
 // and the ledger events in them, milestones, labels, and the people who
 // pop and approve (srd042). Every tracking system supplies it, beads from
