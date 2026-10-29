@@ -182,6 +182,41 @@ func TestPushFilesTheSystemsSprintEnd(t *testing.T) {
 	})
 }
 
+// TestPushSkipsInitiativeRepositories files no sprint-end issue in a
+// repository whose subsystem SRD carries the initiative context item: it
+// releases nothing, so the push names it among the skipped instead, and a
+// rerun files and updates nothing (GH-2824).
+func TestPushSkipsInitiativeRepositories(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		const initiative = "program/initiatives/insight"
+		srd := strings.NewReplacer("srd010-delivery", "srd012-insight", "| fleet |", "| insight |",
+			"/program/delivery/fleet", "/"+initiative,
+			"- owner: Product Owner, delivery", "- owner: Product Owner, insight\n- initiative: in001-insight").
+			Replace(string(read(t, "../../testdata/system/srd010-delivery.md")))
+		p.AddFile(sys, "main", "docs/specs/software-requirements/srd012-insight.md", []byte(srd))
+		in, f, _ := planned(t, p)
+		res, err := Push(f, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.SprintEnds) != 1 || res.SprintEnds[0].Project != fleet || res.SprintEnds[0].Action != "filed" {
+			t.Fatalf("sprint ends = %+v", res.SprintEnds)
+		}
+		if !slices.ContainsFunc(res.Skipped, func(s string) bool {
+			return strings.HasPrefix(s, initiative+":") && strings.Contains(s, "initiative")
+		}) {
+			t.Fatalf("skipped = %v", res.Skipped)
+		}
+		if issues := issuesOf(t, f, initiative); len(issues) != 0 {
+			t.Fatalf("the initiative repository got issues %+v", issues)
+		}
+		res, err = Push(f, in)
+		if err != nil || len(res.SprintEnds) != 1 || res.SprintEnds[0].Action != "unchanged" {
+			t.Fatalf("second push = %+v, %v", res.SprintEnds, err)
+		}
+	})
+}
+
 // TestPushDatesTheMilestoneForTeamsInOtherGroups gives a releasing
 // repository outside the program group the milestone in its own group, so
 // its issues find it (srd031 R4.2).

@@ -29,7 +29,7 @@ the Sprint Goals the owner reports complete.
 <!-- req: R1.1 -->
 ### R1.1
 
-A sprint-end issue is a recurring audit filed once per period in each repository that releases, by scrum-master plan push when the period is planned (srd031 R4.6), due on the milestone end date. In the system repository it references the sprint issue (srd001 R7) and leaves its checklist to the program lead.
+A sprint-end issue is a recurring audit filed once per period in each repository that releases — the scrum and component repositories the registry names, not an initiative's repository, which releases nothing (GH-2811, GH-2824) — by scrum-master plan push when the period is planned (srd031 R4.6), due on the milestone end date. In the system repository it references the sprint issue (srd001 R7) and leaves its checklist to the program lead.
 
 <!-- req: R1.2 -->
 ### R1.2

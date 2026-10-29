@@ -112,7 +112,7 @@ scrum-master plan push dates the milestone, sets the sprint issue (srd001 R7) wi
 <!-- req: R4.7 -->
 ### R4.7
 
-push decomposes into four words the plan-push profile composes (GH-201, GH-206, design.md D14): scrum-master plan milestone, scrum-master plan sprint-issue, scrum-master plan sprint-ends, and scrum-master plan events. scrum-master plan push runs the same code as one command. Each word rereads the road map and recomputes its scope, and each upserts by marker or ensures by title, so a re-run of a word, the machine, or the command updates and creates nothing, and a word that fails after another is a partial machine state a re-run finishes.
+push decomposes into four words the plan-push profile composes (GH-201, GH-206, design.md D14): scrum-master plan milestone, scrum-master plan sprint-issue, scrum-master plan sprint-ends, and scrum-master plan events. scrum-master plan push runs the same code as one command. sprint-ends files in the scrum and component repositories the registry names; a repository whose subsystem SRD carries the initiative context item releases nothing, so it gets no sprint-end issue and is reported among the skipped with its reason, as a system repository no SRD declares is reported (GH-2824). Each word rereads the road map and recomputes its scope, and each upserts by marker or ensures by title, so a re-run of a word, the machine, or the command updates and creates nothing, and a word that fails after another is a partial machine state a re-run finishes.
 
 <!-- req: R5 -->
 ## R5 - Refusals

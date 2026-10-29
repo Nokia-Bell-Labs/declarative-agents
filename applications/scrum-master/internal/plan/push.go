@@ -74,11 +74,15 @@ var weekRange = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 // repository: the release, its milestone, the objective groups, and the
 // releasing repositories (GH-206).
 type pushPlan struct {
-	r       Release
-	m       tracker.Milestone
-	docs    []*objectives.Document
-	groups  []group
-	repos   []string
+	r      Release
+	m      tracker.Milestone
+	docs   []*objectives.Document
+	groups []group
+	repos  []string
+	// ends are the repositories that get a sprint-end issue: the scrum and
+	// component repositories the registry names, less an initiative's, which
+	// releases nothing (GH-2824).
+	ends    []string
 	skipped []string
 }
 
@@ -115,6 +119,15 @@ func loadPushPlan(t tracker.Tracker, in PushInput) (pushPlan, error) {
 		return p, err
 	}
 	p.repos = subs.Repositories()
+	ends := slices.Clone(p.repos)
+	sort.Strings(ends)
+	for _, repo := range slices.Compact(ends) {
+		if sub, ok := subs.SubsystemFor(repo); ok && sub.Initiative != "" {
+			p.skipped = append(p.skipped, repo+": an initiative's repository; it releases nothing (GH-2811)")
+			continue
+		}
+		p.ends = append(p.ends, repo)
+	}
 	if !slices.Contains(p.repos, program.ProjectPath(in.System)) {
 		p.skipped = append(p.skipped, in.System+": no subsystem SRD declares it as a component, so it has no sprint-end issue")
 	}
@@ -178,7 +191,9 @@ func PushSprintIssue(t tracker.Tracker, in PushInput) (IssueAction, error) {
 }
 
 // PushSprintEnds is the sprint-ends word (GH-206, srd031 R4.7): one
-// sprint-end issue per releasing repository, each upserted by marker.
+// sprint-end issue per releasing repository, each upserted by marker. An
+// initiative's repository releases nothing, so it gets none and is reported
+// skipped (GH-2824).
 func PushSprintEnds(t tracker.Tracker, in PushInput) ([]IssueAction, []string, error) {
 	p, err := loadPushPlan(t, in)
 	if err != nil {
@@ -189,10 +204,8 @@ func PushSprintEnds(t tracker.Tracker, in PushInput) ([]IssueAction, []string, e
 }
 
 func pushSprintEnds(t tracker.Tracker, in PushInput, p pushPlan) ([]IssueAction, error) {
-	repos := slices.Clone(p.repos)
-	sort.Strings(repos)
 	out := []IssueAction{}
-	for _, repo := range slices.Compact(repos) {
+	for _, repo := range p.ends {
 		a, err := pushSprintEnd(t, in, p.r, repo)
 		if err != nil {
 			return out, err
