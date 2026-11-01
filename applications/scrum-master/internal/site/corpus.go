@@ -29,6 +29,10 @@ const CorpusDir = "corpus"
 // after the brackets, up to a space or the closing parenthesis.
 var link = regexp.MustCompile(`(\]\()([^)\s]+)`)
 
+// docPath is a list item that names a docs/ document and nothing else:
+// the bullet, the path, and at most trailing blanks.
+var docPath = regexp.MustCompile(`^(\s*[-*] )(docs/\S+\.md)[ \t]*$`)
+
 // blobBase is where a forge shows the system repository's files at its
 // default branch, so a link the site cannot hold points at the forge: under
 // SCRUM_MASTER_WEB_BASE, the web root the program's citations use, when it
@@ -86,6 +90,32 @@ func fixLinks(page []byte, rel, base string) []byte {
 		}
 		return []byte(string(sub[1]) + base + resolved + anchor)
 	})
+}
+
+// linkDocPaths turns a list item that is exactly a docs/ path the corpus
+// holds — the vision's canonical documents are such a list — into a link
+// to the copy at that place, the path kept as its text; a path the corpus
+// does not hold is left as written, so nothing absent is linked, and
+// fenced code is left as written (srd048 R7.1, R8.5, GH-2840).
+func linkDocPaths(page []byte, inside string, held func(string) bool) []byte {
+	lines := strings.Split(string(page), "\n")
+	fenced := false
+	for i, l := range lines {
+		if t := strings.TrimSpace(l); strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			fenced = !fenced
+			continue
+		}
+		m := docPath.FindStringSubmatch(l)
+		if fenced || m == nil || !held(strings.TrimPrefix(m[2], "docs/")) {
+			continue
+		}
+		rel, err := filepath.Rel(path.Dir(CorpusDir+"/"+inside), CorpusDir+"/"+strings.TrimPrefix(m[2], "docs/"))
+		if err != nil {
+			continue
+		}
+		lines[i] = m[1] + "[" + m[2] + "](" + filepath.ToSlash(rel) + ")"
+	}
+	return []byte(strings.Join(lines, "\n"))
 }
 
 // historySection is a document's changes across corpus tags, closing its
@@ -185,6 +215,11 @@ func CorpusPages(system string, steps []Step) (map[string][]byte, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	held := func(inside string) bool { _, ok := pages[Dir+"/"+CorpusDir+"/"+inside]; return ok }
+	for _, inside := range listed {
+		key := Dir + "/" + CorpusDir + "/" + inside
+		pages[key] = linkDocPaths(pages[key], inside, held)
 	}
 	slices.Sort(listed)
 	var index strings.Builder

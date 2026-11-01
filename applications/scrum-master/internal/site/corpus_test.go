@@ -26,6 +26,41 @@ func TestCorpusLinks(t *testing.T) {
 	}
 }
 
+// A list item that is exactly a docs/ path the corpus holds becomes a link
+// to the copy, the path its text; one the corpus does not hold, one inside
+// fenced code, and one with prose around it are left as written (GH-2840).
+func TestCorpusLinksCanonicalDocuments(t *testing.T) {
+	system := t.TempDir()
+	os.MkdirAll(filepath.Join(system, "docs", "specs", "themes"), 0o755)
+	os.WriteFile(filepath.Join(system, "docs", "ARCHITECTURE.md"), []byte("# Architecture\n"), 0o644)
+	os.WriteFile(filepath.Join(system, "docs", "specs", "themes", "th001-x.md"), []byte("---\nid: th001-x\ntitle: X\n---\n\n## Canonical documents\n\n- docs/ARCHITECTURE.md\n"), 0o644)
+	os.WriteFile(filepath.Join(system, "docs", "VISION.md"), []byte(strings.Join([]string{
+		"## Canonical documents",
+		"",
+		"- docs/ARCHITECTURE.md",
+		"- docs/specs/themes/th001-x.md",
+		"- docs/guides/absent.md",
+		"- docs/ARCHITECTURE.md is canonical",
+		"",
+		"```",
+		"- docs/ARCHITECTURE.md",
+		"```",
+	}, "\n")), 0o644)
+	pages, err := CorpusPages(system, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vision := string(pages["site/corpus/VISION.md"])
+	for _, want := range []string{"- [docs/ARCHITECTURE.md](ARCHITECTURE.md)\n", "- [docs/specs/themes/th001-x.md](specs/themes/th001-x.md)\n", "- docs/guides/absent.md\n", "- docs/ARCHITECTURE.md is canonical\n", "```\n- docs/ARCHITECTURE.md\n```"} {
+		if !strings.Contains(vision, want) {
+			t.Errorf("the vision lacks %q:\n%s", want, vision)
+		}
+	}
+	if theme := string(pages["site/corpus/specs/themes/th001-x.md"]); !strings.Contains(theme, "- [docs/ARCHITECTURE.md](../../ARCHITECTURE.md)\n") {
+		t.Errorf("a nested copy's path does not climb to the copy:\n%s", theme)
+	}
+}
+
 // The corpus word copies every document under docs/ to the same place
 // under site/corpus/ with an index naming each by its title, and a forge
 // origin as git@host:path reads as its web address (GH-86).
