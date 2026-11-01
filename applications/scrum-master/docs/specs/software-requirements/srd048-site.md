@@ -162,7 +162,7 @@ The hierarchy word writes a page per theme, initiative, epic, feature, and story
 <!-- req: R8.2 -->
 ### R8.2
 
-The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, the program's scrums (R8.6) and the architecture tree (R9.3) each under their own heading, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The program's vision sits first under the Program heading, linking the corpus copy of the system repository's docs/VISION.md, only when the corpus holds it (R8.5), so the program's why is one click from every page (GH-2837). The shell searches every page the navigator links, so every story (GH-127).
+The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, the program's scrums (R8.6), the backlog (R10.2), and the architecture tree (R9.3) each under their own heading, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The program's vision sits first under the Program heading, linking the corpus copy of the system repository's docs/VISION.md, only when the corpus holds it (R8.5), so the program's why is one click from every page (GH-2837). The shell searches every page the navigator links, so every story (GH-127).
 
 <!-- req: R8.3 -->
 ### R8.3
@@ -206,6 +206,19 @@ The links are reciprocated into the rest of the site (R8.1): a hierarchy page li
 ### R9.3
 
 The navigator (R8.2) lists the architecture under its own heading: each subsystem with its components beneath, each linking its page, so the shell searches them as it searches every page the navigator links (R8.2).
+
+<!-- req: R10 -->
+## R10 - The backlog pages
+
+<!-- req: R10.1 -->
+### R10.1
+
+The timeline facts carry each story's issues record as its document holds it (srd045 R4.4), read by the timeline word from the checkouts beside the reports checkout, never from the tracking system, so the backlog draws offline wherever the site generates — CI mines no tracker; a record that does not parse is a note on the facts, never skipped silently (GH-2845).
+
+<!-- req: R10.2 -->
+### R10.2
+
+The backlog word draws the timeline facts, and computes none (R5.1), under site/backlog/: every issue the stories record, across the program's repositories, open and closed. The folder's index opens with the embedded filterable view and holds two tables, the forge's view of the same record: the open issues, each with who works on it, when it opened, how long it has been open, and the projected time, its story's release and that release's sprint end where the road map names one; and the closed issues, each with who worked on it, when it opened and closed, and how long it took. Every issue links its tracker page where its url opens in a browser and is named without a link where it does not (R8.5), and every row links its story's page and its epic's, the epic found up the story's parents. The embedded page, site/backlog/backlog.html, is one self-contained page whose rows are inlined, filtering by repository, state, and who in place, ?repo=, ?state=, and ?who= opening it filtered; under ?embed=1 it drops its heading and tells the page holding it its height, as the interactive timeline does (R5.3), and a planning item opens its page in the site, in the top window. The navigator lists the Backlog between the scrums and the architecture (R8.2), and the status word's open-issues page links each issue the same way (R4) (GH-2845).
 
 <!-- field: non_goals -->
 ## Non-goals
@@ -331,3 +344,16 @@ On a fixture program whose registry declares two subsystems, one component's rep
 - [R9.2](#r92)
 - [R9.3](#r93)
 - [R8.2](#r82)
+
+<!-- ac: AC10 -->
+### AC10
+
+On a fixture program whose stories carry issues records — one issue open with who and opened, one closed with who, opened, and closed — the facts carry each story's record from its document, with an unparseable record a note; the backlog index lists the open issue with who works on it, how long it has been open, and its story's release and sprint end as the projected time, and the closed issue with who worked on it and how long it took, each issue linked on its tracker where its url opens in a browser and named without a link where it does not, each row linking its story's and its epic's pages; the embedded page inlines the same rows and filters by repository, state, and who; the navigator lists the Backlog; and the status word's open-issues page links each issue's tracker page.
+
+<!-- field: traces -->
+#### Traces
+
+- [R10.1](#r101)
+- [R10.2](#r102)
+- [R8.2](#r82)
+- [R8.5](#r85)

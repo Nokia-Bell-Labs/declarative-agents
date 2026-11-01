@@ -30,8 +30,9 @@ lifecycle: |-
   6. History → CorpusPages (ToolDone): scrum-master site corpus
   7. CorpusPages → Hierarchy (ToolDone): scrum-master site hierarchy
   8. Hierarchy → Architecture (ToolDone): scrum-master site architecture
-  9. Architecture → Overview (ToolDone): scrum-master site overview
-  10. Overview → Done (ToolDone)
+  9. Architecture → Backlog (ToolDone): scrum-master site backlog
+  10. Backlog → Overview (ToolDone): scrum-master site overview
+  11. Overview → Done (ToolDone)
 initial_state: Idle
 budget:
   command_timeout: 16m
@@ -75,6 +76,12 @@ states:
     site/architecture/, each with its lifecycle state, its contract, and
     the planning documents citing it, drawn from the timeline facts
     (srd048 R9.1, GH-2830).
+- name: Backlog
+  meaning: |
+    The backlog word: every issue the stories record, open and closed,
+    under site/backlog/, with who worked on it, its days so far or taken,
+    its story and epic, and a filterable view, drawn from the timeline
+    facts (srd048 R10, GH-2845).
 - name: Overview
   meaning: |
     The overview word: the program's home page, with the interactive
@@ -171,6 +178,14 @@ transitions:
   next: Refused
 - state: Architecture
   signal: ToolDone
+  next: Backlog
+  action: site_backlog
+  summary: true
+- state: Backlog
+  signal: ToolFailed
+  next: Refused
+- state: Backlog
+  signal: ToolDone
   next: Overview
   action: site_overview
   summary: true
@@ -205,6 +220,9 @@ transitions:
   signal: CommandError
   next: Failed
 - state: Architecture
+  signal: CommandError
+  next: Failed
+- state: Backlog
   signal: CommandError
   next: Failed
 - state: Overview

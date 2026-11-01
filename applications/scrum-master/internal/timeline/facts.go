@@ -70,6 +70,19 @@ type Issue struct {
 	DependsOn []string
 }
 
+// IssueRecord is one entry of a story's issues record (srd045 R4.4), as
+// the facts carry it: who worked on the issue and when it opened and
+// closed, read from the story document.
+type IssueRecord struct {
+	Ref    string   `json:"ref"`
+	URL    string   `json:"url,omitempty"`
+	Title  string   `json:"title,omitempty"`
+	Who    []string `json:"who,omitempty"`
+	Opened string   `json:"opened,omitempty"`
+	Closed string   `json:"closed,omitempty"`
+	State  string   `json:"state,omitempty"`
+}
+
 // Item is one row of the timeline.
 type Item struct {
 	ID           string   `json:"id"`
@@ -108,6 +121,10 @@ type Item struct {
 	// depends_on and blocked_by links, an issue's Depends-on and
 	// Blocked-by lines (GH-135).
 	DependsOn []string `json:"depends_on,omitempty"`
+	// Ledger is a story's issues record as its document carries it
+	// (srd045 R4.4), read from the checkouts, never the tracker, so the
+	// backlog pages draw it offline (srd048 R10).
+	Ledger []IssueRecord `json:"ledger,omitempty"`
 	// Due is an initiative's requirement groups, each with the day it
 	// falls due, in group order: what the initiative promises (GH-136).
 	Due []Due `json:"due,omitempty"`

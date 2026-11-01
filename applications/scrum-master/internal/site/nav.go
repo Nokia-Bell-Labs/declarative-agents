@@ -177,6 +177,9 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 			fmt.Fprintf(&b, "  - [%s%s](/%s/%s.md %q)\n", chip, t.Name, ScrumsDir, t.Name, t.Name)
 		}
 	}
+	// The backlog: every issue the stories record, open and closed
+	// (srd048 R10).
+	b.WriteString("- [Backlog](/" + BacklogDir + "/index.md)\n")
 	// The architecture under its own heading: each subsystem with its
 	// components beneath, so search reaches them (srd048 R9.3).
 	if len(arch) > 0 {

@@ -392,7 +392,13 @@ func issuesPage(open []tracker.Issue) string {
 		if state == "" {
 			state = "open"
 		}
-		fmt.Fprintf(&b, "| %s#%d | %s | %s | %s | %s | %s | %s |\n", i.Project, i.IID, i.Title, axis(i, "plane::"), axis(i, "kind::"), state, axis(i, "op::"), i.Milestone)
+		// The issue links its tracker page where its URL opens in a
+		// browser, and is named without a link where it does not (R8.5).
+		ref := fmt.Sprintf("%s#%d", i.Project, i.IID)
+		if i.WebURL != "" {
+			ref = fmt.Sprintf("[%s](%s)", ref, i.WebURL)
+		}
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s |\n", ref, i.Title, axis(i, "plane::"), axis(i, "kind::"), state, axis(i, "op::"), i.Milestone)
 	}
 	return b.String()
 }

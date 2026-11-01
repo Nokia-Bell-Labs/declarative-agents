@@ -11,4 +11,5 @@ tools:
   - site_corpus
   - site_hierarchy
   - site_architecture
+  - site_backlog
   - site_overview
