@@ -257,7 +257,9 @@ func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
 	}
 	po1 := string(pages[Dir+"/"+ScrumsDir+"/po-1.md"])
 	for _, want := range []string{
-		"# po-1", "Product Owner: Product Owner, alice", "subsystem `srd010-po-1`", "[g/po-1](https://gitlab.example.com/g/po-1)", "**Area:** grader.",
+		"# po-1", "Product Owner: Product Owner, alice", "subsystem `srd010-po-1`", "[g/po-1](https://gitlab.example.com/g/po-1)",
+		// The area's components link their architecture pages (srd048 R9.2).
+		"**Area:** [grader](../architecture/srd010-po-1/grader.md).",
 		"## Sprint Goals", "Sprint Goal 01.0, grading", "release 01.0",
 		`href="../hierarchy/po-1/st001-score-trajectories.md"`, `href="../hierarchy/ep001-agent-evaluation.md"`,
 		"| [Agent evaluation](../hierarchy/ep001-agent-evaluation.md) |",

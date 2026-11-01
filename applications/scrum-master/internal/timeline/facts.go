@@ -129,6 +129,10 @@ type Facts struct {
 	// Teams are the program's scrums, as the system's subsystem SRDs
 	// declare them; a tag's facts hold none.
 	Teams []Team `json:"teams,omitempty"`
+	// Architecture is the program's architecture as the registry declares
+	// it (srd048 R9.1): each subsystem with its components, their lifecycle
+	// states, and their contracts. A tag's facts hold none.
+	Architecture []SubsystemFact `json:"architecture,omitempty"`
 	// Group is the program's forge group, the system repository's project
 	// path without its last segment: what each team's Name is named below
 	// (GH-2811).
@@ -140,6 +144,49 @@ type Facts struct {
 	// a document the system repository does not hold among them, never
 	// skipped silently (GH-2811).
 	Notes []string `json:"notes,omitempty"`
+}
+
+// SubsystemFact is one subsystem of the registry as the facts carry the
+// architecture (srd048 R9.1): its owner, the scrum owning it as the facts
+// name teams, its contract, the subsystem SRD, and its components.
+type SubsystemFact struct {
+	ID    string `json:"id"`
+	Owner string `json:"owner,omitempty"`
+	// Team is the scrum owning it, as Team.Name names it; Initiative is
+	// the initiative whose repository it declares instead of a scrum
+	// (GH-2811).
+	Team       string          `json:"team,omitempty"`
+	Initiative string          `json:"initiative,omitempty"`
+	Contract   *Contract       `json:"contract,omitempty"`
+	Components []ComponentFact `json:"components"`
+}
+
+// ComponentFact is one component of a subsystem: its lifecycle state by
+// the rule scrum-master backlog architecture states (srd045 R8.5) and its
+// contract, the component SRD its repository holds (design.md
+// component_srd, GH-2828).
+type ComponentFact struct {
+	ID string `json:"id"`
+	// State is actual, in_transition, or intended; empty when the system's
+	// ARCHITECTURE does not declare the component, so the rule does not
+	// judge it.
+	State    string `json:"state,omitempty"`
+	Deferred bool   `json:"deferred,omitempty"`
+	// Tag is the tag that shipped an actual component; Release the release
+	// an in-transition one's work lands in.
+	Tag        string    `json:"tag,omitempty"`
+	Release    string    `json:"release,omitempty"`
+	Repository string    `json:"repository,omitempty"`
+	Contract   *Contract `json:"contract,omitempty"`
+}
+
+// Contract is a contract document: its path in its repository, its source
+// on the forge where a browser opens it, and the team whose repository
+// holds it, empty for the system's.
+type Contract struct {
+	Path   string `json:"path"`
+	Source string `json:"source,omitempty"`
+	Team   string `json:"team,omitempty"`
 }
 
 // ProgramRef names another program: its system repository and its site.

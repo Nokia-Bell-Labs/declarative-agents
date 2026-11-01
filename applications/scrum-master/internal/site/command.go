@@ -225,6 +225,22 @@ var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, ini
 		return err
 	}}
 
+// architectureWord writes a page per subsystem and per component, each
+// with its lifecycle state, its contract, and the planning documents
+// citing it, drawn from the timeline facts (srd048 R9.1).
+var architectureWord = word{"architecture", "the architecture word: a page per subsystem and component under site/architecture/, each with its lifecycle state, its contract, and the documents citing it, drawn from the timeline facts",
+	func(ctx *cli.Context, dir string, r *Result) error {
+		pages, err := ArchitecturePages(dir)
+		if err != nil {
+			return err
+		}
+		// A component's page sits below its subsystem, so the folder
+		// publishes as a tree.
+		published, err := PublishTree(dir, ArchitectureDir, pages, install.Version(), ctx.DryRun)
+		r.Pages = append(r.Pages, published...)
+		return err
+	}}
+
 // overviewWord writes the program's home: the interactive timeline, a tile
 // per initiative, and the releases (GH-128).
 var overviewWord = word{"overview", "the overview word: the program's home page, site/overview.md, with the interactive timeline, a tile per initiative, and the releases, drawn from the timeline facts",
@@ -247,7 +263,7 @@ var overviewWord = word{"overview", "the overview word: the program's home page,
 	}}
 
 func init() {
-	words = append(words, ganttWord, historyWord, corpusWord, hierarchyWord, overviewWord)
+	words = append(words, ganttWord, historyWord, corpusWord, hierarchyWord, architectureWord, overviewWord)
 	var dir, project string
 	flags := func(fs *flag.FlagSet) {
 		fs.StringVar(&dir, "dir", "", "the reports repository's checkout (default: "+ReportsEnv+", else the checkout beside this one named for --project)")

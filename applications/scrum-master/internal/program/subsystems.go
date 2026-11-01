@@ -161,6 +161,70 @@ func readSubsystem(f corpus.File) Subsystem {
 	return sub
 }
 
+// SubsystemIn reads one document's subsystem declaration: ok when it
+// declares an owner and components (design.md subsystem_srd). path names
+// the document for the corpus reader.
+func SubsystemIn(path string, content []byte) (Subsystem, bool) {
+	f, err := corpus.Decode(path, content)
+	if err != nil {
+		return Subsystem{}, false
+	}
+	sub := readSubsystem(f)
+	return sub, sub.Owner != "" && len(sub.Components) > 0
+}
+
+// SubsystemSRDPath is the path, within the repository at dir, of the
+// subsystem SRD whose document id is id; the file is found by its id, not
+// its name, so a file named otherwise still answers.
+func SubsystemSRDPath(dir, id string) (string, bool) {
+	paths, err := filepath.Glob(filepath.Join(dir, SRDDir, "*.md"))
+	if err != nil {
+		return "", false
+	}
+	for _, p := range paths {
+		content, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		rel := filepath.ToSlash(filepath.Join(SRDDir, filepath.Base(p)))
+		if sub, ok := SubsystemIn(rel, content); ok && sub.ID == id {
+			return rel, true
+		}
+	}
+	return "", false
+}
+
+// ComponentSRD is the path, within the repository at dir, of the component
+// SRD declaring a component's software requirements (design.md
+// component_srd, GH-2828): the SRD under SRDDir whose component context
+// item names the component, compared as labels are.
+func ComponentSRD(dir, component string) (string, bool) {
+	paths, err := filepath.Glob(filepath.Join(dir, SRDDir, "*.md"))
+	if err != nil {
+		return "", false
+	}
+	for _, p := range paths {
+		content, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		rel := filepath.ToSlash(filepath.Join(SRDDir, filepath.Base(p)))
+		f, err := corpus.Decode(rel, content)
+		if err != nil {
+			continue
+		}
+		c := corpus.TreeString(f.Markdown.Field("context").Tree(), "component")
+		if c != "" && componentKey(c) == componentKey(component) {
+			return rel, true
+		}
+	}
+	return "", false
+}
+
+// ComponentKey compares component names as labels do, whatever their case
+// and whether words are joined by a hyphen or an underscore.
+func ComponentKey(name string) string { return componentKey(name) }
+
 // ComponentFor returns the component a subsystem SRD declares for a
 // repository, matched by project path. A team's scrum repository holds no
 // component of its own: it answers for its subsystem's first component,

@@ -119,7 +119,7 @@ func containsDir(dirs []string, d string) bool {
 // sprints, the plan's tree, every theme to every story, so search reaches
 // each, the program's scrums, and its repositories on the forge. Links are
 // site-rooted, the routes the shell serves.
-func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team, parent *timeline.ProgramRef) string {
+func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team, parent *timeline.ProgramRef, arch []timeline.SubsystemFact) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts and the checkouts beside the reports checkout"))
 	// A program that is a team of a larger one says so first, linking the
@@ -169,6 +169,17 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 				chip = `<span class="kb kb-program" title="Program">P</span> `
 			}
 			fmt.Fprintf(&b, "  - [%s%s](/%s/%s.md %q)\n", chip, t.Name, ScrumsDir, t.Name, t.Name)
+		}
+	}
+	// The architecture under its own heading: each subsystem with its
+	// components beneath, so search reaches them (srd048 R9.3).
+	if len(arch) > 0 {
+		b.WriteString("- [Architecture](/" + ArchitectureDir + "/index.md)\n")
+		for _, sub := range arch {
+			fmt.Fprintf(&b, "  - [%s](/%s/%s.md %q)\n", sub.ID, ArchitectureDir, sub.ID, sub.ID)
+			for _, c := range sub.Components {
+				fmt.Fprintf(&b, "    - [%s](/%s/%s/%s.md %q)\n", c.ID, ArchitectureDir, sub.ID, c.ID, c.ID)
+			}
 		}
 	}
 	if len(repos) > 0 {
