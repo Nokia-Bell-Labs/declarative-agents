@@ -41,6 +41,7 @@ svg text { font-family: system-ui, sans-serif; }
 <div class="controls">
   <span class="group" id="views"><button data-view="timeline">Timeline</button><button data-view="roadmap">Road map</button></span>
   <span class="group" id="zoom"><button data-mode="Week">Week</button><button data-mode="Sprint">Sprint</button><button data-mode="Quarter">Quarter</button></span>
+  <label id="range">Sprints <select id="from"><option value="">first</option></select> to <select id="to"><option value="">last</option></select></label>
   <label>Compare with the plan at <select id="plan"><option value="-1">none</option></select></label>
 </div>
 <div class="legend" id="legend"></div>
@@ -70,7 +71,8 @@ svg text { font-family: system-ui, sans-serif; }
   var RELEASE = { released: "#16a34a", current: "#2563eb", future: "#94a3b8" };
   var query = new URLSearchParams(location.search);
   var view = query.get("view") === "roadmap" ? "roadmap" : "timeline";
-  var state = { view: view, mode: query.get("mode") || (view === "roadmap" ? "Quarter" : "Sprint"), ghost: -1, opened: { timeline: {}, roadmap: {} } };
+  var state = { view: view, mode: query.get("mode") || (view === "roadmap" ? "Quarter" : "Sprint"), ghost: -1, opened: { timeline: {}, roadmap: {} },
+    from: query.get("from") || "", to: query.get("to") || "" };
 
   function day(s) { var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
   function iso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -163,6 +165,13 @@ svg text { font-family: system-ui, sans-serif; }
   // sprint), or Quarter, starting on a boundary before the earliest day
   // drawn.
   var MODES = { Week: { px: 140 / 7 }, Sprint: { px: 120 / 21 }, Quarter: { px: 120 / 91 } };
+  // The sprints a reader clips the chart to: the releases' sprints, in
+  // sprint order, picked by version in the Sprints selects (GH-2841).
+  var sprints = D.releases.filter(function (r) { return r.sprint && r.sprint.start && r.sprint.end; })
+    .slice().sort(function (a, b) { return a.sprint.start < b.sprint.start ? -1 : a.sprint.start > b.sprint.start ? 1 : 0; });
+  var sprintBy = {};
+  sprints.forEach(function (r) { sprintBy[r.version] = r.sprint; });
+  function ranged() { return !!(sprintBy[state.from] || sprintBy[state.to]); }
   function bounds(list) {
     var lo = day(D.today), hi = day(D.today);
     function see(span) {
@@ -176,24 +185,33 @@ svg text { font-family: system-ui, sans-serif; }
       if (state.ghost >= 0) see(D.plans[state.ghost].planned[r.it.id]);
     });
     D.releases.forEach(function (r) { see(r.sprint); });
+    // A chosen sprint range clips the window to it: from the start
+    // sprint's first day, to the end sprint's last; a choice read in the
+    // wrong order reads as the range between the two (GH-2841).
+    var f = sprintBy[state.from], t = sprintBy[state.to];
+    if (f && t && f.start > t.start) { var s = f; f = t; t = s; }
+    if (f) { lo = day(f.start); if (hi < day(f.end)) hi = day(f.end); }
+    if (t) { hi = day(t.end); if (lo > day(t.start)) lo = day(t.start); }
     return [lo, hi];
   }
   function grid(lo, hi) {
-    var start, step;
+    // A clipped window starts and ends on the chosen sprints' days; the
+    // full span keeps a step of room either side.
+    var pad = ranged() ? 0 : 1, start, step;
     if (state.mode === "Week") {
-      start = addDays(lo, -((lo.getDay() + 6) % 7) - 7);
+      start = addDays(lo, -((lo.getDay() + 6) % 7) - 7 * pad);
       step = function (d) { return addDays(d, 7); };
     } else if (state.mode === "Sprint") {
       var o = D.origin ? day(D.origin) : addDays(lo, -((lo.getDay() + 6) % 7));
       var off = ((Math.round((lo - o) / DAY) % 21) + 21) % 21;
-      start = addDays(lo, -off - 21);
+      start = addDays(lo, -off - 21 * pad);
       step = function (d) { return addDays(d, 21); };
     } else {
-      start = new Date(lo.getFullYear(), Math.floor(lo.getMonth() / 3) * 3 - 3, 1);
+      start = new Date(lo.getFullYear(), Math.floor(lo.getMonth() / 3) * 3 - 3 * pad, 1);
       step = function (d) { return new Date(d.getFullYear(), d.getMonth() + 3, 1); };
     }
     var cols = [start];
-    while (cols[cols.length - 1] <= addDays(hi, 21)) cols.push(step(cols[cols.length - 1]));
+    while (cols[cols.length - 1] <= addDays(hi, 21 * pad)) cols.push(step(cols[cols.length - 1]));
     return cols;
   }
   function lowerLabel(d) {
@@ -389,7 +407,7 @@ svg text { font-family: system-ui, sans-serif; }
     // Keep the reader in place after a fold; else bring today, or the
     // road map's start, into view.
     if (keep) { plot.scrollLeft = left; window.scrollTo(0, top); }
-    else plot.scrollLeft = state.view === "roadmap" ? 0 : Math.max(0, tx - plot.clientWidth / 3);
+    else plot.scrollLeft = state.view === "roadmap" || ranged() ? 0 : Math.max(0, tx - plot.clientWidth / 3);
   }
 
   function drawTree(list) {
@@ -454,6 +472,23 @@ svg text { font-family: system-ui, sans-serif; }
     select.appendChild(o);
   });
   if (!D.plans.length) select.parentElement.hidden = true;
+  // The Sprints selects clip the chart to a sprint range: each release's
+  // sprint, named by its weeks and version, first and last keeping the
+  // full span; ?from= and ?to= open the page clipped (GH-2841).
+  var fromSel = document.getElementById("from"), toSel = document.getElementById("to");
+  sprints.forEach(function (r) {
+    var s = day(r.sprint.start), label = "W" + isoWeek(s) + "–" + isoWeek(addDays(s, 14)) + " · " + r.version;
+    [fromSel, toSel].forEach(function (sel) {
+      var o = document.createElement("option");
+      o.value = r.version; o.textContent = label;
+      sel.appendChild(o);
+    });
+  });
+  if (!sprints.length) document.getElementById("range").hidden = true;
+  fromSel.value = sprintBy[state.from] ? state.from : "";
+  toSel.value = sprintBy[state.to] ? state.to : "";
+  fromSel.addEventListener("change", function (e) { state.from = e.target.value; draw(false); });
+  toSel.addEventListener("change", function (e) { state.to = e.target.value; draw(false); });
   function mark(group, attr, value) {
     document.querySelectorAll("#" + group + " button").forEach(function (b) { b.classList.toggle("on", b.getAttribute(attr) === value); });
   }

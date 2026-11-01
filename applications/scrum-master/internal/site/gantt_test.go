@@ -114,3 +114,28 @@ func TestGanttSplitsACrowdedInitiative(t *testing.T) {
 		}
 	}
 }
+
+// The interactive timeline clips to a chosen sprint range (GH-2841): two
+// Sprints selects list each release's sprint by its ISO weeks and version,
+// the window runs from the chosen start sprint's first day to the chosen
+// end sprint's last, a clipped window drops the step of room the full span
+// keeps either side, ?from= and ?to= open the page clipped, and the
+// selects hide while no release has a sprint.
+func TestTimelineClipsToASprintRange(t *testing.T) {
+	for _, want := range []string{
+		`<label id="range">Sprints <select id="from"><option value="">first</option></select> to <select id="to"><option value="">last</option></select></label>`,
+		`from: query.get("from") || "", to: query.get("to") || ""`,
+		`sprints.forEach(function (r) { sprintBy[r.version] = r.sprint; });`,
+		`if (f && t && f.start > t.start) { var s = f; f = t; t = s; }`,
+		`if (f) { lo = day(f.start); if (hi < day(f.end)) hi = day(f.end); }`,
+		`if (t) { hi = day(t.end); if (lo > day(t.start)) lo = day(t.start); }`,
+		`var pad = ranged() ? 0 : 1`,
+		`"W" + isoWeek(s) + "–" + isoWeek(addDays(s, 14)) + " · " + r.version`,
+		`if (!sprints.length) document.getElementById("range").hidden = true;`,
+		`fromSel.addEventListener("change", function (e) { state.from = e.target.value; draw(false); });`,
+	} {
+		if !strings.Contains(timelineHTML, want) {
+			t.Errorf("the timeline lacks %q", want)
+		}
+	}
+}

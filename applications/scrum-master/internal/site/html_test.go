@@ -108,7 +108,7 @@ func TestTimelineHTMLDrawsEachItemAsWhatItIs(t *testing.T) {
 		`it.kind === "sprint_goal"`, `goals.push(it)`, `it.kind === "issue" && it.parent`, // no rows of their own
 		"// Releases: a line at each sprint's end", "// An initiative's due dates.", "// The Sprint Goals serving the epic, as flags",
 		"// The actual days, a thin bar beneath the plan.", `"stroke-dasharray": "4 3"`, "// Dependencies.",
-		`Week: { px:`, `Sprint: { px:`, `Quarter: { px:`, `addDays(lo, -off - 21)`,
+		`Week: { px:`, `Sprint: { px:`, `Quarter: { px:`, `addDays(lo, -off - 21 * pad)`,
 		`state.view === "roadmap" ? it.kind === "theme"`, "function drawTree(list)", "window.top.location.href",
 		`Compare with the plan at <select id="plan">`,
 	} {
