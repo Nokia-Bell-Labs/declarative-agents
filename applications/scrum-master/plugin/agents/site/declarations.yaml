@@ -216,6 +216,36 @@ tools:
     strategy: noop
     description: The pages are regenerated on every run, the person's to commit or discard.
   visibility: internal
+- name: site_architecture
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - architecture
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Write a page per subsystem and per component under site/architecture/, each with its lifecycle state, its contract, and the planning documents citing it, drawn from the timeline facts (srd048 R9.1, GH-2830).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/architecture/ in the reports checkout; nothing is committed. Reads the timeline facts the timeline word wrote.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
 - name: site_overview
   type: exec
   binary: scrum-master

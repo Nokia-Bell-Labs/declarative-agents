@@ -1,4 +1,5 @@
 site/_sidebar.md
+site/architecture/index.md
 site/corpus/index.md
 site/corpus/road-map.md
 site/corpus/specs/epics/ep001-agent-evaluation.md
@@ -40,6 +41,7 @@ site/history/index.md
 site/index.html
 site/index.md
 site/overview.md
+site/scrums/index.md
 site/sprints/01.0.md
 site/sprints/01.1.md
 site/sprints/index.md
