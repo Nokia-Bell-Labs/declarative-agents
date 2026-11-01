@@ -241,6 +241,19 @@ var architectureWord = word{"architecture", "the architecture word: a page per s
 		return err
 	}}
 
+// backlogWord draws every issue the stories record, open and closed,
+// from the timeline facts (srd048 R10).
+var backlogWord = word{"backlog", "the backlog word: every issue the stories record, open and closed, under site/backlog/, with who worked on it, its days so far or taken, its story and epic, and a filterable view, drawn from the timeline facts",
+	func(ctx *cli.Context, dir string, r *Result) error {
+		pages, err := BacklogPages(dir)
+		if err != nil {
+			return err
+		}
+		published, err := PublishTree(dir, BacklogDir, pages, install.Version(), ctx.DryRun)
+		r.Pages = append(r.Pages, published...)
+		return err
+	}}
+
 // overviewWord writes the program's home: the interactive timeline, a tile
 // per initiative, and the releases (GH-128).
 var overviewWord = word{"overview", "the overview word: the program's home page, site/overview.md, with the interactive timeline, a tile per initiative, and the releases, drawn from the timeline facts",
@@ -263,7 +276,7 @@ var overviewWord = word{"overview", "the overview word: the program's home page,
 	}}
 
 func init() {
-	words = append(words, ganttWord, historyWord, corpusWord, hierarchyWord, architectureWord, overviewWord)
+	words = append(words, ganttWord, historyWord, corpusWord, hierarchyWord, architectureWord, backlogWord, overviewWord)
 	var dir, project string
 	flags := func(fs *flag.FlagSet) {
 		fs.StringVar(&dir, "dir", "", "the reports repository's checkout (default: "+ReportsEnv+", else the checkout beside this one named for --project)")

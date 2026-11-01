@@ -1,5 +1,7 @@
 site/_sidebar.md
 site/architecture/index.md
+site/backlog/backlog.html
+site/backlog/index.md
 site/corpus/index.md
 site/corpus/road-map.md
 site/corpus/specs/epics/ep001-agent-evaluation.md

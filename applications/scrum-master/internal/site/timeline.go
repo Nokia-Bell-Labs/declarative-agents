@@ -365,8 +365,47 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		arch, notes := architectureFacts(dir, s, f.Releases)
 		f.Architecture = arch
 		f.Notes = append(f.Notes, notes...)
+		ledgerNotes := storyLedgers(docs, &f)
+		f.Notes = append(f.Notes, ledgerNotes...)
 	}
 	return f, nil
+}
+
+// storyLedgers reads each story document's issues record (srd045 R4.4)
+// into its item, from the checkouts the docs were loaded from, never the
+// tracker, so the backlog pages draw offline (srd048 R10). A record that
+// does not parse is a note, never skipped silently.
+func storyLedgers(docs []*hierarchy.Doc, f *timeline.Facts) []string {
+	paths := map[string]string{}
+	for _, d := range docs {
+		if d.Kind == hierarchy.Story && d.Path != "" {
+			paths[d.ID] = d.Path
+		}
+	}
+	var notes []string
+	for i := range f.Items {
+		it := &f.Items[i]
+		if it.Kind != string(hierarchy.Story) {
+			continue
+		}
+		p := paths[it.ID]
+		if p == "" {
+			continue
+		}
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		entries, err := backlog.LedgerOf(b)
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("%s: its issues record does not parse, so the backlog leaves it out: %v", it.ID, err))
+			continue
+		}
+		for _, e := range entries {
+			it.Ledger = append(it.Ledger, timeline.IssueRecord{Ref: e.Ref, URL: e.URL, Title: e.Title, Who: e.Who, Opened: e.Opened, Closed: e.Closed, State: e.State})
+		}
+	}
+	return notes
 }
 
 // architectureFacts is the program's architecture as the facts carry it
