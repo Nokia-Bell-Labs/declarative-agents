@@ -109,6 +109,24 @@ func TestDeriveFillsWhatIsNotGivenAndExplicitWins(t *testing.T) {
 	}
 }
 
+// noSRDs is a forge whose system repository has no SRD folder at the ref,
+// as a checkout-based ListDir reports it.
+type noSRDs struct{ *fake.Fake }
+
+func (n noSRDs) ListDir(project, dir, ref string) ([]string, error) {
+	return nil, fmt.Errorf("%s at %s: %w", dir, ref, tracker.ErrNotFound)
+}
+
+// A system repository without docs/specs/software-requirements at the ref
+// declares no subsystems: the component stays underived and the word does
+// not refuse (GH-2834).
+func TestDeriveToleratesASystemWithoutSRDs(t *testing.T) {
+	l, err := Derive(noSRDs{fake.New()}, "g/po-1", "g/system", "main", []string{"docs/specs/stories/st001-x.md"}, Labelling{})
+	if err != nil || l.Component != "" {
+		t.Fatalf("derive: %+v %v", l, err)
+	}
+}
+
 const subsystemMarkdown = `---
 id: srd011-po-2
 title: "Subsystem: po-2"
