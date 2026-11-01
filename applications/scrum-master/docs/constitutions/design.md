@@ -192,6 +192,21 @@ ARCHITECTURE declares the intended state and release tags hold the actual state,
   - implementation_targets_empty: an SRD whose repositories are not registered yet writes the field as None under the field marker's form "empty list", the format's empty table; an empty table with only its header is not canonical, and doctor rewrites it to that form
   - numbering: same as srd
   - purpose: Declares one subsystem, its owner (a Product Owner, the owner item of context), and its components, each a row of implementation_targets by repository URL and path. Component label values (component::<name>) come from these rows. The optional scrum_repository context item names the team's planning repository, apart from its code, where its features, stories, Sprint Goals, sprint-end summaries, status reports, and team rollup live, and whose issues carry its first component's label; without it the team plans in its first component's repository, beside its code (GH-2738). A team with a scrum repository and no code repository yet lists its components with the scrum repository as their repository, until a code repository takes each row (GH-2745). The system SRD the init profile writes has the same two fields, declaring the system repository a component of the program owned by the technical program manager.
+- component_srd:
+  - location: docs/specs/software-requirements/srdNNN-short-name.md in the repository the component's implementation_targets row names, named for the component
+  - required_fields:
+    1. id
+    1. title
+    1. context
+    1. problem
+    1. goals
+    1. requirements
+    1. non_goals
+    1. acceptance_criteria
+  - context_items:
+    1. component
+  - numbering: same as srd
+  - purpose: "Declares one component's software requirements, the contract whose items that component's stories cite (srd045 R4.2). Its component context item is the component id as its repository's docs/ARCHITECTURE.md declares it in a component heading, the same id the subsystem SRD's implementation_targets row and the component:: label carry, binding the contract to the architecture element (GH-2828). The subsystem SRD declares the subsystem, its owner, and its components, and keeps the subsystem's own requirements, its boundaries and the interfaces between its components; each component's software requirements are its component SRD's, not items of the subsystem's. A program whose component requirements still sit in its subsystem SRDs coexists: a story cites each item where it lives, and an item moves by being added to the component's SRD and retired in the subsystem's, item by item, with no gate forcing the move (srd045 R6.7)."
 - environment_srd:
   - location: docs/specs/software-requirements/srdNNN-env-name.md in the test-subsystem repository
   - required_fields:

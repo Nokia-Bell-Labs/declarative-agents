@@ -18,7 +18,8 @@ title: "Skill: site"
 - The site is the dashboard. srd019's track-goals renders no dashboard of its own: its ledgers and findings are read on the status pages, which render from them.
 - The forge first. The first presentation rung is the forge rendering the committed pages; Docsify, Hugo, or Starlight are later rungs that read the same files, each its own decision.
 - The timeline facts live in the site. They are computed by the site's timeline word and written under site/timeline/, where the gantt views read them, rather than by the reports aggregate.
-- The machine grows with its words. It ships with the scaffold word alone, and each follow-on word inserts its state before Done as it lands, rather than passing through states for words that do not exist yet. Each also adds its requirement group here: the status pages (GH-83), the timeline facts and gantt views (GH-82, GH-84), the requirement history (GH-85), and the corpus pages and publication (GH-86).
+- The machine grows with its words. It ships with the scaffold word alone, and each follow-on word inserts its state before Done as it lands, rather than passing through states for words that do not exist yet. Each also adds its requirement group here: the status pages (GH-83), the timeline facts and gantt views (GH-82, GH-84), the requirement history (GH-85), the corpus pages and publication (GH-86), and the architecture pages (GH-2828).
+- Components get SRDs of their own. A component's software requirements are its component SRD's (design.md component_srd, srd045 R6.7), not items of its subsystem's SRD, so a story cites its contract at component grain and a component's page hangs on that contract; the subsystem SRD declares the subsystem, its owner, and its components, and keeps the subsystem's own requirements. The architecture pages (R9) mirror the plan pages (R8): the plan's tree answers what is being built, the architecture's what it is built into, and the citations join them. Decided 2026-11-01 in GH-2828.
 
 <!-- field: problem -->
 ## Problem
@@ -161,7 +162,7 @@ The hierarchy word writes a page per theme, initiative, epic, feature, and story
 <!-- req: R8.2 -->
 ### R8.2
 
-The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, the program's scrums (R8.6) under their own heading, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The shell searches every page the navigator links, so every story (GH-127).
+The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, the program's scrums (R8.6) and the architecture tree (R9.3) each under their own heading, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The shell searches every page the navigator links, so every story (GH-127).
 
 <!-- req: R8.3 -->
 ### R8.3
@@ -187,6 +188,24 @@ A scrum owns an area, a subsystem and the components its SRD lists, while planne
 ### R8.7
 
 A program may be a team of a larger one, so one site serves both levels (GH-2740): the upper level sees the interface, what it asked of the sub-program and the sub-program's progress on it, and never its interior, and the two sites link. A scrum whose scrum repository holds control/trackers.md is a sub-program; the site reads its control/program.md (config format program) and, from the site_repository it names, the plan its site publishes under site/data/hierarchy/. Its documents whose parent pins a document of this plan are drawn under that document, named <sub-program>/<id>, with the points, state, and days the sub-program's site gives them, which count in the plan's pages, the timeline, and the status page's roll-up; their pages link the sub-program's site rather than list children, and nothing under them is read. The navigator marks a sub-program with a program chip, the scrums' index gives it a program tile, and its page shows its Sprint Goals, the documents it serves the plan with, and a link to its site. A sub-program whose control/program.md names a parent opens its navigator and overview with the parent, linked to the parent's site, gathers on the plan's index the documents serving the parent's plan under a band naming it, and links each such document up to the parent document's page on the parent's site. What cannot be read is a note on the timeline facts, never skipped silently.
+
+<!-- req: R9 -->
+## R9 - Architecture pages
+
+<!-- req: R9.1 -->
+### R9.1
+
+The architecture word writes a page per subsystem and per component under site/architecture/, a component's below its subsystem (site/architecture/<subsystem>/<component>.md beside site/architecture/<subsystem>.md), with the folder's index as the tree: the system, linking the corpus copy of its ARCHITECTURE.md (R7.1), each subsystem of the registry (R8.6), and its components, each linking its page. It draws the timeline facts and computes none (R5.1), the facts also carrying the architecture: each subsystem with its components, each component's lifecycle state by the rule scrum-master backlog architecture states (srd045 R8.5) — actual with the tag that shipped it, in transition with the release its work lands in, else intended, and deferred when its status says so — and its contract, the component SRD its repository holds (design.md component_srd, srd045 R6.7, GH-2828), by its path and its source on the forge, a subsystem's contract being its subsystem SRD; a contract or a team repository the timeline word cannot read is a note on the facts, never skipped silently. A subsystem's page states its owner, its contract, and its lifecycle state, links the scrum owning it (R8.6), or the initiative's page when its SRD declares an initiative's repository, and links up to the index and down to its components. A component's page states its lifecycle state with its tag or release, the same states the architecture status page shows (R4.1), one rule, links up to its subsystem, to the scrum owning it, and to its contract, in the site's corpus copy for a system document, else on the forge where its source opens in a browser, else named without a link (R8.5), and lists the planning documents whose architecture citations name it (srd045 R2.4, R3.1), each with its level's chip, state, and points done over total, linking its page; a component no document cites, or whose repository holds no component SRD, says so.
+
+<!-- req: R9.2 -->
+### R9.2
+
+The links are reciprocated into the rest of the site (R8.1): a hierarchy page links the components its architecture citations name, beside the requirement items it cites (GH-2826), each to its architecture page when the registry declares it, else named without a link (R8.5); a scrum's page links each component of its area to its architecture page; and the corpus word closes its copy of the system repository's ARCHITECTURE.md with a link to the architecture index, and its copy of a subsystem SRD with a link to that subsystem's page, as a document the history names closes with its History section (R7.1).
+
+<!-- req: R9.3 -->
+### R9.3
+
+The navigator (R8.2) lists the architecture under its own heading: each subsystem with its components beneath, each linking its page, so the shell searches them as it searches every page the navigator links (R8.2).
 
 <!-- field: non_goals -->
 ## Non-goals
@@ -299,3 +318,16 @@ On a program laid out on its forge group — a subsystem SRD whose initiative it
 - [R3.1](#r31)
 - [R8.1](#r81)
 - [R8.6](#r86)
+
+<!-- ac: AC9 -->
+### AC9
+
+On a fixture program whose registry declares two subsystems, one component's repository holding its component SRD and the other subsystem still holding its requirements itself, with an epic citing a component and a story citing the component SRD's items: the architecture index is the tree, and each subsystem's page links its scrum, its contract, and its components; the component's page shows its lifecycle state with its tag or release, as the architecture status page shows it, links its contract on the forge, and a system document's in the corpus copy, and lists the citing epic with its chip, state, and points done over total, linking its page; a component nothing cites says so, as does one whose repository holds no component SRD; the epic's page links the component back beside its requirement links, the scrum's page links its area's components, and the corpus copies of ARCHITECTURE.md and the subsystem SRD close with their architecture links; the navigator lists the architecture tree; and the facts carry the architecture, with a contract that cannot be read a note on them.
+
+<!-- field: traces -->
+#### Traces
+
+- [R9.1](#r91)
+- [R9.2](#r92)
+- [R9.3](#r93)
+- [R8.2](#r82)
