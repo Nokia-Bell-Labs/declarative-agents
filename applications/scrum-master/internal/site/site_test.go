@@ -288,6 +288,21 @@ func TestShellResizesTheNavigatorAndWatchesItsFrames(t *testing.T) {
 	}
 }
 
+// A mermaid gantt drawn into the content column squeezes until its labels
+// overlap: in the shell a chart draws at its natural width and its block
+// scrolls sideways instead (GH-2836).
+func TestShellScrollsMermaidCharts(t *testing.T) {
+	for _, want := range []string{
+		".mermaid { text-align: center; overflow-x: auto; }",
+		".mermaid svg { min-width: 1100px; }",
+		"gantt: { useMaxWidth: false, useWidth: 1200 }",
+	} {
+		if !strings.Contains(shellHTML, want) {
+			t.Errorf("the shell lacks %q", want)
+		}
+	}
+}
+
 // The navigator is an expandable tree, and stays visible in narrow
 // windows: docked from 520 pixels, a labelled Menu button below (GH-131).
 func TestShellFoldsTheNavigatorAndDocksIt(t *testing.T) {

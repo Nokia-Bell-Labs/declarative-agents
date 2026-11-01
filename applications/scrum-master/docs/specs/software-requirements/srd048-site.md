@@ -108,7 +108,7 @@ The Sprint Goals and signals cover the sprint of the release whose sprint holds 
 <!-- req: R5.1 -->
 ### R5.1
 
-The gantt word draws the timeline facts, and computes none, under site/timeline/gantt/: program.md, a mermaid gantt chart of the initiatives, and a page per initiative whose epics are sections holding their features and stories as tasks. Each chart is calendar days with weekly ticks labeled by ISO week, the releases as milestones at their sprints' ends, and each task done, active, or plain for future.
+The gantt word draws the timeline facts, and computes none, under site/timeline/gantt/: program.md, a mermaid gantt chart of the initiatives, and a page per initiative whose epics are sections holding their features and stories as tasks. Each chart is calendar days with weekly ticks labeled by ISO week, the releases as milestones at their sprints' ends, and each task done, active, or plain for future. Each page opens with the embedded interactive timeline (R5.3) above its charts and a line placing the charts as the forge's view of the same plan: the app shell shows the figure and lets each chart, drawn at its natural width, scroll sideways rather than squeeze; the forge strips the figure (GH-131) and renders the charts natively (GH-2836).
 
 <!-- req: R5.2 -->
 ### R5.2

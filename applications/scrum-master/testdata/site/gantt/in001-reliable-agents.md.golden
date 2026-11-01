@@ -3,6 +3,10 @@
 
 The planned days of in001-reliable-agents's epics, features, and stories on the sprint axis, each epic a section, with each release at the end of its sprint. [The program's timeline](program.md).
 
+<iframe class="timeline" src="timeline/gantt/program.html?embed=1&view=timeline" title="The program's interactive timeline"></iframe>
+
+The [interactive timeline](program.html) above draws every item, with the plan as it stood at each corpus tag to compare; the charts below are the forge's view of the same plan.
+
 ```mermaid
 ---
 config:

@@ -62,6 +62,17 @@ func TestGanttGolden(t *testing.T) {
 			t.Fatalf("no %s page among %v", name, keys(pages))
 		}
 		checkCharts(t, name, string(got))
+		// Each page opens with the interactive timeline embedded and a
+		// line placing the charts as the forge's view (GH-2836).
+		for _, want := range []string{`<iframe class="timeline" src="timeline/gantt/program.html?embed=1&view=timeline"`,
+			"the charts below are the forge's view of the same plan"} {
+			if !strings.Contains(string(got), want) {
+				t.Errorf("%s lacks %q", name, want)
+			}
+		}
+		if i := strings.Index(string(got), "<iframe"); i > strings.Index(string(got), "```mermaid") {
+			t.Errorf("%s does not open with the embedded timeline:\n%s", name, got)
+		}
 		golden := filepath.Join("..", "..", "testdata", "site", "gantt", name+".md.golden")
 		if *update {
 			os.MkdirAll(filepath.Dir(golden), 0o755)
