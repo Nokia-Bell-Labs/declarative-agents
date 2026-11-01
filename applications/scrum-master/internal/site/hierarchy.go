@@ -42,9 +42,10 @@ type Node struct {
 // HierarchyPages are the hierarchy word's pages, drawn from the timeline
 // facts the timeline word wrote into the reports checkout dir: a page per
 // hierarchy document, linking its parent and children, the Sprint Goals
-// that selected it or a story under it, and the issues that implement it,
-// with its source on the forge and its corpus copy where the site holds
-// one; the tree as the folder's index; the nodes as JSON (GH-126); a page
+// that selected it or a story under it, the issues that implement it, and
+// the requirement items it cites (GH-2826), with its source on the forge
+// and its corpus copy where the site holds one; the tree as the folder's
+// index; the nodes as JSON (GH-126); a page
 // per release sprint (GH-139); and the site's navigator over them and the
 // program's repositories (GH-127).
 func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][]byte, sidebar []byte, err error) {
@@ -268,6 +269,18 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	if n.Kind == "story" {
 		list("Issues", "No issue implements it yet.", n.Issues)
 	}
+	if n.Kind == "story" || len(n.Cites) > 0 {
+		b.WriteString("## Requirements\n\n")
+		if len(n.Cites) == 0 {
+			b.WriteString("Cites no requirement yet.\n\n")
+		}
+		for _, c := range n.Cites {
+			b.WriteString("- " + citeLink(c, n.Page, corpus) + "\n")
+		}
+		if len(n.Cites) > 0 {
+			b.WriteString("\n")
+		}
+	}
 	b.WriteString("## Source\n\n")
 	wrote := false
 	if n.Source != "" && n.Program != "" {
@@ -283,6 +296,49 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	}
 	if !wrote {
 		b.WriteString("No forge to link: the repository's origin is not one a browser opens.\n")
+	}
+	return b.String()
+}
+
+// citeLink is one cited requirement's line on the page at page: the cite
+// named <document>#<item> and linked to the site's corpus copy of the
+// cited document when the corpus holds it, opened at the item's anchor
+// where the cite names one, else to the cite's URL where a browser opens
+// it; a cite naming a document the site does not hold and no URL stands
+// unlinked, since no generated page links what does not exist (R8.5).
+func citeLink(cite string, page string, corpus func(string) bool) string {
+	target, anchor := cite, ""
+	if ref, err := links.Parse(cite); err == nil {
+		target, anchor = ref.Path, ref.Anchor
+	} else if file, frag, ok := strings.Cut(cite, "#"); ok {
+		target, anchor = file, frag
+	}
+	label := strings.TrimSuffix(path.Base(target), ".md")
+	if anchor != "" {
+		label += "#" + anchor
+	}
+	if rel, ok := strings.CutPrefix(target, "docs/"); ok && corpus(rel) {
+		href := relLink(page, CorpusDir+"/"+rel)
+		if anchor != "" {
+			href += "#" + itemAnchor(anchor)
+		}
+		return fmt.Sprintf("[%s](%s)", label, href)
+	}
+	if strings.HasPrefix(cite, "https://") || strings.HasPrefix(cite, "http://") {
+		return fmt.Sprintf("[%s](%s)", label, cite)
+	}
+	return label
+}
+
+// itemAnchor is the shell's heading anchor for a requirement item: the
+// heading lowercased with everything but letters, digits, hyphens, and
+// underscores dropped, so R4.1 opens at #r41.
+func itemAnchor(item string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(item) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			b.WriteRune(r)
+		}
 	}
 	return b.String()
 }

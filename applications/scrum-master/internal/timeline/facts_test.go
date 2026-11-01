@@ -26,7 +26,9 @@ func program() Input {
 		Docs: []*hierarchy.Doc{
 			{ID: "in001-reliable-agents", Kind: hierarchy.Initiative, Title: "Reliable agents", Status: "agreed", Horizon: "2026-W43..2026-W51"},
 			{ID: "ep001-grading", Kind: hierarchy.Epic, Title: "Grading", Status: "agreed", Parent: "in001-reliable-agents", Horizon: "2026-W43..2026-W45", Architecture: []string{"grader"}},
-			{ID: "st001-grade-trajectories", Kind: hierarchy.Story, Title: "Grade trajectories", Status: "agreed", Parent: "ep001-grading", Points: "5"},
+			{ID: "st001-grade-trajectories", Kind: hierarchy.Story, Title: "Grade trajectories", Status: "agreed", Parent: "ep001-grading", Points: "5",
+				Cites: []string{"https://gitlab.example.com/program/system/-/blob/v1.0.0/docs/specs/software-requirements/srd001-eval.md#R4.1",
+					"https://gitlab.example.com/other/repo/-/blob/v2.0.0/docs/specs/software-requirements/srd999-other.md#R2"}},
 			{ID: "ep002-scoring", Kind: hierarchy.Epic, Title: "Scoring", Status: "agreed", Parent: "in001-reliable-agents", Horizon: "2026-W46..2026-W48", Architecture: []string{"scorer"}},
 			{ID: "st002-score-runs", Kind: hierarchy.Story, Title: "Score runs", Status: "agreed", Parent: "ep002-scoring", Points: "3"},
 			{ID: "ep003-publishing", Kind: hierarchy.Epic, Title: "Publishing", Status: "to_be_agreed", Parent: "in001-reliable-agents", Horizon: "2026-W49..2026-W51"},
@@ -80,6 +82,14 @@ func TestFactsGolden(t *testing.T) {
 	}
 	if in := state["in001-reliable-agents"]; in.Points != 8 || in.PointsDone != 5 || in.Actual == nil || in.Actual.End != "" {
 		t.Errorf("the initiative %+v", in)
+	}
+	// The facts carry the document's cites, so the site can link the
+	// requirement items a story proves (GH-2826).
+	if st := state["st001-grade-trajectories"]; len(st.Cites) != 2 || !strings.Contains(st.Cites[0], "srd001-eval.md#R4.1") {
+		t.Errorf("the story's cites %v", st.Cites)
+	}
+	if ep := state["ep001-grading"]; len(ep.Cites) != 0 {
+		t.Errorf("the epic's cites %v, want none", ep.Cites)
 	}
 }
 
