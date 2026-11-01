@@ -69,8 +69,8 @@ func ganttPages(f timeline.Facts) map[string][]byte {
 	var program strings.Builder
 	fmt.Fprintf(&program, head, "Program timeline", "Each initiative's planned days on the sprint axis, with each release at the end of its sprint. Done, active, and future items are drawn as such; "+
 		"each initiative's own page draws its epics, features, and stories.")
+	program.WriteString(ganttOpen())
 	program.WriteString(charts("Initiatives", f.Releases, []section{{"Initiatives", initiatives}}))
-	program.WriteString("\nThe [interactive timeline](program.html) draws every item, with the plan as it stood at each corpus tag to compare.\n")
 	if len(initiatives) > 0 {
 		program.WriteString("\n## Initiatives\n\n")
 	}
@@ -94,10 +94,21 @@ func ganttPages(f timeline.Facts) map[string][]byte {
 		}
 		var page strings.Builder
 		fmt.Fprintf(&page, head, in.Title, "The planned days of "+in.ID+"'s epics, features, and stories on the sprint axis, each epic a section, with each release at the end of its sprint. [The program's timeline](program.md).")
+		page.WriteString(ganttOpen())
 		page.WriteString(charts(in.ID, f.Releases, sections))
 		pages[Dir+"/"+GanttDir+"/"+in.ID+".md"] = []byte(page.String())
 	}
 	return pages
+}
+
+// ganttOpen is how every gantt page opens past its header: the interactive
+// timeline embedded, as the timeline index and the road map embed it, and a
+// line placing the charts below as the forge's view of the same plan. The
+// app shows the figure; the forge strips it and renders the charts natively
+// (GH-131, GH-2836).
+func ganttOpen() string {
+	return embed("timeline", "The program's interactive timeline") +
+		"\nThe [interactive timeline](program.html) above draws every item, with the plan as it stood at each corpus tag to compare; the charts below are the forge's view of the same plan.\n\n"
 }
 
 // section is one section of a chart: its title and its tasks.

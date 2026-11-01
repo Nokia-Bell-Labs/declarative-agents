@@ -3,6 +3,10 @@
 
 Each initiative's planned days on the sprint axis, with each release at the end of its sprint. Done, active, and future items are drawn as such; each initiative's own page draws its epics, features, and stories.
 
+<iframe class="timeline" src="timeline/gantt/program.html?embed=1&view=timeline" title="The program's interactive timeline"></iframe>
+
+The [interactive timeline](program.html) above draws every item, with the plan as it stood at each corpus tag to compare; the charts below are the forge's view of the same plan.
+
 ```mermaid
 ---
 config:
@@ -22,8 +26,6 @@ gantt
     section Initiatives
     in001-reliable-agents Reliable agents :active, t_in001_reliable_agents, 2026-10-19, 2026-12-19
 ```
-
-The [interactive timeline](program.html) draws every item, with the plan as it stood at each corpus tag to compare.
 
 ## Initiatives
 
