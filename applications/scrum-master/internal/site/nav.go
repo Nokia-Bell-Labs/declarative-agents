@@ -119,7 +119,7 @@ func containsDir(dirs []string, d string) bool {
 // sprints, the plan's tree, every theme to every story, so search reaches
 // each, the program's scrums, and its repositories on the forge. Links are
 // site-rooted, the routes the shell serves.
-func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team, parent *timeline.ProgramRef, arch []timeline.SubsystemFact) string {
+func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team, parent *timeline.ProgramRef, arch []timeline.SubsystemFact, vision bool) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts and the checkouts beside the reports checkout"))
 	// A program that is a team of a larger one says so first, linking the
@@ -132,7 +132,13 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 		}
 	}
 	b.WriteString("- [Overview](/overview.md)\n- [About](/index.md)\n")
-	b.WriteString("- Program\n  - [Status](/status/index.md)\n  - [Road map](/status/road-map.md)\n  - [Requirement history](/history/index.md)\n  - [Corpus](/corpus/index.md)\n")
+	b.WriteString("- Program\n")
+	// The vision first, the program's why, when the corpus holds it: a
+	// withheld or absent VISION.md is never linked (srd048 R8.5; GH-2837).
+	if vision {
+		b.WriteString("  - [Vision](/" + CorpusDir + "/VISION.md)\n")
+	}
+	b.WriteString("  - [Status](/status/index.md)\n  - [Road map](/status/road-map.md)\n  - [Requirement history](/history/index.md)\n  - [Corpus](/corpus/index.md)\n")
 	// The timeline opens into the program's sprints, each with its page
 	// (GH-139).
 	b.WriteString("- [Timeline](/timeline/index.md)\n")

@@ -44,9 +44,10 @@ func SiblingSources(dir string) []TeamSource {
 }
 
 // teamFile is a file a team repository's roll-up reads: its hierarchy
-// documents, its ARCHITECTURE, and its sprint-end summaries.
+// documents, its ARCHITECTURE, its VISION (GH-2837), and its sprint-end
+// summaries.
 func teamFile(p string) bool {
-	return strings.HasSuffix(p, ".md") && (strings.HasPrefix(p, "docs/specs/") || p == "docs/ARCHITECTURE.md" || strings.HasPrefix(p, "docs/sprint-ends/"))
+	return strings.HasSuffix(p, ".md") && (strings.HasPrefix(p, "docs/specs/") || p == "docs/ARCHITECTURE.md" || p == "docs/VISION.md" || strings.HasPrefix(p, "docs/sprint-ends/"))
 }
 
 // RegistrySources reads every team repository the system repository's

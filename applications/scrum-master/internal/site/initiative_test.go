@@ -65,6 +65,9 @@ func TestInitiativeRepositoryDocsAttachUnderTheInitiative(t *testing.T) {
 	f.AddFile(initiative, "main", "docs/specs/epics/ep100-benchmarks.md",
 		fixtureDoc(t, "valid/docs/specs/epics/ep001-agent-evaluation.md",
 			"ep001-agent-evaluation", "ep100-benchmarks", "Agent evaluation", "Benchmarks", "- parent: in001-reliable-agents\n", ""))
+	// The initiative repository holds a vision of its own, which in001's
+	// page links with its ARCHITECTURE (GH-2837).
+	f.AddFile(initiative, "main", "docs/VISION.md", []byte("---\nid: model-evaluation-vision\ntitle: Vision\n---\n\n<!-- field: executive_summary -->\n## Executive summary\n\nBenchmarks that mean something.\n"))
 	f.AddFile(initiative, "main", "docs/specs/features/ft100-suite.md",
 		fixtureDoc(t, "valid/docs/specs/features/ft001-grader.md",
 			"ft001-grader", "ft100-suite", "The grader", "The suite", "ep001-agent-evaluation", "ep100-benchmarks"))
@@ -115,6 +118,9 @@ func TestInitiativeRepositoryDocsAttachUnderTheInitiative(t *testing.T) {
 	if tm.Name != "analytics/model-evaluation" {
 		t.Fatalf("the facts do not name the initiative repository: %+v", facts.Teams)
 	}
+	if !tm.Vision {
+		t.Errorf("the facts do not carry the initiative repository's vision: %+v", tm)
+	}
 
 	j, _ := json.Marshal(facts)
 	os.MkdirAll(filepath.Join(in.Reports, Dir, "timeline"), 0o755)
@@ -144,6 +150,8 @@ func TestInitiativeRepositoryDocsAttachUnderTheInitiative(t *testing.T) {
 	for _, want := range []string{
 		"[acme/analytics/model-evaluation](https://gitlab.example.com/acme/analytics/model-evaluation)",
 		"(https://gitlab.example.com/acme/analytics/model-evaluation/-/blob/HEAD/docs/ARCHITECTURE.md)",
+		// Its VISION beside its ARCHITECTURE (GH-2837).
+		"and whose [VISION](https://gitlab.example.com/acme/analytics/model-evaluation/-/blob/HEAD/docs/VISION.md) says why",
 		"analytics/model-evaluation/ep100-benchmarks.md",
 	} {
 		if !strings.Contains(in001Page, want) {

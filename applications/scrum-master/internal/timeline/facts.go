@@ -233,6 +233,10 @@ type Team struct {
 	// URL is its scrum repository's page on the forge, when the SRD names
 	// one a browser opens.
 	URL string `json:"url,omitempty"`
+	// Vision says the scrum repository holds docs/VISION.md, why the team
+	// builds what it builds, so a page links it only where it exists
+	// (GH-2837).
+	Vision bool `json:"vision,omitempty"`
 }
 
 // Input is what the facts are computed from.

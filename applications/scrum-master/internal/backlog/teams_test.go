@@ -55,6 +55,28 @@ func teamStory(t *testing.T) []byte {
 		"- parent: https://gitlab.example.com/g/system/-/blob/corpus/v0.1.0/docs/specs/epics/ep001-agent-evaluation.md", 1))
 }
 
+// The roll-up's read carries a team repository's docs/VISION.md, why the
+// team builds what it builds, so the site links each team's vision where
+// one exists; a file outside its set is still left behind (srd048 R8.6;
+// GH-2837).
+func TestRegistrySourcesCarryTheVision(t *testing.T) {
+	trackertest.Each(t, func(t *testing.T, p trackertest.Program) {
+		p.AddFile("g/system", "main", "docs/specs/software-requirements/srd010-po-1.md", teamSRD("srd010-po-1", "po-1", "grader", "g/po-1"))
+		p.AddFile("g/po-1", "main", "docs/VISION.md", []byte("---\nid: po-1-vision\ntitle: Vision\n---\n"))
+		p.AddFile("g/po-1", "main", "docs/notes.md", []byte("not the roll-up's\n"))
+		sources, _, ok, err := RegistrySources(p.Tracker(), "g/system", "main", t.TempDir())
+		if err != nil || !ok || len(sources) != 1 {
+			t.Fatalf("RegistrySources: %v, ok %v, sources %+v", err, ok, sources)
+		}
+		if _, err := os.Stat(filepath.Join(sources[0].Dir, "docs", "VISION.md")); err != nil {
+			t.Errorf("po-1's vision is not materialized: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(sources[0].Dir, "docs", "notes.md")); err == nil {
+			t.Error("a file outside the roll-up's set is materialized")
+		}
+	})
+}
+
 // An epic in the system repository counts the stories pinned to it in
 // every team repository the subsystem SRDs name, read through the tracker
 // with no checkout of the system's own, the done ones as each team's
