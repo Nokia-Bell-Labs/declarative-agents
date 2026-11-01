@@ -10,4 +10,5 @@ tools:
   - site_history
   - site_corpus
   - site_hierarchy
+  - site_architecture
   - site_overview

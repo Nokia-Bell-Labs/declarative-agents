@@ -29,8 +29,9 @@ lifecycle: |-
   5. Gantt → History (ToolDone): scrum-master site history
   6. History → CorpusPages (ToolDone): scrum-master site corpus
   7. CorpusPages → Hierarchy (ToolDone): scrum-master site hierarchy
-  8. Hierarchy → Overview (ToolDone): scrum-master site overview
-  9. Overview → Done (ToolDone)
+  8. Hierarchy → Architecture (ToolDone): scrum-master site architecture
+  9. Architecture → Overview (ToolDone): scrum-master site overview
+  10. Overview → Done (ToolDone)
 initial_state: Idle
 budget:
   command_timeout: 16m
@@ -68,6 +69,12 @@ states:
     down and the Sprint Goals and issues that serve it (GH-126), a page per
     sprint under site/sprints/ and per team and program under site/scrums/
     (GH-2781), and the site's navigator (GH-127).
+- name: Architecture
+  meaning: |
+    The architecture word: a page per subsystem and per component under
+    site/architecture/, each with its lifecycle state, its contract, and
+    the planning documents citing it, drawn from the timeline facts
+    (srd048 R9.1, GH-2830).
 - name: Overview
   meaning: |
     The overview word: the program's home page, with the interactive
@@ -156,6 +163,14 @@ transitions:
   next: Refused
 - state: Hierarchy
   signal: ToolDone
+  next: Architecture
+  action: site_architecture
+  summary: true
+- state: Architecture
+  signal: ToolFailed
+  next: Refused
+- state: Architecture
+  signal: ToolDone
   next: Overview
   action: site_overview
   summary: true
@@ -187,6 +202,9 @@ transitions:
   signal: CommandError
   next: Failed
 - state: Hierarchy
+  signal: CommandError
+  next: Failed
+- state: Architecture
   signal: CommandError
   next: Failed
 - state: Overview
