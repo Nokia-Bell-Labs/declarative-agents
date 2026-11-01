@@ -411,3 +411,13 @@ With a registry naming a reachable repository, an unreachable one, and one whose
 - [R8.1](#r81)
 - [R8.2](#r82)
 - [R8.3](#r83)
+
+<!-- ac: AC13 -->
+### AC13
+
+With a scrum repository whose story's issues record lags the tracking system — an implementing issue with no entry, an entry held open past its close, and an entry naming an issue the tracking system does not show — reconcile files each as a finding naming scrum-master backlog record as the remedy, and a recorded story reconciles clean.
+
+<!-- field: traces -->
+#### Traces
+
+- [R8.4](#r84)
