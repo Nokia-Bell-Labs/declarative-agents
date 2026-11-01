@@ -188,6 +188,11 @@ A scrum owns an area, a subsystem and the components its SRD lists, while planne
 
 A cross-team epic lives in the system repository and is the technical program manager's; each team's Product Owner writes the stories for its part in the team's repository, with the epic as their parent by pinned URL. backlog check warns for an epic in the system repository whose owner names a Product Owner, and for one whose architecture components all belong to one team's subsystem, which belongs in that team's repository. scrum-master backlog template --kind epic --dir offers owner: technical program manager in the system repository and Product Owner, the subsystem's owner, in a team's. The policy's area_checks (config format policy) decides how R6.5 and R6.6 report: warn, the default, without failing the gate; refuse makes each a finding. Both read only the disk, so they stay within R8.3.
 
+<!-- req: R6.7 -->
+### R6.7
+
+A component's software requirements live in its component SRD (design.md component_srd, GH-2828): an SRD named for the component in the repository its subsystem SRD's implementation_targets row names, whose component context item is the component id as its repository's docs/ARCHITECTURE.md declares it, the value the subsystem SRD's row and the component:: label carry; its items are what that component's stories cite (R4.2). The gate refuses a component SRD whose component item names no component its repository's docs/ARCHITECTURE.md declares, naming those it does, as R6.2 refuses a citation; backlog check warns for one whose component the subsystem owning the repository does not list, naming the subsystem that lists it, under the policy's area_checks as R6.5 reports (R6.6). An SRD without a component item is not a component SRD and is unaffected. A subsystem SRD keeps the subsystem's own requirements, and a program whose component requirements still sit in its subsystem SRDs coexists: a story cites each item where it lives, and an item moves by being added to the component's SRD and retired in the subsystem's (design.md D12), item by item, no gate forcing the move. Both checks read only the disk, so they stay within R8.3.
+
 <!-- req: R7 -->
 ## R7 - Forecasts (direction)
 
@@ -314,7 +319,7 @@ plan lists a team's not-done agreed stories by rank, recommends those that fit v
 <!-- ac: AC6 -->
 ### AC6
 
-mage audit fails on a hierarchy document with a missing field, a parent of the wrong kind or that does not resolve, an unresolved link, a parent or blocked_by cycle, a story without points, a criterion without a test or an environment, an architecture citation naming no component of this repository's ARCHITECTURE, or an unpinned citation of another repository's; it warns, and under a policy that refuses fails, on each component added or changed since the latest tag that no agreed document cites, naming drift apart from what is uncovered; doctor refuses a subsystem repository's plan until the system's ARCHITECTURE names it; backlog check warns, and under area_checks refuse fails, for a story naming a component its repository's subsystem does not list, for a system-repository epic a Product Owner owns, and for one whose components all belong to one subsystem; and the epic template offers the technical program manager as owner in the system repository and the team's Product Owner in a team's.
+mage audit fails on a hierarchy document with a missing field, a parent of the wrong kind or that does not resolve, an unresolved link, a parent or blocked_by cycle, a story without points, a criterion without a test or an environment, an architecture citation naming no component of this repository's ARCHITECTURE, or an unpinned citation of another repository's; it warns, and under a policy that refuses fails, on each component added or changed since the latest tag that no agreed document cites, naming drift apart from what is uncovered; doctor refuses a subsystem repository's plan until the system's ARCHITECTURE names it; backlog check warns, and under area_checks refuse fails, for a story naming a component its repository's subsystem does not list, for a system-repository epic a Product Owner owns, and for one whose components all belong to one subsystem; and the epic template offers the technical program manager as owner in the system repository and the team's Product Owner in a team's; mage audit also fails on a component SRD whose component item names no component of its repository's ARCHITECTURE, backlog check warns for one whose component its repository's subsystem does not list, and a story citing an item still in a subsystem SRD passes beside one citing the component SRD that took it.
 
 <!-- field: traces -->
 #### Traces
@@ -325,6 +330,7 @@ mage audit fails on a hierarchy document with a missing field, a parent of the w
 - [R6.4](#r64)
 - [R6.5](#r65)
 - [R6.6](#r66)
+- [R6.7](#r67)
 
 <!-- ac: AC7 -->
 ### AC7
