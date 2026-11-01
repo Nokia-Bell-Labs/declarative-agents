@@ -8,6 +8,7 @@ tools:
   - issue_pop
   - git_push
   - issue_merge
+  - backlog_record
 
   # File words -- model-invoked via $tool dispatch in Work
   - read

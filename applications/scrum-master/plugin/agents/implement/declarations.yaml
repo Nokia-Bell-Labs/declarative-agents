@@ -133,3 +133,39 @@ tools:
     condition: the word refuses the merge — no approval at the tip under require_approval, or a failed audit — and exits non-zero
     message_shape: <the word's refusal reason, as printed>
     state_after_failure: the branch and the tracker are as the word's refusal left them
+- name: backlog_record
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - record
+  - --json
+  - --commit
+  visibility: internal
+  description: Write the close into the story's issues record — who worked on each issue and when it opened and closed — in the scrum repository the registry names, committed there (srd045 R4.4).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master backlog record's JSON report — each story swept, the refs its record holds, and the commit that recorded it.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Reads the team's issues from the tracking system and commits the recorded story documents in the scrum repository's checkout.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The record is idempotent; rerunning it writes the same documents.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_record: <error>'
+    state_after_failure: nothing was recorded by a process that did not start; the run still finishes, and reconcile files the drift (srd036 R3.4)
+  - signal: ToolFailed
+    condition: the word cannot find the scrum repository's checkout or read the tracking system, and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the stories are as they were; the run still finishes, and reconcile files the drift (srd036 R3.4)

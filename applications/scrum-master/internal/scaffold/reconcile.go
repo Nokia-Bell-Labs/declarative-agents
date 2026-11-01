@@ -99,6 +99,15 @@ func Reconcile(t tracker.Tracker, dir string, dryRun bool) (ReconcileResult, err
 	open := openReconcileIssues(t, system)
 	for _, repo := range repos {
 		findings := reconcileRepository(root, system, repo, owner[repo.project], known, systemDocs)
+		// A scrum repository's stories also carry their issues record,
+		// which lags when the tracking system moved on (srd043 R8.4).
+		if sub := owner[repo.project]; sub.ScrumRepository() == repo.project {
+			if dir, ok := checkout.Locate(root, repo.project); ok {
+				lf, notes := ledgerFindings(t, dir, sub, repo.project)
+				findings = append(findings, lf...)
+				r.Notes = append(r.Notes, notes...)
+			}
+		}
 		r.Repositories = append(r.Repositories, reconcileEntry(t, system, repo.project, findings, open, policy, dryRun))
 	}
 	// The group sweep: projects the registry does not name, where the host

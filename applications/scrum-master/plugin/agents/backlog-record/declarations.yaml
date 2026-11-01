@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The backlog-record machine's one word (GH-2844), as the model profiles declare
+# it; its parameters come from the run's request.
+unit: scrum-master-backlog-record-declarations
+tools:
+- name: backlog_record
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - record
+  - --json
+  - --commit
+  visibility: internal
+  description: Reconcile each story's issues record with the tracking system and commit the recorded documents in the scrum repository (srd045 R4.4).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: A checkout of any of the team's repositories.
+        flag: --dir
+      story:
+        type: string
+        description: Record one story, by its id.
+        flag: --story
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master backlog record's JSON report — each story swept, the refs its record holds, and the commit that recorded it.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the team's issues from the tracking system and commits the recorded story documents in the scrum repository's checkout.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The record is idempotent; rerunning it writes the same documents.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_record: <error>'
+    state_after_failure: nothing was recorded by a process that did not start
+  - signal: ToolFailed
+    condition: the word cannot find the scrum repository's checkout or read the tracking system, and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the stories are as the word's refusal left them

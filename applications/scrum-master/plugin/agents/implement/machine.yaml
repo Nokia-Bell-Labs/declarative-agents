@@ -32,9 +32,10 @@ lifecycle: |-
   5. Parse → Push (TaskCompleted): the model called done; git push publishes
      the branch
   6. Push → Merge (ToolDone): scrum-master issue merge audits, merges, and closes
-  7. Merge → Done (ToolDone): the merge commit and the closed issues are the
-     run's report
-  8. Merge → Refused (ToolFailed): the word refused the merge — an unapproved tip
+  7. Merge → Record (ToolDone): scrum-master backlog record writes the close
+     into the story's issues record (srd045 R4.4)
+  8. Record → Done (ToolDone or ToolFailed): a failed record never blocks
+  9. Merge → Refused (ToolFailed): the word refused the merge — an unapproved tip
      under require_approval, or a failed audit — and its reason ends the run
 initial_state: Idle
 budget:
@@ -75,8 +76,10 @@ states:
   meaning: |
     Finish: scrum-master issue merge audits a docs/ change, merges the branch (under
     require_approval, only a branch approved at its tip), pushes, and closes
-    each issue (srd013 R5.5, srd036 R3.1). The model closes nothing itself
-    (srd036 R3.3).
+    each issue; the model closes nothing itself (srd013 R5.5, srd036 R3.1, R3.3).
+- name: Record
+  meaning: |
+    The close reaches the story: scrum-master backlog record writes who worked on each closed issue and when into its issues record, committed in the scrum repository; a failure never blocks the finish (srd045 R4.4, srd036 R3.4).
 - name: Done
   run_status: succeeded
   meaning: |
@@ -169,6 +172,16 @@ transitions:
   next: Failed
 - state: Merge
   signal: ToolDone
+  next: Record
+  action: backlog_record
+- state: Record
+  signal: ToolDone
+  next: Done
+- state: Record
+  signal: ToolFailed
+  next: Done
+- state: Record
+  signal: CommandError
   next: Done
 - state: Merge
   signal: ToolFailed

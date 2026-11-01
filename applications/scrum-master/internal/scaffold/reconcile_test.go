@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/backlog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
@@ -187,5 +188,64 @@ func TestReconcileDryRunFilesNothing(t *testing.T) {
 	}
 	if h := r.Human(); !strings.Contains(h, "(dry run)") || !strings.Contains(h, "unreachable") {
 		t.Errorf("Human = %q", h)
+	}
+}
+
+// A scrum repository's stories carry their issues record, and reconcile
+// files the drift (srd043 R8.4): an implementing issue with no entry, an
+// entry whose state lags the tracking system, and an entry whose issue it
+// does not show are each findings naming scrum-master backlog record; a
+// recorded story reconciles clean.
+func TestReconcileFindsLedgerDrift(t *testing.T) {
+	_, _, system := checkoutsProgram(t, "g/pods/p1/tpm")
+	if _, err := Checkouts(system, false); err != nil {
+		t.Fatal(err)
+	}
+	scrum := filepath.Join(system, "..", "pods", "p1", "tpm")
+	story := filepath.Join(scrum, "docs", "specs", "stories", "st001-score.md")
+	os.MkdirAll(filepath.Dir(story), 0o755)
+	doc := []byte("---\nid: st001-score\ntitle: Score\n---\n\n<!-- field: problem -->\n## Problem\n\nP.\n")
+	stale := backlog.WriteLedger(doc, []backlog.LedgerEntry{
+		{Ref: "g/pods/p1/tpm#5", State: "open", Opened: "2026-11-01"},
+		{Ref: "g/pods/p1/tpm#99", State: "open"},
+	})
+	if err := os.WriteFile(story, stale, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := fake.New()
+	f.Issues["g/pods/p1/tpm"] = []*tracker.Issue{
+		{Project: "g/pods/p1/tpm", IID: 5, Title: "Build it", State: "closed", Description: "Implements: st001-score",
+			Assignees: []string{"ana"}, CreatedAt: "2026-11-01T08:00:00Z", ClosedAt: "2026-11-03T08:00:00Z"},
+		{Project: "g/pods/p1/tpm", IID: 6, Title: "Check it", State: "opened", Description: "Implements: st001-score",
+			Author: "bo", CreatedAt: "2026-11-02T08:00:00Z"},
+	}
+	r, err := Reconcile(f, system, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := byReconcileProject(t, r, "g/pods/p1/tpm")
+	if !hasFinding(e, "g/pods/p1/tpm#6 implements st001-score with no entry", "backlog record") {
+		t.Errorf("no finding for the unrecorded issue: %+v", e.Findings)
+	}
+	if !hasFinding(e, "holds g/pods/p1/tpm#5 as open", "closed on 2026-11-03") {
+		t.Errorf("no finding for the lagging entry: %+v", e.Findings)
+	}
+	if !hasFinding(e, "names g/pods/p1/tpm#99", "does not show") {
+		t.Errorf("no finding for the gone issue: %+v", e.Findings)
+	}
+	// Recorded, the story reconciles clean.
+	recorded := backlog.WriteLedger(doc, []backlog.LedgerEntry{
+		backlog.EntryFor("g/pods/p1/tpm", *f.Issues["g/pods/p1/tpm"][0]),
+		backlog.EntryFor("g/pods/p1/tpm", *f.Issues["g/pods/p1/tpm"][1]),
+	})
+	if err := os.WriteFile(story, recorded, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	again, err := Reconcile(f, system, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e := byReconcileProject(t, again, "g/pods/p1/tpm"); hasFinding(e, "issues record") {
+		t.Errorf("a recorded story still drifts: %+v", e.Findings)
 	}
 }

@@ -251,6 +251,11 @@ For each registered repository, reconcile also checks what the documents declare
 
 reconcile files one issue per repository with findings, in the system repository, plane management, filed by reconcile (op::reconcile, srd001 R34.1), listing each finding as a requirement and closing when the word reports the repository ok; an issue already open for the repository is reported, not duplicated, found by its marker. The output is one line per repository — ok, filed with the issue, open, or failed with the reason — with each finding under it and the counts, and the JSON mirrors it; one repository's failure does not stop the rest. A dry run reports every finding and files nothing.
 
+<!-- req: R8.4 -->
+### R8.4
+
+For a registered scrum repository whose checkout holds stories, reconcile also checks each story's issues record (srd045 R4.4) against the tracking system: a closed or reopened issue whose entry still carries the old state or no closed date, an issue whose Implements line names the story with no entry at all, and an entry whose issue the tracking system does not show are each a finding naming scrum-master backlog record as the remedy. The word repairs nothing itself, as everywhere in this sweep (GH-2844).
+
 <!-- field: non_goals -->
 ## Non-goals
 
