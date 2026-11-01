@@ -2518,6 +2518,19 @@ applications/scrum-master/plugin/agents/backlog-list/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-backlog-record -->
+#### scrum-master-backlog-record
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/backlog-record/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- scrum_master_entry: scrum-master-backlog-template -->
 #### scrum-master-backlog-template
 
