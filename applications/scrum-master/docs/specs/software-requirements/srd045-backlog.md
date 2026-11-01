@@ -371,3 +371,13 @@ scrum-master backlog architecture names each component actual as of the latest t
 
 - [R8.5](#r85)
 - [R8.6](#r86)
+
+<!-- ac: AC10 -->
+### AC10
+
+With a closed issue and an open one implementing a story through Implements lines, bare in the scrum repository and pinned by URL in a code repository, scrum-master backlog record writes the story's issues field: one entry per issue with its url, title, who (assignees else author), opened, closed, and state, in ref order; a rerun writes the same bytes; an entry whose project the sweep did not read stays as written; a dry run writes nothing; --commit commits the changed documents; run from the code repository, the record lands in the scrum repository the registry names; and the recorded story passes the hierarchy gate.
+
+<!-- field: traces -->
+#### Traces
+
+- [R4.4](#r44)

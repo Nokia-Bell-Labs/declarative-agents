@@ -155,11 +155,11 @@ tools:
     target: git_remote
     description: Reads the team's issues from the tracking system and commits the recorded story documents in the scrum repository's checkout.
   reversibility:
-    classification: reversible
+    classification: irreversible
     requires_confirmation: false
   undo:
     strategy: noop
-    description: The record is idempotent; rerunning it writes the same documents.
+    description: The record is idempotent and regenerated on every run; the words' own policy governs what follows.
   errors:
   - signal: CommandError
     condition: the word cannot start — this agent does not serve the scrum-master words

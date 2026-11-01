@@ -209,3 +209,13 @@ A run of the profile with the pinned runtime over an admitted issue pops, works,
 - [R6.1](#r61)
 - [R6.2](#r62)
 - [R6.3](#r63)
+
+<!-- ac: AC7 -->
+### AC7
+
+Once a merge closes an issue whose Implements line names a story, the machine's Record state runs scrum-master backlog record --commit, so the story's issues record carries the close; a record that fails moves the run to Done all the same, never blocking the finish.
+
+<!-- field: traces -->
+#### Traces
+
+- [R3.4](#r34)
