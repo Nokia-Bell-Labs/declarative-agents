@@ -342,7 +342,11 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		for _, d := range docs {
 			ids[d.ID] = true
 		}
+		vision := teamVisions(s.Teams)
 		for i, tm := range f.Teams {
+			if vision[tm.Scrum] || vision[tm.Name] || vision[path.Base(tm.Scrum)] {
+				f.Teams[i].Vision = true
+			}
 			for _, sp := range s.SubPrograms {
 				if sp.Repository == tm.Scrum {
 					f.Teams[i].Program, f.Teams[i].Site = true, sp.Site
@@ -601,6 +605,27 @@ func teamFacts(subs program.Subsystems, group string) []timeline.Team {
 		tm.URL = webOf(sub.ScrumURL())
 		tm.Name = program.RepositoryName(group, tm.Scrum)
 		out = append(out, tm)
+	}
+	return out
+}
+
+// teamVisions says which team repositories hold docs/VISION.md, by project
+// path and by name, from the sources the roll-up read, a sibling checkout's
+// or a registry copy's (GH-2837): a team's facts carry it, so its pages
+// link the vision only where it exists (srd048 R8.5).
+func teamVisions(sources []backlog.TeamSource) map[string]bool {
+	out := map[string]bool{}
+	for _, src := range sources {
+		if src.Dir == "" {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(src.Dir, "docs", "VISION.md")); err != nil {
+			continue
+		}
+		if src.Repository != "" {
+			out[src.Repository] = true
+		}
+		out[src.Name] = true
 	}
 	return out
 }

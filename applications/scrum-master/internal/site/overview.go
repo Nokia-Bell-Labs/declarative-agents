@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 )
 
@@ -53,6 +54,13 @@ func OverviewPage(dir, name string) ([]byte, error) {
 			fmt.Fprintf(&page, "%s Part of %s, whose plan this program serves.\n\n", programBadge, p.Name)
 		}
 	}
+	// The program's why opens the page: the vision's executive summary,
+	// its first paragraph, linking the full corpus copy it is read from, so
+	// nothing withheld or absent is quoted or linked (srd048 R8.3, R8.5;
+	// GH-2837). Without one the overview stays as it was.
+	if sum := visionSummary(dir); sum != "" {
+		fmt.Fprintf(&page, "%s — [the program's vision](%s/VISION.md).\n\n", sum, CorpusDir)
+	}
 	fmt.Fprintf(&page, "As of %s. [Status](status/index.md) · [Road map](status/road-map.md) · [Plan](%s/index.md) · [Scrums](scrums/index.md) · [Timeline](timeline/index.md) · [Requirement history](history/index.md)\n\n", f.Today, HierarchyDir)
 	page.WriteString("## Timeline\n\n")
 	page.WriteString(embed("timeline", "The program's interactive timeline") + "\n")
@@ -87,6 +95,24 @@ func OverviewPage(dir, name string) ([]byte, error) {
 		}
 	}
 	return []byte(page.String()), nil
+}
+
+// visionSummary is the first paragraph of the vision's executive summary,
+// read from the site's corpus copy of the system repository's
+// docs/VISION.md; empty when the corpus holds none, it does not parse, or
+// the field is unfilled (GH-2837).
+func visionSummary(dir string) string {
+	b, err := os.ReadFile(filepath.Join(dir, Dir, CorpusDir, "VISION.md"))
+	if err != nil {
+		return ""
+	}
+	d, err := corpus.ParseMarkdown(b)
+	if err != nil {
+		return ""
+	}
+	text := d.Field("executive_summary").Text()
+	first, _, _ := strings.Cut(text, "\n\n")
+	return strings.TrimSpace(first)
 }
 
 // tile is one initiative's card: a link to its page around its title, its

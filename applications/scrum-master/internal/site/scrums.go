@@ -297,6 +297,15 @@ func teamPage(s scrum, nodes map[string]*Node, head string, arch map[string]stri
 		b.WriteString(".\n\n")
 	}
 	fmt.Fprintf(&b, "**Area:** %s. A story of this scrum names only these components in its architecture; backlog check warns when one strays outside them.\n\n", areaLinks(s, arch))
+	// The team's own vision, linked on the forge as its other documents
+	// are, only where the repository holds one (srd048 R8.5; GH-2837).
+	if s.Vision {
+		if s.URL != "" {
+			fmt.Fprintf(&b, "**Vision:** its [VISION](%sdocs/VISION.md) says why the team builds what it builds.\n\n", blobHEAD(s.URL))
+		} else {
+			b.WriteString("**Vision:** its docs/VISION.md says why the team builds what it builds.\n\n")
+		}
+	}
 	if s.Points > 0 {
 		fmt.Fprintf(&b, "%d of %d story points done across %s.\n\n", s.Done, s.Points, plurals(s.Stories, "story"))
 	}

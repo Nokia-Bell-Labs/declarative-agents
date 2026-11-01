@@ -323,6 +323,52 @@ func TestOverviewHasTheTimelineAndATilePerInitiative(t *testing.T) {
 	}
 }
 
+// The vision is ambient (GH-2837): with the corpus holding VISION.md the
+// navigator opens the Program section with it, and the overview opens with
+// the executive summary's first paragraph, linking the full copy; without
+// it neither links what does not exist (srd048 R8.2, R8.3, R8.5).
+func TestVisionOpensTheNavigatorAndTheOverview(t *testing.T) {
+	reports, _ := hierarchyProgram(t)
+	_, _, _, sidebar, err := HierarchyPages(reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(sidebar), "[Vision]") {
+		t.Errorf("the navigator links a vision the corpus does not hold:\n%s", sidebar)
+	}
+	b, err := OverviewPage(reports, "g/system")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), CorpusDir+"/VISION.md") {
+		t.Errorf("the overview links a vision the corpus does not hold:\n%s", b)
+	}
+	vision := "---\nid: program-vision\ntitle: Program Vision\n---\n\n<!-- field: executive_summary -->\n## Executive summary\n\nAn evaluation platform that scores every agent run.\n\nA second paragraph the overview leaves to the full copy.\n"
+	os.MkdirAll(filepath.Join(reports, Dir, CorpusDir), 0o755)
+	if err := os.WriteFile(filepath.Join(reports, Dir, CorpusDir, "VISION.md"), []byte(vision), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, sidebar, err = HierarchyPages(reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sidebar), "- Program\n  - [Vision](/"+CorpusDir+"/VISION.md)\n  - [Status](/status/index.md)") {
+		t.Errorf("the vision does not open the Program section:\n%s", sidebar)
+	}
+	b, err = OverviewPage(reports, "g/system")
+	if err != nil {
+		t.Fatal(err)
+	}
+	page := string(b)
+	why := strings.Index(page, "An evaluation platform that scores every agent run. — [the program's vision]("+CorpusDir+"/VISION.md).")
+	if why < 0 || why > strings.Index(page, "As of ") {
+		t.Errorf("the overview does not open with the vision's first paragraph:\n%s", page)
+	}
+	if strings.Contains(page, "A second paragraph") {
+		t.Errorf("the overview quotes past the first paragraph:\n%s", page)
+	}
+}
+
 // The scaffold lays down a placeholder overview, so the shell's home opens
 // before the overview word has run, and the word's page replaces it.
 func TestScaffoldLaysDownTheOverview(t *testing.T) {

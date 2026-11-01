@@ -228,6 +228,9 @@ func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
 	story := []byte(strings.Replace(string(b), "- parent: ft001-grader", "- parent: https://gitlab.example.com/g/system/-/blob/corpus/v0.1.0/docs/specs/epics/ep001-agent-evaluation.md", 1))
 	f.AddFile("g/po-1", "main", "docs/specs/stories/st001-score-trajectories.md", story)
 	f.AddFile("g/po-2", "main", "docs/specs/stories/st001-score-trajectories.md", story)
+	// po-1 holds a vision of its own; po-2 does not, so only po-1's page
+	// links one (GH-2837).
+	f.AddFile("g/po-1", "main", "docs/VISION.md", []byte("---\nid: po-1-vision\ntitle: Vision\n---\n\n<!-- field: executive_summary -->\n## Executive summary\n\nGrading, done well.\n"))
 	f.CreateIssue("g/po-1", tracker.NewIssue{Title: "Sprint Goal 01.0, grading", Labels: []string{"plane::management", "op::plan"},
 		Description: "Grade one agent.\n\n" + sprintgoal.Marker("01.0", []string{"in001-reliable-agents#R1"}) + "\n\n## Sprint Backlog\n\n- st001-score-trajectories\n"})
 
@@ -263,6 +266,8 @@ func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
 		"## Sprint Goals", "Sprint Goal 01.0, grading", "release 01.0",
 		`href="../hierarchy/po-1/st001-score-trajectories.md"`, `href="../hierarchy/ep001-agent-evaluation.md"`,
 		"| [Agent evaluation](../hierarchy/ep001-agent-evaluation.md) |",
+		// Its own vision, linked on the forge (srd048 R8.6; GH-2837).
+		"**Vision:** its [VISION](https://gitlab.example.com/g/po-1/-/blob/HEAD/docs/VISION.md)",
 	} {
 		if !strings.Contains(po1, want) {
 			t.Errorf("po-1's page lacks %q:\n%s", want, po1)
@@ -271,8 +276,12 @@ func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
 	if strings.Contains(po1, "po-2/st001") {
 		t.Errorf("po-1's page shows po-2's story:\n%s", po1)
 	}
-	if po2 := string(pages[Dir+"/"+ScrumsDir+"/po-2.md"]); !strings.Contains(po2, "No open Sprint Goal in its repositories.") {
+	po2 := string(pages[Dir+"/"+ScrumsDir+"/po-2.md"])
+	if !strings.Contains(po2, "No open Sprint Goal in its repositories.") {
 		t.Errorf("po-2's page:\n%s", po2)
+	}
+	if strings.Contains(po2, "**Vision:**") {
+		t.Errorf("po-2's page links a vision its repository does not hold:\n%s", po2)
 	}
 	_, _, _, sidebar, err := HierarchyPages(in.Reports, nil)
 	if err != nil {

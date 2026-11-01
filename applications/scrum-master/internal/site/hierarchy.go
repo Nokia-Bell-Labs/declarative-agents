@@ -84,7 +84,7 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 		out = append(out, *nodes[id])
 	}
 	j, _ := json.MarshalIndent(out, "", "  ")
-	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams, f.Parent, f.Architecture)), nil
+	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams, f.Parent, f.Architecture, corpus("VISION.md"))), nil
 }
 
 // hierarchyNodes gathers each hierarchy document with its children, the
@@ -362,16 +362,27 @@ func itemAnchor(item string) string {
 // initiativeRepo is the line on an initiative's page naming the repository
 // that holds its epics and features, the one whose SRD's initiative item
 // names it, linked on the forge with its ARCHITECTURE where its URL opens
-// in a browser (GH-2811).
+// in a browser (GH-2811), and with its VISION where the repository holds
+// one (GH-2837).
 func initiativeRepo(tm timeline.Team) string {
 	if tm.URL == "" {
 		return fmt.Sprintf("Its epics and features live in %s, its repository.\n\n", tm.Scrum)
 	}
-	blob := tm.URL + "/-/blob/HEAD/"
-	if strings.Contains(tm.URL, "github.com/") {
-		blob = tm.URL + "/blob/HEAD/"
+	blob := blobHEAD(tm.URL)
+	vision := ""
+	if tm.Vision {
+		vision = fmt.Sprintf(" and whose [VISION](%sdocs/VISION.md) says why", blob)
 	}
-	return fmt.Sprintf("Its epics and features live in [%s](%s), its repository, whose [ARCHITECTURE](%sdocs/ARCHITECTURE.md) says how they are built.\n\n", tm.Scrum, tm.URL, blob)
+	return fmt.Sprintf("Its epics and features live in [%s](%s), its repository, whose [ARCHITECTURE](%sdocs/ARCHITECTURE.md) says how they are built%s.\n\n", tm.Scrum, tm.URL, blob, vision)
+}
+
+// blobHEAD is the forge's file view at a repository page's HEAD, where a
+// repository's documents are linked (GH-2811).
+func blobHEAD(url string) string {
+	if strings.Contains(url, "github.com/") {
+		return url + "/blob/HEAD/"
+	}
+	return url + "/-/blob/HEAD/"
 }
 
 func sourceName(n *Node) string {
