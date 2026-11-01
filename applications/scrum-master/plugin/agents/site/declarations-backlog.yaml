@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The site machine's backlog word (GH-2845), in its own unit so no
+# declaration file outgrows the style gate; SCRUM_MASTER_REPORTS as in
+# declarations.yaml.
+unit: scrum-master-site-backlog-declarations
+tools:
+- name: site_backlog
+  type: exec
+  binary: scrum-master
+  args:
+  - site
+  - backlog
+  - --json
+  - --dir=${SCRUM_MASTER_REPORTS}
+  description: Write every issue the stories record, open and closed, under site/backlog/, with who worked on it, its days so far or taken, its story and epic, and a filterable view, drawn from the timeline facts (srd048 R10, GH-2845).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The run''s JSON: each page and what the word did to it, created, refreshed, unchanged, removed, or kept with the reason.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes stamped pages under site/backlog/ in the reports checkout; nothing is committed. Reads the timeline facts the timeline word wrote.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The pages are regenerated on every run, the person's to commit or discard.
+  visibility: internal
