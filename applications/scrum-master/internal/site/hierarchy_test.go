@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
@@ -194,6 +195,72 @@ func TestHierarchyStoryPageNamesItsGoalAndIssue(t *testing.T) {
 	}
 	if epic := string(pages[Dir+"/"+HierarchyDir+"/ep001-agent-evaluation.md"]); !strings.Contains(epic, "Sprint Goal 01.0, selected") {
 		t.Errorf("the epic does not name the goal working under it:\n%s", epic)
+	}
+}
+
+// A story's page lists the requirements it cites: the timeline facts carry
+// the story's cites, a cite into a document the site's corpus holds opens
+// the corpus copy at the cited item's anchor, one pinned by URL into
+// another repository opens the URL on the forge, and a story citing
+// nothing says so without a link (GH-2826).
+func TestStoryPageLinksItsCites(t *testing.T) {
+	reports, _ := hierarchyProgram(t)
+	system := "https://gitlab.example.com/program/system/-/blob/v1.0.0/docs/specs/software-requirements/srd001-eval.md#R1.1"
+	elsewhere := "https://gitlab.example.com/other/repo/-/blob/v2.0.0/docs/specs/software-requirements/srd999-other.md#R2"
+	facts := filepath.Join(reports, Dir, "timeline", "facts.json")
+	b, err := os.ReadFile(facts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f timeline.Facts
+	if err := json.Unmarshal(b, &f); err != nil {
+		t.Fatal(err)
+	}
+	for i, it := range f.Items {
+		switch it.ID {
+		case "st001-score-trajectories":
+			// The timeline word carried the document's cite into the facts.
+			if strings.Join(it.Cites, " ") != system {
+				t.Fatalf("the facts carry cites %v, want %q", it.Cites, system)
+			}
+			f.Items[i].Cites = append(f.Items[i].Cites, elsewhere)
+		case "st002-store-scores":
+			f.Items[i].Cites = nil
+		}
+	}
+	b, _ = json.Marshal(f)
+	if err := os.WriteFile(facts, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	held := filepath.Join(reports, Dir, CorpusDir, "specs", "software-requirements", "srd001-eval.md")
+	os.MkdirAll(filepath.Dir(held), 0o755)
+	if err := os.WriteFile(held, []byte("# srd001\n\n### R1.1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages, _, _, _, err := HierarchyPages(reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	story := string(pages[Dir+"/"+HierarchyDir+"/st001-score-trajectories.md"])
+	for _, want := range []string{
+		"## Requirements\n\n",
+		"- [srd001-eval#R1.1](../corpus/specs/software-requirements/srd001-eval.md#r11)\n",
+		"- [srd999-other#R2](" + elsewhere + ")\n",
+	} {
+		if !strings.Contains(story, want) {
+			t.Errorf("the story's page lacks %q:\n%s", want, story)
+		}
+	}
+	// A team story's cite reaches the corpus copy from its nested page.
+	if team := string(pages[Dir+"/"+HierarchyDir+"/po-1/st001-score-trajectories.md"]); !strings.Contains(team, "(../../corpus/specs/software-requirements/srd001-eval.md#r11)") {
+		t.Errorf("the team story's cite does not reach the corpus copy:\n%s", team)
+	}
+	if bare := string(pages[Dir+"/"+HierarchyDir+"/st002-store-scores.md"]); !strings.Contains(bare, "## Requirements\n\nCites no requirement yet.\n") {
+		t.Errorf("the story without cites does not say so:\n%s", bare)
+	}
+	// An epic cites nothing and is no story: no Requirements section.
+	if epic := string(pages[Dir+"/"+HierarchyDir+"/ep001-agent-evaluation.md"]); strings.Contains(epic, "## Requirements") {
+		t.Errorf("the epic's page has a Requirements section:\n%s", epic)
 	}
 }
 

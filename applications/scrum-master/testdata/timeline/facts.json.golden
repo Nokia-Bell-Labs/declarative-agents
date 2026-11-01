@@ -150,6 +150,10 @@
       "title": "Grade trajectories",
       "parent": "ep001-grading",
       "status": "done",
+      "cites": [
+        "https://gitlab.example.com/program/system/-/blob/v1.0.0/docs/specs/software-requirements/srd001-eval.md#R4.1",
+        "https://gitlab.example.com/other/repo/-/blob/v2.0.0/docs/specs/software-requirements/srd999-other.md#R2"
+      ],
       "release": "01.0",
       "tag": "corpus/v0.1.0",
       "planned": {

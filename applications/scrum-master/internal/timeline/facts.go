@@ -78,12 +78,15 @@ type Item struct {
 	Parent       string   `json:"parent,omitempty"`
 	Status       string   `json:"status"`
 	Architecture []string `json:"architecture,omitempty"`
-	Release      string   `json:"release,omitempty"`
-	Tag          string   `json:"tag,omitempty"`
-	Planned      *Span    `json:"planned,omitempty"`
-	Actual       *Span    `json:"actual,omitempty"`
-	Points       int      `json:"points"`
-	PointsDone   int      `json:"points_done"`
+	// Cites is the requirement items the document cites, as its cites
+	// context item names them (srd045 R4.2): the SRD items a story proves.
+	Cites      []string `json:"cites,omitempty"`
+	Release    string   `json:"release,omitempty"`
+	Tag        string   `json:"tag,omitempty"`
+	Planned    *Span    `json:"planned,omitempty"`
+	Actual     *Span    `json:"actual,omitempty"`
+	Points     int      `json:"points"`
+	PointsDone int      `json:"points_done"`
 	// URL is where the item is read: a Sprint Goal's issue page.
 	URL string `json:"url,omitempty"`
 	// Horizon, Owner, and Rank are the document's own; Statement is a
@@ -261,7 +264,7 @@ func Make(in Input) Facts {
 		if it, ok := items[d.ID]; ok {
 			return it
 		}
-		it := &Item{ID: d.ID, Kind: string(d.Kind), Title: d.Title, Parent: d.Parent, Status: Future, Architecture: d.Architecture,
+		it := &Item{ID: d.ID, Kind: string(d.Kind), Title: d.Title, Parent: d.Parent, Status: Future, Architecture: d.Architecture, Cites: d.Cites,
 			Horizon: d.Horizon, Owner: d.Owner, Rank: d.Rank, Source: in.Sources[d.ID], Path: in.Paths[d.ID], DependsOn: docDeps(d), Due: dues(d)}
 		if d.Kind == hierarchy.Story && d.IWant != "" {
 			it.Statement = fmt.Sprintf("As %s %s, I want %s, so that %s.", article(d.AsA), d.AsA, d.IWant, d.SoThat)
