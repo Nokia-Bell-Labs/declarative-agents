@@ -76,14 +76,10 @@ states:
   meaning: |
     Finish: scrum-master issue merge audits a docs/ change, merges the branch (under
     require_approval, only a branch approved at its tip), pushes, and closes
-    each issue (srd013 R5.5, srd036 R3.1). The model closes nothing itself
-    (srd036 R3.3).
+    each issue; the model closes nothing itself (srd013 R5.5, srd036 R3.1, R3.3).
 - name: Record
   meaning: |
-    The close reaches the story: scrum-master backlog record writes who worked
-    on each closed issue and when into the story's issues record, committed
-    in the scrum repository (srd045 R4.4). A failure is reported and never
-    blocks the finish; reconcile files the drift (srd036 R3.4).
+    The close reaches the story: scrum-master backlog record writes who worked on each closed issue and when into its issues record, committed in the scrum repository; a failure never blocks the finish (srd045 R4.4, srd036 R3.4).
 - name: Done
   run_status: succeeded
   meaning: |
