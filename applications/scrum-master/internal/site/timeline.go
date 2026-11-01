@@ -358,8 +358,146 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		if p := s.Lineage.Parent; p != "" {
 			f.Parent = &timeline.ProgramRef{Name: path.Base(program.ProjectPath(p)), Repository: program.ProjectPath(p), Site: s.Lineage.ParentSite}
 		}
+		arch, notes := architectureFacts(dir, s, f.Releases)
+		f.Architecture = arch
+		f.Notes = append(f.Notes, notes...)
 	}
 	return f, nil
+}
+
+// architectureFacts is the program's architecture as the facts carry it
+// (srd048 R9.1): each subsystem of the registry with its owner, its scrum,
+// its contract, the subsystem SRD, and its components, each with the
+// lifecycle state the backlog architecture rule gives it (srd045 R8.5) and
+// its contract, the component SRD its repository holds (design.md
+// component_srd). A contract or a repository that cannot be read is a
+// note, never skipped silently.
+func architectureFacts(system string, s TimelineSources, releases []timeline.Release) ([]timeline.SubsystemFact, []string) {
+	if len(s.Scrums) == 0 {
+		return nil, nil
+	}
+	var notes []string
+	states := map[string]backlog.ComponentStatus{}
+	view, err := backlog.ArchitectureFrom(system, s.Teams, nil)
+	if err != nil {
+		notes = append(notes, fmt.Sprintf("architecture: the lifecycle states are not read: %v", err))
+	}
+	for _, c := range view.Components {
+		states[program.ComponentKey(c.ID)] = c
+	}
+	// A team's checkout answers for its repositories: by project path when
+	// the registry names one, else by the checkout's name, as a sibling
+	// checkout is named. A component repository no team plans in, a code
+	// repository apart from its scrum, is read from its host for its SRDs
+	// alone (R9.1).
+	byRepo, byName := map[string]backlog.TeamSource{}, map[string]backlog.TeamSource{}
+	for _, src := range s.Teams {
+		if p := program.ProjectPath(src.Repository); p != "" {
+			byRepo[p] = src
+		}
+		byName[src.Name] = src
+	}
+	extra := map[string]string{}
+	contractDir := func(repo string) (dir, team string, ok bool) {
+		if src, found := byRepo[repo]; found {
+			return src.Dir, src.Name, true
+		}
+		if src, found := byName[path.Base(repo)]; found {
+			return src.Dir, src.Name, true
+		}
+		if dir, read := extra[repo]; read {
+			return dir, program.RepositoryName(s.Group, repo), dir != ""
+		}
+		extra[repo] = ""
+		if s.Tracker == nil || s.scratch == "" {
+			return "", "", false
+		}
+		files, reason := repofiles.Read(s.Tracker, repo, program.SRDDir, func(p string) bool { return strings.HasSuffix(p, ".md") })
+		if reason != "" {
+			notes = append(notes, fmt.Sprintf("%s: its SRDs are not read, so its contracts are unknown: %s", repo, reason))
+			return "", "", false
+		}
+		dir, err := repofiles.Materialize(s.scratch, files)
+		if err != nil {
+			notes = append(notes, fmt.Sprintf("%s: %v", repo, err))
+			return "", "", false
+		}
+		extra[repo] = dir
+		return dir, program.RepositoryName(s.Group, repo), true
+	}
+	var out []timeline.SubsystemFact
+	for _, sub := range s.Scrums {
+		fact := timeline.SubsystemFact{ID: sub.ID, Owner: sub.Owner, Initiative: sub.Initiative, Components: []timeline.ComponentFact{}}
+		if r := sub.ScrumRepository(); r != "" {
+			fact.Team = program.RepositoryName(s.Group, r)
+		}
+		if p, ok := program.SubsystemSRDPath(system, sub.ID); ok {
+			fact.Contract = &timeline.Contract{Path: p}
+			if base := blobBase(system); base != "" {
+				fact.Contract.Source = base + p
+			}
+		} else {
+			notes = append(notes, fmt.Sprintf("%s: its subsystem SRD is not under %s, so its contract is not linked", sub.ID, program.SRDDir))
+		}
+		for _, c := range sub.Components {
+			cf := timeline.ComponentFact{ID: c.Name, Repository: program.ProjectPath(c.Repository)}
+			if st, ok := states[program.ComponentKey(c.Name)]; ok {
+				cf.State, cf.Deferred, cf.Tag = st.State, st.Deferred, st.Tag
+				cf.Release = landingRelease(st, releases)
+			}
+			dir, team, ok := contractDir(cf.Repository)
+			switch {
+			case !ok:
+				notes = append(notes, fmt.Sprintf("%s: %s is not read, so %s's contract is unknown", sub.ID, c.Repository, c.Name))
+			default:
+				if p, found := program.ComponentSRD(dir, c.Name); found {
+					cf.Contract = &timeline.Contract{Path: p, Team: team}
+					if base := repoBlob(c.Repository); base != "" {
+						cf.Contract.Source = base + p
+					}
+				}
+			}
+			fact.Components = append(fact.Components, cf)
+		}
+		out = append(out, fact)
+	}
+	return out, notes
+}
+
+// landingRelease is the release an in-transition component's work lands
+// in: the earliest, in road-map order, that an agreed document moving it
+// is planned for.
+func landingRelease(st backlog.ComponentStatus, releases []timeline.Release) string {
+	named := map[string]bool{}
+	for _, d := range st.Documents {
+		if d.Release != "" {
+			named[d.Release] = true
+		}
+	}
+	for _, r := range releases {
+		if named[r.Version] {
+			return r.Version
+		}
+	}
+	for _, d := range st.Documents {
+		if d.Release != "" {
+			return d.Release
+		}
+	}
+	return ""
+}
+
+// repoBlob is where a forge shows a repository's files at its default
+// branch, from a URL an SRD writes; empty when no browser opens it.
+func repoBlob(repo string) string {
+	u := webOf(repo)
+	if u == "" {
+		return ""
+	}
+	if strings.Contains(u, "github.com/") {
+		return u + "/blob/HEAD/"
+	}
+	return u + "/-/blob/HEAD/"
 }
 
 // servedProgress is the points the sub-programs serve this plan with,

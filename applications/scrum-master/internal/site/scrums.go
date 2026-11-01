@@ -159,10 +159,26 @@ func ScrumPages(dir string) (map[string][]byte, error) {
 		index.WriteString("</div>\n")
 	}
 	pages[Dir+"/"+ScrumsDir+"/index.md"] = []byte(index.String())
+	arch := ArchPages(f.Architecture)
 	for _, s := range scrums {
-		pages[Dir+"/"+s.Page] = []byte(scrumPage(s, nodes, head))
+		pages[Dir+"/"+s.Page] = []byte(scrumPage(s, nodes, head, arch))
 	}
 	return pages, nil
+}
+
+// areaLinks is a scrum's area with each component linked to its
+// architecture page where the registry declares it (srd048 R9.2), else
+// named as before.
+func areaLinks(s scrum, arch map[string]string) string {
+	var out []string
+	for _, c := range s.Components {
+		if p, ok := arch[program.ComponentKey(c)]; ok {
+			out = append(out, fmt.Sprintf("[%s](%s)", c, relLink(s.Page, p)))
+		} else {
+			out = append(out, c)
+		}
+	}
+	return strings.Join(out, ", ")
 }
 
 // scrumBadge is the scrum's chip, as its page, its tile, and the
@@ -220,17 +236,17 @@ func scrumTile(s scrum) string {
 		meta("Area: "+strings.Join(s.Components, ", ")), meta(strings.Join(work, " · ")), html.EscapeString(pts), bar)
 }
 
-func scrumPage(s scrum, nodes map[string]*Node, head string) string {
+func scrumPage(s scrum, nodes map[string]*Node, head string, arch map[string]string) string {
 	if s.Program {
-		return programPage(s, nodes, head)
+		return programPage(s, nodes, head, arch)
 	}
-	return teamPage(s, nodes, head)
+	return teamPage(s, nodes, head, arch)
 }
 
 // programPage is a sub-program's page: what this plan asked of it and what
 // it serves the plan with, and a link to its own site for its teams,
 // epics, and stories, which this site does not show (GH-2740).
-func programPage(s scrum, nodes map[string]*Node, head string) string {
+func programPage(s scrum, nodes map[string]*Node, head string, arch map[string]string) string {
 	href := func(n *Node) string { return html.EscapeString(relLink(s.Page, n.Page)) }
 	var b strings.Builder
 	b.WriteString(head)
@@ -242,7 +258,7 @@ func programPage(s scrum, nodes map[string]*Node, head string) string {
 	} else {
 		b.WriteString("**A program of its own.** Its teams, epics, and stories are on its own site, which its control/program.md does not name yet; this page shows what this plan asked of it and what it serves the plan with.\n\n")
 	}
-	fmt.Fprintf(&b, "**Area:** %s.\n\n", strings.Join(s.Components, ", "))
+	fmt.Fprintf(&b, "**Area:** %s.\n\n", areaLinks(s, arch))
 	if s.Points > 0 {
 		fmt.Fprintf(&b, "%d of %d story points done across what it serves this plan with.\n\n", s.Done, s.Points)
 	}
@@ -253,7 +269,7 @@ func programPage(s scrum, nodes map[string]*Node, head string) string {
 	return b.String()
 }
 
-func teamPage(s scrum, nodes map[string]*Node, head string) string {
+func teamPage(s scrum, nodes map[string]*Node, head string, arch map[string]string) string {
 	href := func(n *Node) string { return html.EscapeString(relLink(s.Page, n.Page)) }
 	var b strings.Builder
 	b.WriteString(head)
@@ -280,7 +296,7 @@ func teamPage(s scrum, nodes map[string]*Node, head string) string {
 		}
 		b.WriteString(".\n\n")
 	}
-	fmt.Fprintf(&b, "**Area:** %s. A story of this scrum names only these components in its architecture; backlog check warns when one strays outside them.\n\n", strings.Join(s.Components, ", "))
+	fmt.Fprintf(&b, "**Area:** %s. A story of this scrum names only these components in its architecture; backlog check warns when one strays outside them.\n\n", areaLinks(s, arch))
 	if s.Points > 0 {
 		fmt.Fprintf(&b, "%d of %d story points done across %s.\n\n", s.Done, s.Points, plurals(s.Stories, "story"))
 	}

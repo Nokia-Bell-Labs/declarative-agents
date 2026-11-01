@@ -73,9 +73,10 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 			inits[tm.Initiative] = tm
 		}
 	}
+	arch := ArchPages(f.Architecture)
 	pages = map[string][]byte{}
 	for _, n := range nodes {
-		pages[Dir+"/"+n.Page] = []byte(nodePage(n, nodes, tracked, corpus, f.Parent, inits))
+		pages[Dir+"/"+n.Page] = []byte(nodePage(n, nodes, tracked, corpus, f.Parent, inits, arch))
 	}
 	pages[Dir+"/"+HierarchyDir+"/index.md"] = []byte(treePage(nodes, f.Parent))
 	out := make([]Node, 0, len(nodes))
@@ -83,7 +84,7 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 		out = append(out, *nodes[id])
 	}
 	j, _ := json.MarshalIndent(out, "", "  ")
-	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams, f.Parent)), nil
+	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams, f.Parent, f.Architecture)), nil
 }
 
 // hierarchyNodes gathers each hierarchy document with its children, the
@@ -200,7 +201,7 @@ func parentPage(url string, parent *timeline.ProgramRef) (label, href string) {
 	return id, url
 }
 
-func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item, corpus func(string) bool, parent *timeline.ProgramRef, inits map[string]timeline.Team) string {
+func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item, corpus func(string) bool, parent *timeline.ProgramRef, inits map[string]timeline.Team, arch map[string]string) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts"))
 	b.WriteString(crumbs(n, nodes))
@@ -280,6 +281,21 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 		if len(n.Cites) > 0 {
 			b.WriteString("\n")
 		}
+	}
+	// The components its architecture citations name, each linked to its
+	// architecture page when the registry declares it, else named without
+	// a link (srd048 R9.2, R8.5). A citation by URL is another
+	// repository's component and stands as written.
+	if len(n.Architecture) > 0 {
+		b.WriteString("## Components\n\n")
+		for _, a := range n.Architecture {
+			if p, ok := arch[program.ComponentKey(a)]; ok && !strings.Contains(a, "://") {
+				fmt.Fprintf(&b, "- [%s](%s)\n", a, relLink(n.Page, p))
+			} else {
+				fmt.Fprintf(&b, "- %s\n", a)
+			}
+		}
+		b.WriteString("\n")
 	}
 	b.WriteString("## Source\n\n")
 	wrote := false
