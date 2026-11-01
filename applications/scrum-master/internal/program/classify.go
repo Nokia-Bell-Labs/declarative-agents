@@ -3,6 +3,7 @@
 package program
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"slices"
@@ -119,7 +120,10 @@ func Derive(t tracker.Tracker, project, system, ref string, paths []string, give
 	}
 	if out.Component == "" && system != "" {
 		subs, err := LoadSubsystems(t, system, ref)
-		if err != nil {
+		// A system repository without docs/specs/software-requirements at
+		// the ref declares no subsystems, so the issue has no component to
+		// derive: an empty answer, not an error, as Teams reads it (GH-2834).
+		if err != nil && !errors.Is(err, tracker.ErrNotFound) {
 			return out, fmt.Errorf("read subsystem SRDs in %s: %w", system, err)
 		}
 		if c, _, ok := subs.ComponentFor(project); ok {
