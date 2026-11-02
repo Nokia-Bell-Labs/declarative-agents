@@ -13,7 +13,7 @@ tools:
   - backlog
   - --json
   - --dir=${SCRUM_MASTER_REPORTS}
-  description: Write every issue the stories record, open and closed, under site/backlog/, with who worked on it, its days so far or taken, its story and epic, and a filterable view, drawn from the timeline facts (srd048 R10, GH-2845).
+  description: Write every issue the stories record, open and closed, under site/backlog/, with who worked on it, its days so far or taken, its story and epic, and a filterable kanban board, drawn from the timeline facts (srd048 R10, GH-2845).
   category: boundary
   signature:
     emits:
