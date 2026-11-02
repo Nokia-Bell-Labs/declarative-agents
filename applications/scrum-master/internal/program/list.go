@@ -28,8 +28,8 @@ type Listed struct {
 }
 
 // ListResult is what scrum-master issue list reports: the stories read, in rank
-// order, the open issues implementing them that can be worked now, and
-// those an open blocker holds back.
+// order, the open issues implementing them or naming the epic directly that
+// can be worked now, and those an open blocker holds back.
 type ListResult struct {
 	Project string   `json:"project"`
 	Stories []string `json:"stories"`
@@ -38,10 +38,11 @@ type ListResult struct {
 }
 
 // ListImplementing lists project's open issues whose Implements line names
-// story, or, with epic, any story under that epic in the hierarchy at dir
-// (srd007 R6.5, srd036): in the stories' rank order, then by IID, so
-// implement works a story's issues in the order they were meant. An issue
-// a Blocked-by line holds behind an open issue is listed apart.
+// story, or, with epic, the epic itself or any story under it in the
+// hierarchy at dir (srd007 R6.5, srd036): in the stories' rank order, then by
+// IID, so implement works a story's issues in the order they were meant, with
+// the issues naming the epic directly after them. An issue a Blocked-by line
+// holds behind an open issue is listed apart.
 func ListImplementing(t tracker.Tracker, project, dir, story, epic string) (ListResult, error) {
 	r := ListResult{Project: project, Stories: []string{}, Issues: []Listed{}, Blocked: []Listed{}}
 	switch {
@@ -51,8 +52,9 @@ func ListImplementing(t tracker.Tracker, project, dir, story, epic string) (List
 			return r, err
 		}
 		r.Stories = storiesUnder(docs, epic)
-		if len(r.Stories) == 0 {
-			return r, fmt.Errorf("no story in %s has %s among its ancestors", dir, epic)
+		held := slices.ContainsFunc(docs, func(d *hierarchy.Doc) bool { return d.ID == epic })
+		if len(r.Stories) == 0 && !held {
+			return r, fmt.Errorf("%s holds no epic %s and no story has it among its ancestors", dir, epic)
 		}
 	case story != "":
 		r.Stories = []string{story}
@@ -75,7 +77,7 @@ func ListImplementing(t tracker.Tracker, project, dir, story, epic string) (List
 				blockers = append(blockers, l.Target)
 			}
 		}
-		if !slices.Contains(r.Stories, target) {
+		if !slices.Contains(r.Stories, target) && (epic == "" || target != epic) {
 			continue
 		}
 		it := Listed{Ref: fmt.Sprintf("%s#%d", project, i.IID), IID: i.IID, Title: i.Title, State: i.State, Assignees: i.Assignees, Story: target}
@@ -88,9 +90,16 @@ func ListImplementing(t tracker.Tracker, project, dir, story, epic string) (List
 		}
 		listed = append(listed, it)
 	}
+	// An issue naming the epic directly has no story's rank: it follows them.
+	rank := func(target string) int {
+		if n := slices.Index(r.Stories, target); n >= 0 {
+			return n
+		}
+		return len(r.Stories)
+	}
 	slices.SortStableFunc(listed, func(a, b Listed) int {
-		if sa, sb := slices.Index(r.Stories, a.Story), slices.Index(r.Stories, b.Story); sa != sb {
-			return sa - sb
+		if ra, rb := rank(a.Story), rank(b.Story); ra != rb {
+			return ra - rb
 		}
 		return a.IID - b.IID
 	})

@@ -103,8 +103,10 @@ a:hover { text-decoration: underline; }
     }
     if (meta.length) h += '<div class="meta">' + meta.join(" · ") + "</div>";
     if (r.state !== "closed" && r.projected) h += '<div class="meta">projected ' + esc(r.projected) + "</div>";
-    var links = '<a href="' + page(r.story) + '" target="_top">' + esc(r.story_title) + "</a>";
-    if (r.epic) links += ' · <a href="' + page(r.epic) + '" target="_top">' + esc(r.epic_title) + "</a>";
+    var parts = [];
+    if (r.story) parts.push('<a href="' + page(r.story) + '" target="_top">' + esc(r.story_title) + "</a>");
+    if (r.epic) parts.push('<a href="' + page(r.epic) + '" target="_top">' + esc(r.epic_title) + "</a>");
+    var links = parts.join(" · ");
     h += '<div class="links">' + links + "</div>";
     div.innerHTML = h;
     return div;

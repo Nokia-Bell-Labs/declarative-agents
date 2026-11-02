@@ -365,7 +365,7 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		arch, notes := architectureFacts(dir, s, f.Releases)
 		f.Architecture = arch
 		f.Notes = append(f.Notes, notes...)
-		ledgerNotes := storyLedgers(docs, &f)
+		ledgerNotes := documentLedgers(docs, &f)
 		f.Notes = append(f.Notes, ledgerNotes...)
 		f.People, notes = peopleFacts(dir, f)
 		f.Notes = append(f.Notes, notes...)
@@ -373,23 +373,20 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 	return f, nil
 }
 
-// storyLedgers reads each story document's issues record (srd045 R4.4)
+// documentLedgers reads each story and epic document's issues record (srd045 R4.4)
 // into its item, from the checkouts the docs were loaded from, never the
 // tracker, so the backlog pages draw offline (srd048 R10). A record that
 // does not parse is a note, never skipped silently.
-func storyLedgers(docs []*hierarchy.Doc, f *timeline.Facts) []string {
+func documentLedgers(docs []*hierarchy.Doc, f *timeline.Facts) []string {
 	paths := map[string]string{}
 	for _, d := range docs {
-		if d.Kind == hierarchy.Story && d.Path != "" {
+		if (d.Kind == hierarchy.Story || d.Kind == hierarchy.Epic) && d.Path != "" {
 			paths[d.ID] = d.Path
 		}
 	}
 	var notes []string
 	for i := range f.Items {
 		it := &f.Items[i]
-		if it.Kind != string(hierarchy.Story) {
-			continue
-		}
 		p := paths[it.ID]
 		if p == "" {
 			continue

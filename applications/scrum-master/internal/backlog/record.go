@@ -42,12 +42,28 @@ type RecordResult struct {
 	DryRun   bool            `json:"dry_run"`
 }
 
-// Record reconciles the issues record of every story in the scrum
+// LedgerDocuments are the documents in the checkout at root that hold an
+// issues record: its stories, then its epics (srd045 R4.4).
+func LedgerDocuments(root string) ([]string, error) {
+	var out []string
+	for _, pattern := range []string{"stories/st[0-9]*.md", "epics/ep[0-9]*.md"} {
+		paths, err := filepath.Glob(filepath.Join(root, "docs", "specs", filepath.FromSlash(pattern)))
+		if err != nil {
+			return nil, err
+		}
+		sort.Strings(paths)
+		out = append(out, paths...)
+	}
+	return out, nil
+}
+
+// Record reconciles the issues record of every story and epic in the scrum
 // repository checkout around dir — or of the one story names — with the
 // tracking system (srd045 R4.4): the projects swept are the team's own,
 // its scrum repository and the code repositories its subsystem SRD
-// declares, and an entry whose issue lives in a project outside them is
-// kept as written, since the sweep cannot judge it. The write is
+// declares, or in the system repository, whose epics span teams, every
+// repository the registry names; an entry whose issue lives in a project
+// outside them is kept as written, since the sweep cannot judge it. The write is
 // idempotent; commit records the changed documents on the current branch;
 // a dry run writes nothing and reports what it would.
 func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordResult, error) {
@@ -62,7 +78,13 @@ func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordRe
 	}
 	r.Scrum = own
 	r.Projects = []string{own}
-	if sub, note := subsystemOf(root, own); note != "" {
+	if repositories := registryRepositories(root); len(repositories) > 0 {
+		for _, p := range repositories {
+			if !slices.Contains(r.Projects, p) {
+				r.Projects = append(r.Projects, p)
+			}
+		}
+	} else if sub, note := subsystemOf(root, own); note != "" {
 		r.Notes = append(r.Notes, note)
 	} else {
 		r.Projects = sub.Repositories()
@@ -82,11 +104,10 @@ func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordRe
 	}
 	entries, swept, notes := TrackerLedgers(t, r.Projects, own)
 	r.Notes = append(r.Notes, notes...)
-	paths, err := filepath.Glob(filepath.Join(root, "docs", "specs", "stories", "st[0-9]*.md"))
+	paths, err := LedgerDocuments(root)
 	if err != nil {
 		return r, err
 	}
-	sort.Strings(paths)
 	var changed []string
 	for _, p := range paths {
 		id := strings.TrimSuffix(filepath.Base(p), ".md")
@@ -130,7 +151,7 @@ func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordRe
 		r.Stories = append(r.Stories, entry)
 	}
 	if story != "" && len(r.Stories) == 0 {
-		return r, fmt.Errorf("%s has no story %s under docs/specs/stories", own, story)
+		return r, fmt.Errorf("%s has no story or epic %s under docs/specs", own, story)
 	}
 	if commit && !dryRun && len(changed) > 0 {
 		args := append([]string{"-C", root, "add", "--"}, changed...)
@@ -151,9 +172,9 @@ func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordRe
 }
 
 // TrackerLedgers reads from the tracking system the issues record each of
-// the scrum repository's stories should hold (srd045 R4.4): over projects,
-// every issue that is no Sprint Goal whose Implements line resolves to one
-// of its stories, keyed by story id. swept says which projects were read,
+// the scrum repository's stories and epics should hold (srd045 R4.4): over
+// projects, every issue that is no Sprint Goal whose Implements line resolves
+// to one of them, keyed by document id. swept says which projects were read,
 // so a caller keeps or leaves what it cannot judge, and the notes say
 // which were not and why.
 func TrackerLedgers(t tracker.Tracker, projects []string, scrum string) (map[string][]LedgerEntry, map[string]bool, []string) {
@@ -184,7 +205,7 @@ func TrackerLedgers(t tracker.Tracker, projects []string, scrum string) (map[str
 	return entries, swept, notes
 }
 
-// implementsStory resolves an Implements target to a story of the scrum
+// implementsStory resolves an Implements target to a story or epic of the scrum
 // repository: a bare id is the issue's own repository's story, so it
 // counts only for an issue the scrum repository holds, and a pinned URL
 // counts when it names the scrum repository (GH-2738, GH-2811).
@@ -199,6 +220,23 @@ func implementsStory(target, project, scrum string) (string, bool) {
 		return id, true
 	}
 	return "", false
+}
+
+// registryRepositories is every repository the registry names when the
+// checkout at root is the system repository itself, none otherwise.
+func registryRepositories(root string) []string {
+	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(checkout.TrackersFile))); err != nil {
+		return nil
+	}
+	subs, err := program.SubsystemsIn(root)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, sub := range subs {
+		out = append(out, sub.Repositories()...)
+	}
+	return out
 }
 
 // subsystemOf is the registry row whose repositories include own — its
@@ -238,10 +276,10 @@ func init() {
 		commit     bool
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "backlog", Name: "record", Summary: "reconcile each story's issues record with the tracking system: who worked on its issues and when they opened and closed, written into the story documents (srd045 R4.4)",
+		Group: "backlog", Name: "record", Summary: "reconcile each story's and epic's issues record with the tracking system: who worked on its issues and when they opened and closed, written into the documents (srd045 R4.4)",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&ra.dir, "dir", ".", "the scrum repository's checkout")
-			fs.StringVar(&ra.story, "story", "", "record one story, by its id")
+			fs.StringVar(&ra.story, "story", "", "record one story or epic, by its id")
 			fs.BoolVar(&ra.commit, "commit", false, "commit the recorded documents on the current branch")
 		},
 		Run: func(ctx *cli.Context) error {

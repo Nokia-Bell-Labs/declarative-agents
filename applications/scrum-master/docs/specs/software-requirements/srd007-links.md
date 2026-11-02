@@ -174,7 +174,12 @@ Duplicates names the item this one repeats. A duplicate issue closes as a duplic
 <!-- req: R6.5 -->
 ### R6.5
 
-Implements names the story an issue executes. tasks writes it on every issue it creates from a story; a story may be implemented by several issues, and an issue implements at most one story. An issue has no Parent line: its story is its parent.
+Implements names the story an issue executes, or the epic it serves when no story holds it yet, by same-repository id or pinned URL. tasks writes it on every issue it creates from a story; a story or epic may be implemented by several issues, and an issue implements at most one. An issue has no Parent line: what it names is its parent. No other document kind can be named, and an issue naming an epic adds no story points to it (srd045 R3.3).
+
+<!-- req: R6.6 -->
+### R6.6
+
+scrum-master issue link writes the Implements line on a filed issue, given an epic or a story, and lints the issue again. It refuses a target of another kind and one its repository does not hold, and an issue already naming something else unless --force says to replace it. A second identical run changes nothing, and a dry run changes nothing.
 
 <!-- req: R7 -->
 ## R7 - Links on hierarchy documents
@@ -278,7 +283,7 @@ A Cites URL with an existing tag, path, and anchor resolves; one naming a branch
 <!-- ac: AC6 -->
 ### AC6
 
-An issue's Blocked-by, Blocks, Depends-on, Relates-to, Duplicates, and Implements lines are read with the targets R6.1 allows; a Blocks line on one issue and a Blocked-by line on the other are one link; Depends-on and Relates-to are shown and never set waiting; a duplicate closes as a duplicate; the issues tasks files for a story carry Implements naming it.
+An issue's Blocked-by, Blocks, Depends-on, Relates-to, Duplicates, and Implements lines are read with the targets R6.1 allows; a Blocks line on one issue and a Blocked-by line on the other are one link; Depends-on and Relates-to are shown and never set waiting; a duplicate closes as a duplicate; the issues tasks files for a story carry Implements naming it; an Implements line naming an epic is read, and one naming a feature is refused; scrum-master issue link writes the line, replaces another only with --force, and refuses an epic its repository does not hold.
 
 <!-- field: traces -->
 #### Traces
@@ -288,6 +293,7 @@ An issue's Blocked-by, Blocks, Depends-on, Relates-to, Duplicates, and Implement
 - [R6.3](#r63)
 - [R6.4](#r64)
 - [R6.5](#r65)
+- [R6.6](#r66)
 
 <!-- ac: AC7 -->
 ### AC7

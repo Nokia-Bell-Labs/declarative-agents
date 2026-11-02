@@ -90,12 +90,12 @@ func init() {
 
 	var listArgs struct{ project, dir, story, epic string }
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "list", Summary: "the open issues implementing a story, or every story under an epic, in the order implement works them",
+		Group: "issue", Name: "list", Summary: "the open issues implementing a story, or an epic and every story under it, in the order implement works them",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&listArgs.project, "project", "", "project path (required)")
 			fs.StringVar(&listArgs.story, "implements", "", "the story the issues implement, by id")
-			fs.StringVar(&listArgs.epic, "epic", "", "every story under this epic, by id, read from --dir's hierarchy")
-			fs.StringVar(&listArgs.dir, "dir", ".", "the checkout holding the stories, for --epic")
+			fs.StringVar(&listArgs.epic, "epic", "", "this epic and every story under it, by id, read from --dir's hierarchy")
+			fs.StringVar(&listArgs.dir, "dir", ".", "the checkout holding the epic and stories, for --epic")
 		},
 		Run: func(ctx *cli.Context) error {
 			if listArgs.project == "" || (listArgs.story == "") == (listArgs.epic == "") {
