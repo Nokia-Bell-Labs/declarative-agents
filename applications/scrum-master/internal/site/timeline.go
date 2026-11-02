@@ -862,9 +862,36 @@ func atTag(system, tag string) (string, func(), error) {
 	return tmp, cleanup, nil
 }
 
+// tagFactsName is the file a tag's facts publish as under site/timeline/.
+func tagFactsName(tag string) string {
+	return "facts@" + strings.ReplaceAll(tag, "/", "-") + ".json"
+}
+
+// committedTagFacts is the tag's facts as the reports checkout dir already
+// holds them: the tree at a tag never changes, so a committed record that
+// parses and names its tag is final and the build keeps it rather than
+// recompute it (GH-2859). A file that does not parse, or names another
+// tag, is recomputed.
+func committedTagFacts(dir, tag string) ([]byte, bool) {
+	b, err := os.ReadFile(filepath.Join(dir, Dir, "timeline", tagFactsName(tag)))
+	if err != nil {
+		return nil, false
+	}
+	var f struct {
+		AsOf string `json:"as_of"`
+	}
+	if json.Unmarshal(b, &f) != nil || f.AsOf != tag {
+		return nil, false
+	}
+	return b, true
+}
+
 // TimelinePages are the timeline word's pages: the working tree's facts,
 // each corpus tag's as planned then, and an index page listing the items.
-func TimelinePages(system string, s TimelineSources) (map[string][]byte, timeline.Facts, error) {
+// The working tree's facts are computed every run; a tag's already
+// committed in the reports checkout dir are kept as written, so a build
+// computes only the tags the checkout lacks (GH-2859).
+func TimelinePages(dir, system string, s TimelineSources) (map[string][]byte, timeline.Facts, error) {
 	now, err := Facts(system, "", s)
 	if err != nil {
 		return nil, now, err
@@ -877,17 +904,21 @@ func TimelinePages(system string, s TimelineSources) (map[string][]byte, timelin
 		return nil, now, err
 	}
 	for _, tag := range tags {
-		dir, cleanup, err := AtTag(system, tag)
+		if b, ok := committedTagFacts(dir, tag); ok {
+			pages[Dir+"/timeline/"+tagFactsName(tag)] = b
+			continue
+		}
+		at, cleanup, err := AtTag(system, tag)
 		if err != nil {
 			return nil, now, err
 		}
-		f, err := Facts(dir, tag, s)
+		f, err := Facts(at, tag, s)
 		cleanup()
 		if err != nil {
 			return nil, now, err
 		}
 		b, _ := json.MarshalIndent(f, "", "  ")
-		pages[Dir+"/timeline/facts@"+strings.ReplaceAll(tag, "/", "-")+".json"] = append(b, '\n')
+		pages[Dir+"/timeline/"+tagFactsName(tag)] = append(b, '\n')
 	}
 	pages[Dir+"/timeline/index.md"] = []byte(timelineIndex(now, tags))
 	return pages, now, nil

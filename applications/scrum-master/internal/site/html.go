@@ -7,6 +7,7 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -20,7 +21,8 @@ import (
 // is (srd048 R5.3, GH-136): releases as lines, initiatives with their due
 // dates, epics as bars, stories as blocks in their sprints, Sprint Goals
 // as flags, actual and as-planned spans beside the plan. It carries no
-// library and makes no request.
+// library; its only request fetches a tag's facts beside it, the first
+// time the reader compares with that tag's plan (GH-2859).
 //
 //go:embed templates/timeline.html.tmpl
 var timelineHTML string
@@ -46,11 +48,15 @@ type chartItem struct {
 	Due        []timeline.Due `json:"due,omitempty"`
 }
 
-// chartPlan is a corpus tag's plan: each item's planned span then, which
-// the page draws as a ghost behind the plan now, so slippage shows.
+// chartPlan names a corpus tag's plan: its label and the facts file
+// beside the page. The page inlines no tag's spans; it fetches the file
+// the first time the reader compares with that plan, so the page stays
+// one size however many tags the program has (GH-2859). The fetched
+// items' planned spans draw as a ghost behind the plan now, so slippage
+// shows.
 type chartPlan struct {
-	Label   string                    `json:"label"`
-	Planned map[string]*timeline.Span `json:"planned"`
+	Label string `json:"label"`
+	File  string `json:"file"`
 }
 
 // chartData is everything the page draws.
@@ -62,31 +68,21 @@ type chartData struct {
 	Plans    []chartPlan        `json:"plans"`
 }
 
-// TimelineHTML is the self-contained timeline page (srd048 R5.3): the plan
-// now, and each corpus tag's, newest first, for the page to draw.
-func TimelineHTML(now timeline.Facts, tags map[string]timeline.Facts) ([]byte, error) {
-	d := chartData{Today: now.Today, Origin: sprintOrigin(now), Releases: now.Releases, Items: []chartItem{}, Plans: []chartPlan{}}
+// TimelineHTML is the timeline page (srd048 R5.3): the plan now inlined,
+// and each corpus tag's plan named, newest first, fetched beside the page
+// only when the reader compares with it (GH-2859).
+func TimelineHTML(now timeline.Facts, plans []chartPlan) ([]byte, error) {
+	d := chartData{Today: now.Today, Origin: sprintOrigin(now), Releases: now.Releases, Items: []chartItem{}, Plans: plans}
 	if d.Releases == nil {
 		d.Releases = []timeline.Release{}
+	}
+	if d.Plans == nil {
+		d.Plans = []chartPlan{}
 	}
 	for _, it := range now.Items {
 		d.Items = append(d.Items, chartItem{ID: it.ID, Kind: it.Kind, Title: it.Title, Parent: it.Parent, Status: it.Status, Release: it.Release,
 			Planned: it.Planned, Actual: it.Actual, Points: it.Points, PointsDone: it.PointsDone, Rank: it.Rank, URL: it.URL,
 			Selects: it.Selects, DependsOn: it.DependsOn, Due: it.Due})
-	}
-	names := make([]string, 0, len(tags))
-	for tag := range tags {
-		names = append(names, tag)
-	}
-	sort.Sort(sort.Reverse(sort.StringSlice(names)))
-	for _, tag := range names {
-		p := chartPlan{Label: tag, Planned: map[string]*timeline.Span{}}
-		for _, it := range tags[tag].Items {
-			if it.Planned != nil {
-				p.Planned[it.ID] = it.Planned
-			}
-		}
-		d.Plans = append(d.Plans, p)
 	}
 	// json.Marshal escapes <, >, and &, so no fact can close the script
 	// block it sits in.
@@ -100,34 +96,41 @@ func TimelineHTML(now timeline.Facts, tags map[string]timeline.Facts) ([]byte, e
 }
 
 // timelineHTMLPage reads the timeline facts in the reports checkout and
-// renders the page.
+// renders the page: the working tree's facts inlined, and each tag's file
+// named for the page to fetch when the reader compares with its plan —
+// read here only for its tag, never inlined (GH-2859).
 func timelineHTMLPage(dir string) ([]byte, error) {
-	read := func(name string) (timeline.Facts, error) {
-		var f timeline.Facts
-		b, err := os.ReadFile(filepath.Join(dir, Dir, "timeline", name))
-		if err != nil {
-			return f, err
-		}
-		return f, json.Unmarshal(b, &f)
-	}
-	now, err := read("facts.json")
+	var now timeline.Facts
+	b, err := os.ReadFile(filepath.Join(dir, Dir, "timeline", "facts.json"))
 	if err != nil {
 		return nil, err
 	}
-	tags := map[string]timeline.Facts{}
+	if err := json.Unmarshal(b, &now); err != nil {
+		return nil, err
+	}
+	var plans []chartPlan
 	matches, _ := filepath.Glob(filepath.Join(dir, Dir, "timeline", "facts@*.json"))
 	for _, m := range matches {
-		f, err := read(filepath.Base(m))
+		b, err := os.ReadFile(m)
 		if err != nil {
 			return nil, err
 		}
-		tag := f.AsOf
-		if tag == "" {
-			tag = strings.TrimSuffix(strings.TrimPrefix(filepath.Base(m), "facts@"), ".json")
+		var f struct {
+			AsOf string `json:"as_of"`
 		}
-		tags[tag] = f
+		if err := json.Unmarshal(b, &f); err != nil {
+			return nil, fmt.Errorf("%s: %w", m, err)
+		}
+		label := f.AsOf
+		if label == "" {
+			label = strings.TrimSuffix(strings.TrimPrefix(filepath.Base(m), "facts@"), ".json")
+		}
+		// The page sits under site/timeline/gantt/, the facts beside its
+		// folder.
+		plans = append(plans, chartPlan{Label: label, File: "../" + filepath.Base(m)})
 	}
-	return TimelineHTML(now, tags)
+	sort.Slice(plans, func(i, j int) bool { return plans[i].Label > plans[j].Label })
+	return TimelineHTML(now, plans)
 }
 
 // sprintOrigin is the start of the program's earliest release sprint, the
