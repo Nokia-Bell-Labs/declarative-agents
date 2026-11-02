@@ -11,11 +11,11 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 )
 
-// chartOf renders the page for the facts and a tag's plan, and reads back
-// the data it inlines.
-func chartOf(t *testing.T, now timeline.Facts, tags map[string]timeline.Facts) (string, chartData) {
+// chartOf renders the page for the facts and the tags' plan names, and
+// reads back the data it inlines.
+func chartOf(t *testing.T, now timeline.Facts, plans []chartPlan) (string, chartData) {
 	t.Helper()
-	page, err := TimelineHTML(now, tags)
+	page, err := TimelineHTML(now, plans)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,25 +30,25 @@ func chartOf(t *testing.T, now timeline.Facts, tags map[string]timeline.Facts) (
 	return string(page), d
 }
 
-// The page draws the plan itself: no library, no request of its own, and
-// the plan now and each tag's inlined (srd048 R5.3, GH-136).
+// The page draws the plan itself: no library, the plan now inlined, and
+// each tag's plan named — label and file beside the page — never inlined;
+// its only request fetches a named tag's facts when the reader compares
+// with it, so the page stays one size however many tags the program has
+// (srd048 R5.3, GH-136, GH-2859).
 func TestTimelineHTMLIsSelfContained(t *testing.T) {
 	now := goldenFacts(t)
-	earlier := goldenFacts(t)
-	earlier.AsOf = "corpus/v0.1.0"
-	for i, it := range earlier.Items {
-		if it.ID == "ep002-scoring" {
-			earlier.Items[i].Planned = &timeline.Span{Start: "2026-11-09", End: "2026-11-20"}
-		}
-	}
-	html, d := chartOf(t, now, map[string]timeline.Facts{"corpus/v0.1.0": earlier})
+	html, d := chartOf(t, now, []chartPlan{{Label: "corpus/v0.1.0", File: "../facts@corpus-v0.1.0.json"}})
 	if !strings.HasPrefix(html, "<!doctype html>") {
 		t.Fatal("the page lacks its doctype")
 	}
-	for _, fetch := range []string{`src="http`, `href="http`, "url(http", "url(//", "fetch(", "XMLHttpRequest", "@import", "<link", "frappe", "new Gantt("} {
+	for _, fetch := range []string{`src="http`, `href="http`, "url(http", "url(//", "XMLHttpRequest", "@import", "<link", "frappe", "new Gantt("} {
 		if strings.Contains(html, fetch) {
 			t.Errorf("the page carries %q", fetch)
 		}
+	}
+	// The one fetch the script holds takes a plan's file, nothing else.
+	if n := strings.Count(html, "fetch("); n != 1 || !strings.Contains(html, "fetch(p.file)") {
+		t.Errorf("the page's requests: %d fetch calls", n)
 	}
 	if urls := regexp.MustCompile(`https?://[^"'\s)]+`).FindAllString(html, -1); len(urls) != 1 || urls[0] != "http://www.w3.org/2000/svg" {
 		t.Errorf("the page names URLs beyond the SVG namespace: %v", urls)
@@ -56,8 +56,11 @@ func TestTimelineHTMLIsSelfContained(t *testing.T) {
 	if d.Today != now.Today || d.Origin != "2026-10-19" || len(d.Items) != len(now.Items) || len(d.Releases) != len(now.Releases) {
 		t.Fatalf("the data: today %s, origin %s, %d items, %d releases", d.Today, d.Origin, len(d.Items), len(d.Releases))
 	}
-	if len(d.Plans) != 1 || d.Plans[0].Label != "corpus/v0.1.0" || d.Plans[0].Planned["ep002-scoring"].End != "2026-11-20" {
+	if len(d.Plans) != 1 || d.Plans[0].Label != "corpus/v0.1.0" || d.Plans[0].File != "../facts@corpus-v0.1.0.json" {
 		t.Fatalf("the tag's plan: %+v", d.Plans)
+	}
+	if !strings.Contains(html, `"plans":[{"label":"corpus/v0.1.0","file":"../facts@corpus-v0.1.0.json"}]`) {
+		t.Error("the inlined plans carry more than their labels and files")
 	}
 }
 

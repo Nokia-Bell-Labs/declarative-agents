@@ -172,6 +172,11 @@ svg text { font-family: system-ui, sans-serif; }
   var sprintBy = {};
   sprints.forEach(function (r) { sprintBy[r.version] = r.sprint; });
   function ranged() { return !!(sprintBy[state.from] || sprintBy[state.to]); }
+  // The chosen tag's plan, once its facts have loaded beside the page
+  // (GH-2859): until then the chart draws without the ghost.
+  function ghostPlan() {
+    return state.ghost >= 0 && D.plans[state.ghost].planned ? D.plans[state.ghost] : null;
+  }
   function bounds(list) {
     var lo = day(D.today), hi = day(D.today);
     function see(span) {
@@ -182,7 +187,7 @@ svg text { font-family: system-ui, sans-serif; }
     list.forEach(function (r) {
       see(r.it.planned); see(actual(r.it));
       (r.it.due || []).forEach(function (d) { see({ start: d.date }); });
-      if (state.ghost >= 0) see(D.plans[state.ghost].planned[r.it.id]);
+      if (ghostPlan()) see(ghostPlan().planned[r.it.id]);
     });
     D.releases.forEach(function (r) { see(r.sprint); });
     // A chosen sprint range clips the window to it: from the start
@@ -247,7 +252,7 @@ svg text { font-family: system-ui, sans-serif; }
     var a = actual(it), h = "<b>" + esc(it.title) + "</b><br>" + esc(it.kind) + " " + esc(it.id) + ", " + esc(it.status);
     if (it.points) h += ", " + it.points_done + " of " + it.points + " points";
     h += "<br>planned " + span(it.planned) + (a ? "<br>actual " + span(a) : "");
-    if (state.ghost >= 0) h += "<br>at " + esc(D.plans[state.ghost].label) + ": " + span(D.plans[state.ghost].planned[it.id]);
+    if (ghostPlan()) h += "<br>at " + esc(ghostPlan().label) + ": " + span(ghostPlan().planned[it.id]);
     if (it.depends_on && it.depends_on.length) h += "<br>depends on " + it.depends_on.map(esc).join(", ");
     return h;
   }
@@ -310,7 +315,7 @@ svg text { font-family: system-ui, sans-serif; }
     list.forEach(function (r, i) {
       var it = r.it, y = HEAD + i * ROW, mid = y + ROW / 2, tone = TONE[it.kind] || TONE.epic;
       var g = el("g", {}, shapes);
-      var ghost = state.ghost >= 0 ? D.plans[state.ghost].planned[it.id] : null;
+      var ghost = ghostPlan() ? ghostPlan().planned[it.id] : null;
       if (ghost && ghost.start && ghost.end) {
         el("rect", { x: x(ghost.start), y: mid - 9, width: Math.max(xEnd(ghost.end) - x(ghost.start), 2), height: 18, rx: 3,
           fill: "none", stroke: "#94a3b8", "stroke-width": 1.2, "stroke-dasharray": "4 3" }, g);
@@ -499,7 +504,28 @@ svg text { font-family: system-ui, sans-serif; }
   document.querySelectorAll("#zoom button").forEach(function (b) {
     b.addEventListener("click", function () { state.mode = b.getAttribute("data-mode"); refresh(); });
   });
-  select.addEventListener("change", function (e) { state.ghost = Number(e.target.value); draw(true); });
+  select.addEventListener("change", function (e) {
+    var i = Number(e.target.value);
+    state.ghost = i;
+    if (i < 0 || D.plans[i].planned) { draw(true); return; }
+    // The tag's facts load beside the page the first time the reader
+    // compares with its plan, and never again (GH-2859); a plan that
+    // cannot load says so and the choice reverts to none.
+    var p = D.plans[i], option = e.target.options[i + 1];
+    draw(true);
+    fetch(p.file).then(function (r) {
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }).then(function (f) {
+      p.planned = {};
+      (f.items || []).forEach(function (it) { if (it.planned) p.planned[it.id] = it.planned; });
+      if (state.ghost === i) draw(true);
+    }).catch(function () {
+      option.disabled = true;
+      option.textContent = p.label + " (could not load)";
+      if (state.ghost === i) { state.ghost = -1; e.target.value = "-1"; draw(true); }
+    });
+  });
   refresh();
 })();
 </script>

@@ -102,7 +102,7 @@ var words = []word{
 				return err
 			}
 			defer s.Close()
-			pages, now, err := TimelinePages(system, s)
+			pages, now, err := TimelinePages(dir, system, s)
 			if err != nil {
 				return err
 			}

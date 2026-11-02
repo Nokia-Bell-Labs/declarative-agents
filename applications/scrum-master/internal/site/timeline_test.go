@@ -17,7 +17,8 @@ import (
 // The as-of-tag facts are read from the corpus each corpus tag holds, from
 // local git: two tags whose plans differ in one epic's horizon give facts
 // that differ in that epic's planned days and nothing else, and a tag of
-// another name is no corpus release (GH-82).
+// another name is no corpus release (GH-82). A tag's facts already
+// committed in the reports checkout are kept as written (GH-2859).
 func TestTimelineAsOfEachCorpusTag(t *testing.T) {
 	t.Setenv(CacheEnv, t.TempDir())
 	system := t.TempDir()
@@ -54,7 +55,8 @@ func TestTimelineAsOfEachCorpusTag(t *testing.T) {
 	if err != nil || strings.Join(tags, " ") != "corpus/v0.1.0 corpus/v0.2.0" {
 		t.Fatalf("corpus tags %v, %v", tags, err)
 	}
-	pages, now, err := TimelinePages(system, TimelineSources{Today: time.Date(2026, 11, 18, 0, 0, 0, 0, time.UTC)})
+	reports := t.TempDir()
+	pages, now, err := TimelinePages(reports, system, TimelineSources{Today: time.Date(2026, 11, 18, 0, 0, 0, 0, time.UTC)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +89,29 @@ func TestTimelineAsOfEachCorpusTag(t *testing.T) {
 	}
 	if !strings.Contains(string(pages["site/timeline/index.md"]), "| ep001-publish-scorecards | epic |") {
 		t.Fatalf("the timeline page:\n%s", pages["site/timeline/index.md"])
+	}
+
+	// A committed tag's facts are final — the tree at a tag never changes —
+	// so the build keeps them as written and computes only the tags the
+	// reports checkout lacks; a committed file naming another tag is
+	// recomputed, never trusted (GH-2859).
+	kept := []byte("{\"as_of\":\"corpus/v0.1.0\",\"today\":\"2026-11-10\",\"releases\":[],\"items\":[]}\n")
+	os.MkdirAll(filepath.Join(reports, "site", "timeline"), 0o755)
+	if err := os.WriteFile(filepath.Join(reports, "site", "timeline", "facts@corpus-v0.1.0.json"), kept, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(reports, "site", "timeline", "facts@corpus-v0.2.0.json"), []byte(`{"as_of":"corpus/v0.9.9"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages, _, err = TimelinePages(reports, system, TimelineSources{Today: time.Date(2026, 11, 18, 0, 0, 0, 0, time.UTC)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(pages["site/timeline/facts@corpus-v0.1.0.json"]) != string(kept) {
+		t.Errorf("the committed tag's facts were recomputed:\n%s", pages["site/timeline/facts@corpus-v0.1.0.json"])
+	}
+	if f := read("facts@corpus-v0.2.0.json"); f.AsOf != "corpus/v0.2.0" || len(f.Items) != 1 {
+		t.Errorf("the mislabelled file was not recomputed: as of %q, %d items", f.AsOf, len(f.Items))
 	}
 }
 
