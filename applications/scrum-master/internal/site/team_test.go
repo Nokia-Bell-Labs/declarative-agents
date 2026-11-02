@@ -208,7 +208,10 @@ func TestEpicPageLinksStoriesInEveryTeam(t *testing.T) {
 // the stories they selected, the epics its stories serve, the system's
 // cross-team epic among them, and its own stories, each linking its page;
 // the navigator lists the scrums and the index has a tile for each.
-func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
+// scrumProgram is a program whose registry declares two scrums, po-1 and po-2,
+// each holding the story under the system's epic.
+func scrumProgram(t *testing.T) (StatusInput, string, *fake.Fake) {
+	t.Helper()
 	in, system := statusProgram(t)
 	os.MkdirAll(filepath.Join(system, "control"), 0o755)
 	os.WriteFile(filepath.Join(system, "control", "trackers.md"), []byte("---\nid: trackers\ntitle: Tracking systems\n---\n\n<!-- field: version -->\n## Version\n\n1\n\n<!-- field: default -->\n## Default\n\n<!-- field: system -->\n### System\n\nbd\n"), 0o644)
@@ -234,6 +237,11 @@ func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
 	f.CreateIssue("g/po-1", tracker.NewIssue{Title: "Sprint Goal 01.0, grading", Labels: []string{"plane::management", "op::plan"},
 		Description: "Grade one agent.\n\n" + sprintgoal.Marker("01.0", []string{"in001-reliable-agents#R1"}) + "\n\n## Sprint Backlog\n\n- st001-score-trajectories\n"})
 
+	return in, system, f
+}
+
+func TestScrumPagesShowWhatEachTeamWorksOn(t *testing.T) {
+	in, system, f := scrumProgram(t)
 	s, err := LoadSources(system, f, in.Sources.Today)
 	if err != nil {
 		t.Fatal(err)
@@ -355,5 +363,107 @@ func TestAScrumPlansInItsScrumRepository(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Errorf("the scrum's page lacks %q:\n%s", want, page)
 		}
+	}
+}
+
+// People on scrums and epics come from control/people.md in the system
+// checkout: each name resolves or is a note, the pages list them, and a
+// program with no document still generates them (srd048 R8.8, AC11).
+func TestPeoplePages(t *testing.T) {
+	in, system, f := scrumProgram(t)
+	s, err := LoadSources(system, f, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	generate := func() timeline.Facts {
+		t.Helper()
+		facts, err := Facts(system, "", s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		j, _ := json.Marshal(facts)
+		os.MkdirAll(filepath.Join(in.Reports, Dir, "timeline"), 0o755)
+		if err := os.WriteFile(filepath.Join(in.Reports, Dir, "timeline", "facts.json"), j, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return facts
+	}
+
+	generate()
+	pages, err := PeoplePages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ix := string(pages[Dir+"/"+PeopleDir+"/index.md"]); !strings.Contains(ix, "No one is recorded yet") || len(pages) != 1 {
+		t.Fatalf("with no document, pages %d and index:\n%s", len(pages), ix)
+	}
+
+	facts := generate()
+	var epic string
+	for _, it := range facts.Items {
+		if it.Kind == "epic" {
+			epic = it.ID
+			break
+		}
+	}
+	if epic == "" || len(facts.Teams) == 0 {
+		t.Fatalf("the fixture holds no epic or scrum: %+v", facts)
+	}
+	scrum := facts.Teams[0].Name
+	doc := "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | scrums | epics |\n| --- | --- | --- |\n" +
+		"| alice | " + scrum + ", no-such-scrum | " + epic + ", ep999-gone |\n| bob |  | " + epic + " |\n"
+	os.MkdirAll(filepath.Join(system, "control"), 0o755)
+	if err := os.WriteFile(filepath.Join(system, "control", "people.md"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	facts = generate()
+	if len(facts.People) != 2 || !slices.Equal(facts.People[0].Scrums, []string{scrum}) || !slices.Equal(facts.People[0].Epics, []string{epic}) {
+		t.Fatalf("people = %+v", facts.People)
+	}
+	for _, name := range []string{"no-such-scrum", "ep999-gone"} {
+		if !slices.ContainsFunc(facts.Notes, func(n string) bool { return strings.Contains(n, name) }) {
+			t.Errorf("no note names %s: %v", name, facts.Notes)
+		}
+	}
+
+	pages, err = PeoplePages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ix := string(pages[Dir+"/"+PeopleDir+"/index.md"])
+	if !strings.Contains(ix, "[alice](../people/alice.md)") || !strings.Contains(ix, "[bob](../people/bob.md)") {
+		t.Errorf("the index:\n%s", ix)
+	}
+	alice := string(pages[Dir+"/"+PeopleDir+"/alice.md"])
+	if !strings.Contains(alice, "../"+ScrumsDir+"/"+scrum+".md") || !strings.Contains(alice, "../"+HierarchyDir+"/"+epic+".md") {
+		t.Errorf("alice's page:\n%s", alice)
+	}
+	if strings.Contains(alice, "no-such-scrum") || strings.Contains(alice, "ep999-gone") {
+		t.Errorf("alice's page shows a name that does not resolve:\n%s", alice)
+	}
+	if bob := string(pages[Dir+"/"+PeopleDir+"/bob.md"]); !strings.Contains(bob, "**Scrums:** none.") {
+		t.Errorf("bob's page:\n%s", bob)
+	}
+
+	scrums, err := ScrumPages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := string(scrums[Dir+"/"+ScrumsDir+"/"+scrum+".md"]); !strings.Contains(page, "**People:** [alice](../"+PeopleDir+"/alice.md).") {
+		t.Errorf("the scrum's page:\n%s", page)
+	}
+	if ix := string(scrums[Dir+"/"+ScrumsDir+"/index.md"]); !strings.Contains(ix, "People: alice") {
+		t.Errorf("the scrums' index:\n%s", ix)
+	}
+	hier, _, _, sidebar, err := HierarchyPages(in.Reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := string(hier[Dir+"/"+HierarchyDir+"/"+epic+".md"]); !strings.Contains(page, "**People:** [alice](../"+PeopleDir+"/alice.md), [bob](../"+PeopleDir+"/bob.md).") {
+		t.Errorf("the epic's page:\n%s", page)
+	}
+	if !strings.Contains(string(sidebar), "- [People](/"+PeopleDir+"/index.md)") {
+		t.Errorf("the navigator:\n%s", sidebar)
 	}
 }

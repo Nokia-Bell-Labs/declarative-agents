@@ -37,6 +37,8 @@ type Node struct {
 	Children []string `json:"children"`
 	Goals    []string `json:"sprint_goals"`
 	Issues   []string `json:"issues"`
+	// People are who control/people.md names on an epic (srd048 R8.8).
+	People []string `json:"people,omitempty"`
 }
 
 // HierarchyPages are the hierarchy word's pages, drawn from the timeline
@@ -127,6 +129,13 @@ func hierarchyNodes(f timeline.Facts) (nodes map[string]*Node, tracked map[strin
 			n.Issues = append(n.Issues, i.ID)
 		}
 	}
+	for _, p := range f.People {
+		for _, e := range p.Epics {
+			if n, ok := nodes[e]; ok {
+				n.People = append(n.People, p.Username)
+			}
+		}
+	}
 	return nodes, tracked
 }
 
@@ -215,6 +224,9 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	b.WriteString(strings.Join(facts, " · ") + "\n\n")
 	if n.Statement != "" {
 		fmt.Fprintf(&b, "> %s\n\n", n.Statement)
+	}
+	if n.Kind == "epic" {
+		b.WriteString(peopleLine(n.Page, n.People))
 	}
 	if tm, ok := inits[n.ID]; ok {
 		b.WriteString(initiativeRepo(tm))

@@ -150,6 +150,7 @@ docs/road-map.md.
 | id | path | title |
 | --- | --- | --- |
 | [report](specs/config-formats/report.md) | docs/specs/config-formats/report.md | Weekly status report |
+| [people](specs/config-formats/people.md) | docs/specs/config-formats/people.md | People on scrums and epics |
 | [reports-config](specs/config-formats/reports-config.md) | docs/specs/config-formats/reports-config.md | Reports roster |
 | [rollup](specs/config-formats/rollup.md) | docs/specs/config-formats/rollup.md | Status rollup |
 | [issue-body](specs/config-formats/issue-body.md) | docs/specs/config-formats/issue-body.md | Issue body conventions |

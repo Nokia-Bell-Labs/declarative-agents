@@ -146,6 +146,9 @@ type Facts struct {
 	// Teams are the program's scrums, as the system's subsystem SRDs
 	// declare them; a tag's facts hold none.
 	Teams []Team `json:"teams,omitempty"`
+	// People are who control/people.md names on the scrums and epics above,
+	// each name resolved; a tag's facts hold none (srd048 R8.8).
+	People []Person `json:"people,omitempty"`
 	// Architecture is the program's architecture as the registry declares
 	// it (srd048 R9.1): each subsystem with its components, their lifecycle
 	// states, and their contracts. A tag's facts hold none.
@@ -222,6 +225,14 @@ type Program struct {
 	Status     string
 	Planned    *Span
 	Actual     *Span
+}
+
+// Person is one person and the scrums and epics they are on, named as the
+// facts name them (srd048 R8.8).
+type Person struct {
+	Username string   `json:"username"`
+	Scrums   []string `json:"scrums,omitempty"`
+	Epics    []string `json:"epics,omitempty"`
 }
 
 // Team is one scrum: the subsystem it owns, its Product Owner, the
