@@ -10,7 +10,7 @@ status: implemented
 <!-- field: test_case_count | form: "scalar" -->
 ## Test case count
 
-6
+8
 
 <!-- field: overview -->
 ## Overview
@@ -19,7 +19,9 @@ TC1 parses and traces the Release 18.0 documents. TC2 through TC5 run the
 verify target's scratch-repository tests, which touch neither this
 repository's refs nor a network. TC6 checks the placement: the recurring
 release runbook carries the verify step between annotation and push, and
-the skill counterpart is coding-skills issue 395.
+the skill counterpart is coding-skills issue 395. TC7 and TC8 run the
+released check and the publish step against fake forges and scratch
+repositories.
 
 <!-- field: traces -->
 ## Traces
@@ -373,3 +375,92 @@ gh issue view 2198 --json body --jq .body | grep -c "tag:verify"
 
 - [rel18.0-uc001-release-annotation](../use-cases/rel18.0-uc001-release-annotation.md) [S4](../use-cases/rel18.0-uc001-release-annotation.md#s4)
 - [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC4](../software-requirements/srd007-release-annotation.md#ac4)
+
+<!-- case: A tag install.sh cannot install is refused by name | status: implemented -->
+### A tag install.sh cannot install is refused by name
+
+<!-- field: id -->
+#### ID
+
+TC7
+
+<!-- field: use_case -->
+#### Use case
+
+[rel18.0-uc001-release-annotation](../use-cases/rel18.0-uc001-release-annotation.md)
+
+<!-- field: evidence_type -->
+#### Evidence type
+
+go_test
+
+<!-- field: implemented_by -->
+#### Implemented by
+
+GH-2861
+
+<!-- field: command -->
+#### Command
+
+```bash
+cd applications/scrum-master && go test ./internal/release/ -run CheckReleased
+```
+
+<!-- field: expected | form: "tree" -->
+#### Expected
+
+- no_release_refused: true
+- draft_refused: true
+- missing_asset_refused: true
+- forge_unchanged: true
+- gitlab_release_checked: true
+
+<!-- field: traces -->
+#### Traces
+
+- [rel18.0-uc001-release-annotation](../use-cases/rel18.0-uc001-release-annotation.md) [S5](../use-cases/rel18.0-uc001-release-annotation.md#s5)
+- [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC5](../software-requirements/srd007-release-annotation.md#ac5)
+
+<!-- case: A publish that did not complete cannot pass as a release | status: implemented -->
+### A publish that did not complete cannot pass as a release
+
+<!-- field: id -->
+#### ID
+
+TC8
+
+<!-- field: use_case -->
+#### Use case
+
+[rel18.0-uc001-release-annotation](../use-cases/rel18.0-uc001-release-annotation.md)
+
+<!-- field: evidence_type -->
+#### Evidence type
+
+go_test
+
+<!-- field: implemented_by -->
+#### Implemented by
+
+GH-2861
+
+<!-- field: command -->
+#### Command
+
+```bash
+cd magefiles && go test . -run "TestTagPublish|TestRequirePreviousReleasePublished|TestNewestReleaseTag"
+```
+
+<!-- field: expected | form: "tree" -->
+#### Expected
+
+- refuses_before_publishing: true
+- publishes_then_checks: true
+- failed_step_fails_the_target: true
+- next_release_stops_on_an_unpublished_tag: true
+
+<!-- field: traces -->
+#### Traces
+
+- [rel18.0-uc001-release-annotation](../use-cases/rel18.0-uc001-release-annotation.md) [S6](../use-cases/rel18.0-uc001-release-annotation.md#s6)
+- [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC6](../software-requirements/srd007-release-annotation.md#ac6)

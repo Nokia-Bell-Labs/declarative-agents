@@ -20,9 +20,11 @@ the session annotated it with a summary of what shipped. Before pushing,
 the operator runs one check against the tag. A real summary passes and the
 push proceeds. An annotation that says nothing — the tag's own name, an
 empty subject, a one-word message — is refused with the rule it broke, and
-the operator re-annotates before anything leaves the machine. The tag's
-annotation is the only record the release line has, so what ships is a
-record that says something.
+the operator re-annotates before anything leaves the machine. The annotation
+is the release's record, so what ships is a record that says something. After
+the push the operator publishes the tag's release and the same target proves
+install.sh can install it, and the next release will not start if that step was
+skipped.
 
 <!-- field: actor -->
 ## Actor
@@ -71,6 +73,16 @@ it.
   record of what the release contained.
   - traces:
     - srd007-release-annotation R4.2
+- F7: The operator runs mage tag:publish from the checkout at the tag. It
+  publishes the release, then refuses unless the release is visible and holds
+  every asset install.sh downloads.
+  - traces:
+    - srd007-release-annotation R5.1
+    - srd007-release-annotation R5.2
+- F8: If the publish was skipped, the next mage tag stops before its gates,
+  naming the tag that has no complete release.
+  - traces:
+    - srd007-release-annotation R5.3
 
 <!-- field: touchpoints -->
 ## Touchpoints
@@ -79,7 +91,7 @@ it.
 | --- | --- | --- |
 | T1 | docs/engineering/eng01-kind-test-demo-rig.md | States that the annotation is the release record and the verb's contract. |
 | T2 | magefiles/tag_verify.go | The check applying the four rules with one named reason per failure. |
-| T3 | magefiles/tag.go | Creates the lightweight ref the session annotates; unchanged by this release. |
+| T3 | magefiles/tag.go | Creates the lightweight ref the session annotates, and refuses to start while the newest tag on origin has no complete release. |
 | T4 | [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC1](../software-requirements/srd007-release-annotation.md#ac1) | The degenerate-annotation refusals. |
 | T5 | [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC2](../software-requirements/srd007-release-annotation.md#ac2) | Reachability from main. |
 | T6 | [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC3](../software-requirements/srd007-release-annotation.md#ac3) | A run mutates nothing. |
@@ -133,6 +145,28 @@ so no release path skips it silently.
 #### Traces
 
 - [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC4](../software-requirements/srd007-release-annotation.md#ac4)
+
+<!-- sc: S5 -->
+### S5
+
+A tag with no release, a draft release, or a release lacking an asset is refused
+by name, and the check changes nothing on the forge.
+
+<!-- field: traces -->
+#### Traces
+
+- [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC5](../software-requirements/srd007-release-annotation.md#ac5)
+
+<!-- sc: S6 -->
+### S6
+
+A skipped or failed publish cannot pass as a finished release: mage tag:publish
+fails, and the next mage tag stops before its gates.
+
+<!-- field: traces -->
+#### Traces
+
+- [srd007-release-annotation](../software-requirements/srd007-release-annotation.md) [AC6](../software-requirements/srd007-release-annotation.md#ac6)
 
 <!-- field: out_of_scope -->
 ## Out of scope

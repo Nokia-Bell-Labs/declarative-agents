@@ -31,6 +31,9 @@ type host interface {
 	// release reads tag's release: whether it exists, its assets, and its
 	// notes. An asset's digest is empty when the forge records none.
 	release(tag string) (exists bool, assets []publishedAsset, notes string, err error)
+	// draft reads whether tag's existing release is still hidden from
+	// install.sh; a forge with no drafts answers false.
+	draft(tag string) (bool, error)
 	create(tag, notesFile string) error
 	upload(tag string, paths []string) error
 	// publish makes a release created as a draft visible, once it holds
@@ -92,6 +95,24 @@ func (h githubHost) release(tag string) (bool, []publishedAsset, string, error) 
 		return false, nil, "", fmt.Errorf("gh release view %s: %w", tag, err)
 	}
 	return true, r.Assets, r.Body, nil
+}
+
+func (h githubHost) draft(tag string) (bool, error) {
+	env, err := h.env()
+	if err != nil {
+		return false, err
+	}
+	view, err := h.p.Run(h.p.Root, env, "gh", "release", "view", tag, "--repo", h.p.Repo, "--json", "isDraft")
+	if err != nil {
+		return false, err
+	}
+	var r struct {
+		IsDraft bool `json:"isDraft"`
+	}
+	if err := json.Unmarshal([]byte(view), &r); err != nil {
+		return false, fmt.Errorf("gh release view %s: %w", tag, err)
+	}
+	return r.IsDraft, nil
 }
 
 func (h githubHost) create(tag, notesFile string) error {
@@ -211,6 +232,8 @@ func (h gitlabHost) create(tag, notesFile string) error {
 
 // publish has nothing to do: a GitLab release has no draft state.
 func (h gitlabHost) publish(string) error { return nil }
+
+func (h gitlabHost) draft(string) (bool, error) { return false, nil }
 
 func (h gitlabHost) upload(tag string, paths []string) error {
 	_, err := h.p.Run(h.p.Root, nil, "glab", append([]string{"release", "upload", tag, "--repo", h.p.Repo}, paths...)...)

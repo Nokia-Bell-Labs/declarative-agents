@@ -3,6 +3,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/identity"
@@ -56,6 +57,19 @@ func Publish() error {
 		return err
 	}
 	return p.Publish()
+}
+
+// Released fails unless install.sh can install the named tag: its release exists, is visible, and holds every asset. It reads the forge and changes nothing (eng03).
+func Released(tag string) error {
+	p, err := scrumMasterPublisher(false)
+	if err != nil {
+		return err
+	}
+	if err := p.CheckReleased(tag); err != nil {
+		return err
+	}
+	fmt.Fprintf(p.Out, "released: %s holds every asset install.sh downloads\n", tag)
+	return nil
 }
 
 // PublishDryRun builds the release binaries and SHA256SUMS for the tag at HEAD and names what mage publish would upload and push, creating nothing.

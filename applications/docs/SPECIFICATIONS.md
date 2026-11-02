@@ -274,7 +274,7 @@ implemented
 #### Evidence
 
 ENG01 carries the release-annotation section and the tag:verify verb,
-srd007 owns the four rules, and all six suite cases are executable. The
+srd007 owns the rules, and all eight suite cases are executable. The
 target passes the most recent real-summary tag and refuses the
 degenerate one naming its rule; the runbook carries the step.
 

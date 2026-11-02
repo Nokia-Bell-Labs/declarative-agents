@@ -72,6 +72,9 @@ func Tag() error {
 		return err
 	}
 	defer unlock()
+	if err := requirePreviousReleasePublished(gitAllRemoteReleaseTags, runReleaseModule); err != nil {
+		return err
+	}
 	return createReleaseTag(time.Now(), gitOutput, gitRemoteTags, gitCreateTagSet, runReleaseGates)
 }
 
@@ -169,6 +172,7 @@ func createReleaseTag(
 		return fmt.Errorf("creating release tag: %w", err)
 	}
 	fmt.Printf("done — created %s\n", tag)
+	fmt.Printf("next: annotate it, mage tag:verify %s, push it, then mage tag:publish %s\n", tag, tag)
 	return nil
 }
 

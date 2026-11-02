@@ -9,8 +9,8 @@ status: planned
 <!-- field: problem -->
 ## Problem
 
-The v0 release line publishes no release objects, so a tag's annotation is
-the only record of what a release contained. The tag target creates a
+A tag's annotation is the record of what a release contained, and mage
+publish copies it into the notes of the tag's release. The tag target creates a
 lightweight ref on the gated commit and the operator's session annotates
 it afterwards, which makes the summary the one release step nothing
 checks. The record shows it degrading: of five recent releases, three
@@ -19,6 +19,12 @@ between a degenerate annotation and the push, so the empty record ships
 and cannot be distinguished later from a release nobody summarized on
 purpose.
 
+A pushed tag is also not yet installable. install.sh downloads from the tag's
+release, the tag target creates only the tag, and mage publish in
+applications/scrum-master creates the release. Nothing required that second
+step, so tags reached origin that no install could use: a pinned install
+failed with a 404 and an unpinned one silently installed an older release.
+
 <!-- field: goals -->
 ## Goals
 
@@ -26,6 +32,7 @@ purpose.
 - G2: Name one reason per failure, so the remedy is evident from the refusal.
 - G3: Mutate nothing, so verification can run any number of times at any point.
 - G4: Place the check where every release path passes: the runbook and the release skill, after annotation and before push.
+- G5: Refuse to treat a pushed tag as released until install.sh can install it, and stop the next release while the newest tag cannot be installed.
 
 <!-- field: applicability -->
 ## Applicability
@@ -35,6 +42,8 @@ purpose.
 
 R1 through R4 apply to every tag on the v0 release line. The check runs
 on demand against one named tag; it gates no build and joins no audit.
+R5 applies after the push: it reads the forge the release is published on, and
+R5.3 is the one rule the tag target itself enforces.
 
 <!-- field: capability_gates | form: "empty map" -->
 ### Capability gates
@@ -149,13 +158,66 @@ The recurring release issue's workflow carries the step between
 annotation and push, and the skill's push step is guarded by it
 where the target exists.
 
+<!-- req: R5 -->
+## R5 - The pushed tag is released
+
+<!-- field: applicability -->
+### Applicability
+
+runnable_module
+
+<!-- req: R5.1 -->
+### R5.1
+
+mage tag:released shall refuse a tag with no release, a tag whose release is a
+draft, and a release lacking an asset install.sh downloads, each with its own
+named reason and the remedy, and shall change nothing on the forge. A release
+with no draft state, as on GitLab, is checked for its existence and assets.
+
+<!-- field: evidence -->
+#### Evidence
+
+A missing release, a draft, and a release lacking an asset each fail naming what
+was found; a visible release holding every asset passes; no call creates,
+uploads to, or edits a release.
+
+<!-- req: R5.2 -->
+### R5.2
+
+mage tag:publish shall refuse a tag that R1 through R3 refuse and a tag not at
+HEAD, since the release is built from HEAD, before publishing anything. It shall
+then run mage publish and the R5.1 check, in that order, and fail if either
+fails.
+
+<!-- field: evidence -->
+#### Evidence
+
+A lightweight tag and a tag behind HEAD publish nothing; a tag at HEAD runs the
+publish and then the check; a failed publish or an incomplete release fails the
+target.
+
+<!-- req: R5.3 -->
+### R5.3
+
+mage tag shall refuse to start, before running any gate and creating no tag,
+while the newest v0.YYYYMMDD.N tag on origin fails the R5.1 check. On creating a
+tag it shall name the steps that remain, ending with mage tag:publish.
+
+<!-- field: evidence -->
+#### Evidence
+
+An unpublished newest tag stops the release naming that tag; the newest tag is
+chosen numerically and tags of other shapes are ignored; a repository with no
+release tags passes; a failure to list the tags is a named failure.
+
 <!-- field: non_goals -->
 ## Non-goals
 
 - Writing or improving the summary. The session that releases owns the words; this check only refuses their absence.
-- Gating mage tag, the audit, or any build. The check runs at the push boundary on demand.
-- Verifying pushed history retroactively. Existing degenerate tags are the evidence, not the workload.
-- Release objects, changelog files, or any new release artifact.
+- Gating mage tag, the audit, or any build on the annotation. That check runs at the push boundary on demand.
+- Verifying pushed history retroactively. Existing degenerate tags are the evidence, not the workload, and R5.3 reads only the newest tag.
+- Publishing a tag from inside mage tag. The tag is annotated and pushed after the target returns, so its release can only follow.
+- Changelog files or any release artifact beyond the assets mage publish already produces.
 
 <!-- field: acceptance_criteria -->
 ## Acceptance criteria
@@ -205,6 +267,30 @@ push.
 #### Traces
 
 - [R4.2](#r42)
+
+<!-- ac: AC5 -->
+### AC5
+
+A missing release, a draft release, and a release lacking an asset are each
+refused by name with the remedy, and the check changes nothing on the forge.
+
+<!-- field: traces -->
+#### Traces
+
+- [R5.1](#r51)
+
+<!-- ac: AC6 -->
+### AC6
+
+mage tag:publish refuses before publishing, publishes and then checks, and fails
+when either step fails; mage tag stops before its gates while the newest tag on
+origin has no complete release.
+
+<!-- field: traces -->
+#### Traces
+
+- [R5.2](#r52)
+- [R5.3](#r53)
 
 <!-- field: use_case_traces -->
 ## Use case traces
