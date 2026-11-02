@@ -90,6 +90,29 @@ func TestGitLabPublishCreatesTheRelease(t *testing.T) {
 	}
 }
 
+// A GitLab release has no draft state, so the check is its existence and
+// assets, and reading them changes nothing (GH-2861).
+func TestGitLabCheckReleased(t *testing.T) {
+	refusals := map[string]*fakeGitLab{
+		"has no release":    {user: "org-owner"},
+		"lacks " + SumsFile: {user: "org-owner", exists: true, links: slices.DeleteFunc(AssetNames(), func(n string) bool { return n == SumsFile })},
+	}
+	for refusal, f := range refusals {
+		if err := gitlabPublisher(t, f).CheckReleased("v0.20261015.1"); err == nil || !strings.Contains(err.Error(), refusal) {
+			t.Errorf("got %v, want a refusal naming %q", err, refusal)
+		}
+	}
+	complete := &fakeGitLab{user: "org-owner", exists: true, links: AssetNames()}
+	if err := gitlabPublisher(t, complete).CheckReleased("v0.20261015.1"); err != nil {
+		t.Fatal(err)
+	}
+	for _, ran := range complete.ran {
+		if !strings.HasPrefix(ran, "glab api projects/") {
+			t.Errorf("the check ran %s", ran)
+		}
+	}
+}
+
 // A GitLab link records no digest: an asset already on the release is kept
 // when the release's SHA256SUMS lists this build's checksum, refused when it
 // lists another, and refused when the release has no SHA256SUMS (GH-31).

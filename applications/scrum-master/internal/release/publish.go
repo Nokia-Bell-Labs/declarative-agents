@@ -372,6 +372,51 @@ func (p Publisher) Binaries(tag string) error {
 	return nil
 }
 
+// AssetNames are the files a complete release holds: the agent for each
+// platform, the profiles archive, and SHA256SUMS.
+func AssetNames() []string {
+	var names []string
+	for _, pl := range Platforms {
+		names = append(names, AssetName("agent", pl))
+	}
+	return append(names, ProfilesArchive, SumsFile)
+}
+
+// CheckReleased fails unless install.sh can install tag: its release exists,
+// is visible, and holds every asset (GH-2861). It reads the forge and changes
+// nothing.
+func (p Publisher) CheckReleased(tag string) error {
+	h, err := p.host()
+	if err != nil {
+		return err
+	}
+	exists, assets, _, err := h.release(tag)
+	if err != nil {
+		return err
+	}
+	const remedy = "from a checkout at the tag, run mage publish"
+	if !exists {
+		return fmt.Errorf("%s has no release on %s, so install.sh cannot install it; %s", tag, p.Repo, remedy)
+	}
+	draft, err := h.draft(tag)
+	if err != nil {
+		return err
+	}
+	if draft {
+		return fmt.Errorf("the release %s is still a draft, so install.sh cannot install it; %s", tag, remedy)
+	}
+	var missing []string
+	for _, name := range AssetNames() {
+		if !slices.ContainsFunc(assets, func(a publishedAsset) bool { return a.Name == name }) {
+			missing = append(missing, name)
+		}
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("the release %s lacks %s, so install.sh cannot install it; %s", tag, strings.Join(missing, ", "), remedy)
+	}
+	return nil
+}
+
 func fileSum(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

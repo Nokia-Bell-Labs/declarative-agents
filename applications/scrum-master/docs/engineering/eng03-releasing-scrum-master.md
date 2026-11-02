@@ -77,6 +77,17 @@ creates nothing.
 
 Table: What mage tag does.
 
+This repository's tags are repository-wide, so a release is usually cut by
+the root mage tag, which runs the whole repository's gates and creates the tag
+but publishes nothing: the session annotates and pushes the tag afterwards. The
+step that follows is the root mage tag:publish <tag>, run from the checkout at
+the tag, which runs mage publish here and then mage released <tag>. mage released
+reads the forge and changes nothing: it refuses a tag with no release, a draft
+release, or a release lacking an asset install.sh downloads. The root mage tag
+runs the same check on the newest tag on origin before its gates, so a skipped
+publish stops the next release rather than reaching an installer as a 404
+(GH-2861).
+
 mage publish publishes the tag at HEAD and nothing else. Each part it
 finds already published (an asset on the GitHub release, the image at
 the tag in the registry) is checked and kept, so rerunning it after a

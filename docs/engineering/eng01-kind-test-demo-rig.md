@@ -345,10 +345,10 @@ and owns their acceptance criteria.
 <!-- section: release-annotation -->
 ## Release annotation
 
-A release is a tag, and the tag's annotation is its only record: the
-v0 line publishes no release objects, so what the annotation says is
-what the release said. The tag target creates a lightweight ref on the
-gated commit; the operator's session annotates it with a summary of
+A release is a tag and the GitHub release published from it, and the
+tag's annotation is its record: mage publish copies the annotation into
+the release's notes, so what the annotation says is what the release
+said. The tag target creates a lightweight ref on the gated commit; the operator's session annotates it with a summary of
 what shipped and then pushes. Under release pressure the summary is
 the step that degrades, and a tag annotated with its own name is a
 record that says nothing.
@@ -360,6 +360,17 @@ reachable from main. It reports one named reason per failure and
 mutates nothing; the remedy is re-annotating with a real summary and
 running it again. The release runbook and the release skill call it
 after annotating and before any push.
+
+A pushed tag is not yet a release, because install.sh downloads from the
+tag's GitHub release. `mage tag:publish <tag>` runs after the push, from
+the checkout at the tag: it runs the tag:verify rules, refuses a tag not
+at HEAD, runs `mage publish` in applications/scrum-master, and then
+`mage tag:released <tag>`, which refuses a tag with no release, a draft
+release, or a release lacking an asset install.sh downloads. A skipped
+publish stops the next release: `mage tag` refuses to start, before any
+gate, while the newest tag on origin has no complete release. The remedy
+for an older tag is `mage publish` in applications/scrum-master from a
+checkout at that tag, oldest first, so the newest ends as latest.
 
 srd007-release-annotation carries these rules as numbered
 requirements and owns their acceptance criteria.
@@ -437,6 +448,8 @@ Table 10: Platform-tier verbs at the repository root
 | clean:imagesDryRun | Lists what clean:images would remove |
 | bump | Resolves every pin against its registry and reports integrity and currency; reaches the network, writes nothing, and exits zero whatever it finds |
 | tag:verify | Refuses a release tag whose annotation is missing, degenerate, or under the substance bar, or that is not reachable from main; mutates nothing and names one reason per failure |
+| tag:publish | Runs after the push from a checkout at the tag: applies the tag:verify rules, refuses a tag not at HEAD, publishes the release, and fails unless tag:released then passes |
+| tag:released | Refuses a release tag with no release, a draft release, or a release lacking an asset install.sh downloads; changes nothing on the forge and names the remedy |
 
 Table 11: Application-tier verbs at the repository root
 

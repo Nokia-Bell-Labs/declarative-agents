@@ -55,7 +55,7 @@ func (f *fakeTools) run(_ string, env []string, name string, args ...string) (st
 		for n, d := range f.release {
 			assets = append(assets, map[string]string{"name": n, "digest": "sha256:" + d})
 		}
-		b, _ := json.Marshal(map[string]any{"assets": assets})
+		b, _ := json.Marshal(map[string]any{"assets": assets, "isDraft": f.draft})
 		return string(b), nil
 	case name == "gh" && args[1] == "create":
 		if !slices.Contains(args, "--verify-tag") {
@@ -122,6 +122,54 @@ func coreFixture(root string) string {
 func sha(data []byte) string {
 	s := sha256.Sum256(data)
 	return hex.EncodeToString(s[:])
+}
+
+// A tag install.sh cannot install is refused by name, and reading it changes
+// nothing on the forge (GH-2861).
+func TestCheckReleasedRefusesWhatInstallCannotInstall(t *testing.T) {
+	complete := func() map[string]string {
+		release := map[string]string{}
+		for _, name := range AssetNames() {
+			release[name] = "digest"
+		}
+		return release
+	}
+	lacking := complete()
+	delete(lacking, ProfilesArchive)
+	for _, c := range []struct {
+		name    string
+		tools   fakeTools
+		refusal string
+	}{
+		{"no release", fakeTools{}, "has no release on org/repo"},
+		{"draft", fakeTools{release: complete(), draft: true}, "still a draft"},
+		{"missing asset", fakeTools{release: lacking}, "lacks " + ProfilesArchive},
+		{"complete", fakeTools{release: complete()}, ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			f := c.tools
+			err := publisher(t.TempDir(), nil, &f, io.Discard).CheckReleased("v0.20261102.0")
+			if c.refusal == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), c.refusal) || !strings.Contains(err.Error(), "mage publish") {
+				t.Fatalf("got %v, want a refusal naming %q and the remedy", err, c.refusal)
+			}
+			if f.created || f.published != 0 || len(f.uploaded) != 0 {
+				t.Fatalf("the check changed the forge: %+v", f)
+			}
+		})
+	}
+}
+
+func TestCheckReleasedSurfacesAForgeFailure(t *testing.T) {
+	failing := Publisher{Repo: "org/repo", Account: "org-owner", Run: func(string, []string, string, ...string) (string, error) {
+		return "", errors.New("gh: connection refused")
+	}}
+	if err := failing.CheckReleased("v0.20261102.0"); err == nil || !strings.Contains(err.Error(), "connection refused") {
+		t.Fatalf("got %v", err)
+	}
 }
 
 func TestBuildWritesEveryPlatformAndItsSums(t *testing.T) {
