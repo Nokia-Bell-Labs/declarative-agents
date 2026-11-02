@@ -61,7 +61,7 @@ func OverviewPage(dir, name string) ([]byte, error) {
 	if sum := visionSummary(dir); sum != "" {
 		fmt.Fprintf(&page, "%s — [the program's vision](%s/VISION.md).\n\n", sum, CorpusDir)
 	}
-	fmt.Fprintf(&page, "As of %s. [Status](status/index.md) · [Road map](status/road-map.md) · [Plan](%s/index.md) · [Scrums](scrums/index.md) · [Timeline](timeline/index.md) · [Requirement history](history/index.md)\n\n", f.Today, HierarchyDir)
+	fmt.Fprintf(&page, "As of %s. [Status](status/index.md) · [Road map](status/road-map.md) · [Plan](%s/index.md) · [Scrums](scrums/index.md) · [People](people/index.md) · [Timeline](timeline/index.md) · [Requirement history](history/index.md)\n\n", f.Today, HierarchyDir)
 	page.WriteString("## Timeline\n\n")
 	page.WriteString(embed("timeline", "The program's interactive timeline") + "\n")
 	page.WriteString("[Open the interactive timeline](timeline/gantt/program.html) on its own page, with the plan as it stood at each corpus tag to compare.\n\n")

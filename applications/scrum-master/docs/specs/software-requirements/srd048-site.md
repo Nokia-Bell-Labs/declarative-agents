@@ -189,6 +189,11 @@ A scrum owns an area, a subsystem and the components its SRD lists, while planne
 
 A program may be a team of a larger one, so one site serves both levels (GH-2740): the upper level sees the interface, what it asked of the sub-program and the sub-program's progress on it, and never its interior, and the two sites link. A scrum whose scrum repository holds control/trackers.md is a sub-program; the site reads its control/program.md (config format program) and, from the site_repository it names, the plan its site publishes under site/data/hierarchy/. Its documents whose parent pins a document of this plan are drawn under that document, named <sub-program>/<id>, with the points, state, and days the sub-program's site gives them, which count in the plan's pages, the timeline, and the status page's roll-up; their pages link the sub-program's site rather than list children, and nothing under them is read. The navigator marks a sub-program with a program chip, the scrums' index gives it a program tile, and its page shows its Sprint Goals, the documents it serves the plan with, and a link to its site. A sub-program whose control/program.md names a parent opens its navigator and overview with the parent, linked to the parent's site, gathers on the plan's index the documents serving the parent's plan under a band naming it, and links each such document up to the parent document's page on the parent's site. What cannot be read is a note on the timeline facts, never skipped silently.
 
+<!-- req: R8.8 -->
+### R8.8
+
+The site shows who is on what, as the system checkout's control/people.md (config format people) names them, read from the checkout and never the tracker (srd045 R2.5). The timeline facts carry each person with the scrums and epics they are on, a tag's holding none, and a name resolving to no scrum or epic is a note and left off the pages. A scrum's page and tile and an epic's page list their people, and the hierarchy word writes site/people/: an index and a page per person, naming their scrums and epics with links. The navigator and the overview link the folder. A program with no control/people.md generates the same pages, each saying no one is recorded.
+
 <!-- req: R9 -->
 ## R9 - Architecture pages
 
@@ -357,3 +362,13 @@ On a fixture program whose stories carry issues records — one issue open with 
 - [R10.2](#r102)
 - [R8.2](#r82)
 - [R8.5](#r85)
+
+<!-- ac: AC11 -->
+### AC11
+
+On a fixture program whose control/people.md names one person on a scrum and a team's epic, another on a system epic, and a scrum and an epic that do not exist, the facts carry each person with the names that resolve and a note for each that does not; the scrum's page and tile and each epic's page list their people, site/people/ holds an index and a page per person linking their scrums and epics, and the navigator and overview link the folder. With no control/people.md, the same pages say no one is recorded.
+
+<!-- field: traces -->
+#### Traces
+
+- [R8.8](#r88)

@@ -215,6 +215,15 @@ var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, ini
 		if err != nil {
 			return err
 		}
+		people, err := PeoplePages(dir)
+		if err != nil {
+			return err
+		}
+		peoplePages, err := PublishTree(dir, PeopleDir, people, install.Version(), ctx.DryRun)
+		r.Pages = append(r.Pages, peoplePages...)
+		if err != nil {
+			return err
+		}
 		nav, err := Write(dir, Sidebar, sidebar, install.Version(), ctx.DryRun)
 		r.Pages = append(r.Pages, nav)
 		if err != nil {

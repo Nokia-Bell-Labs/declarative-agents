@@ -27,6 +27,7 @@ const ScrumsDir = "scrums"
 type scrum struct {
 	timeline.Team
 	Page    string
+	People  []string // who control/people.md names on it (srd048 R8.8)
 	names   []string // its repositories as the facts name documents (GH-2811)
 	Docs    []string // its features and stories, in kind and rank order
 	Serves  []string // a sub-program's documents this plan shows, its interior apart
@@ -67,6 +68,11 @@ func scrumsIn(f timeline.Facts, nodes map[string]*Node) []scrum {
 			continue
 		}
 		s := scrum{Team: t, Page: ScrumsDir + "/" + t.Name + ".md"}
+		for _, p := range f.People {
+			if slices.Contains(p.Scrums, t.Name) {
+				s.People = append(s.People, p.Username)
+			}
+		}
 		for _, r := range t.Repositories {
 			s.names = append(s.names, program.RepositoryName(f.Group, r))
 		}
@@ -224,15 +230,20 @@ func scrumTile(s scrum) string {
 	if s.Points > 0 {
 		pts = fmt.Sprintf("%d of %d points done", s.Done, s.Points)
 	}
+	on := "No people recorded"
+	if len(s.People) > 0 {
+		on = "People: " + strings.Join(s.People, ", ")
+	}
 	return fmt.Sprintf(`<a class="tile %s" href="%s.md">
 <span class="tile-kind">%s</span>
 <span class="tile-title">%s</span>
 <span class="tile-facts">%s</span>
 <span class="tile-facts">%s</span>
 <span class="tile-facts">%s</span>
+<span class="tile-facts">%s</span>
 <span class="tile-points">%s</span>%s
 </a>
-`, class, html.EscapeString(s.Name), chip, html.EscapeString(s.Name), meta("Product Owner: "+s.Owner),
+`, class, html.EscapeString(s.Name), chip, html.EscapeString(s.Name), meta("Product Owner: "+s.Owner), meta(on),
 		meta("Area: "+strings.Join(s.Components, ", ")), meta(strings.Join(work, " · ")), html.EscapeString(pts), bar)
 }
 
@@ -258,6 +269,7 @@ func programPage(s scrum, nodes map[string]*Node, head string, arch map[string]s
 	} else {
 		b.WriteString("**A program of its own.** Its teams, epics, and stories are on its own site, which its control/program.md does not name yet; this page shows what this plan asked of it and what it serves the plan with.\n\n")
 	}
+	b.WriteString(peopleLine(s.Page, s.People))
 	fmt.Fprintf(&b, "**Area:** %s.\n\n", areaLinks(s, arch))
 	if s.Points > 0 {
 		fmt.Fprintf(&b, "%d of %d story points done across what it serves this plan with.\n\n", s.Done, s.Points)
@@ -281,6 +293,7 @@ func teamPage(s scrum, nodes map[string]*Node, head string, arch map[string]stri
 		scrumRepo = fmt.Sprintf("[%s](%s)", s.Scrum, s.URL)
 	}
 	b.WriteString(strings.Join(facts, " · ") + "\n\n")
+	b.WriteString(peopleLine(s.Page, s.People))
 	var code []string
 	for _, r := range s.Repositories {
 		if r != s.Scrum || !s.Apart {

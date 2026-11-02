@@ -367,6 +367,8 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		f.Notes = append(f.Notes, notes...)
 		ledgerNotes := storyLedgers(docs, &f)
 		f.Notes = append(f.Notes, ledgerNotes...)
+		f.People, notes = peopleFacts(dir, f)
+		f.Notes = append(f.Notes, notes...)
 	}
 	return f, nil
 }

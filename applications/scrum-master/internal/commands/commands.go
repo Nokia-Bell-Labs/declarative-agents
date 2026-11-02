@@ -8,6 +8,7 @@ import (
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/backlog"
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/goals"
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
+	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/people"
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/plan"
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/release"

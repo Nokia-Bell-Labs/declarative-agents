@@ -75,6 +75,9 @@ scripts. Facts are fetched, judgment is asked: a script never asks a person
 for something the tracker records, and a skill asks only what it cannot read.
 Pull, never push: nobody assigns work to anyone, and the only way an item
 gets an assignee is that person's own `implement`.
+Who is on a scrum or an epic is a separate record: the technical program
+manager names them in `control/people.md` with `scrum-master people allocate`,
+the site shows it, and it assigns no one an issue.
 
 A program has levels, and each level has one owner and the same corpus: a
 docs/ directory with SRDs and a road-map, checked by the same audit.

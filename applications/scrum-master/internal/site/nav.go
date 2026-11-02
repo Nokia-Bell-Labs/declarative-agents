@@ -177,6 +177,8 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 			fmt.Fprintf(&b, "  - [%s%s](/%s/%s.md %q)\n", chip, t.Name, ScrumsDir, t.Name, t.Name)
 		}
 	}
+	// Who is on the scrums and epics (srd048 R8.8).
+	b.WriteString("- [People](/" + PeopleDir + "/index.md)\n")
 	// The backlog: every issue the stories record, open and closed
 	// (srd048 R10).
 	b.WriteString("- [Backlog](/" + BacklogDir + "/index.md)\n")

@@ -96,6 +96,11 @@ No hierarchy document is a unit of work (D4). A story is executed by issues that
 
 Every hierarchy document may carry an architecture context item listing the ARCHITECTURE components it creates, modifies, or integrates (design.md hierarchy_links, D15): a component of this repository by its bare id, as docs/ARCHITECTURE.md declares it in a <!-- component: id --> heading, and a component of another repository by a URL pinned to a release tag naming that repository's ARCHITECTURE.md and the component as its anchor. The item is optional; a document without it is unaffected, and scrum-master backlog list reports the components a document cites.
 
+<!-- req: R2.5 -->
+### R2.5
+
+A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. Naming a person assigns no issue, files no status issue, and changes no label; an epic's owner stays its one owner in its document.
+
 <!-- req: R3 -->
 ## R3 - Parent and roll-up
 
@@ -249,7 +254,7 @@ scrum-master backlog components lists the component ids docs/ARCHITECTURE.md dec
 
 - A baseline or a commitment date; a forecast is regenerated from current knowledge.
 - Duration estimates; stories are estimated in relative points and dates come only from velocity.
-- Estimating, ranking, or assigning a person (D5); rank orders stories, points belong to the work.
+- Estimating or ranking a person, or assigning one an issue (D5); rank orders stories, points belong to the work, and naming a person on an epic (R2.5) records who is on it and nothing more.
 - Tracker-native epics, features, or stories; the hierarchy is documents, and the tracker holds the issues that execute stories.
 
 <!-- field: acceptance_criteria -->
@@ -381,3 +386,13 @@ With a closed issue and an open one implementing a story through Implements line
 #### Traces
 
 - [R4.4](#r44)
+
+<!-- ac: AC11 -->
+### AC11
+
+scrum-master people allocate names a person on a scrum or epic in control/people.md, and release takes them off; a second identical run changes nothing, a dry run writes nothing, and a person on nothing leaves the document. Neither assigns an issue, files a status issue, nor changes a label.
+
+<!-- field: traces -->
+#### Traces
+
+- [R2.5](#r25)
