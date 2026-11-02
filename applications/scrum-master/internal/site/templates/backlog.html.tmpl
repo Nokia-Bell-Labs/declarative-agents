@@ -20,7 +20,6 @@ a:hover { text-decoration: underline; }
 .col.done h2 { color: #15803d; }
 .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; margin: 0 0 8px; font-size: 13px; }
 .card .ref { font-weight: 600; }
-.card .ref .repo { color: #6b7280; font-weight: 400; font-size: 12px; margin-left: 6px; }
 .card .t { margin: 3px 0 4px; }
 .card .meta { color: #6b7280; font-size: 12px; margin-top: 2px; }
 .card .who { color: #374151; font-size: 12px; margin-top: 4px; }
@@ -83,8 +82,15 @@ a:hover { text-decoration: underline; }
   function card(r) {
     var div = document.createElement("div");
     div.className = "card";
-    var issue = r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.ref) + "</a>" : esc(r.ref);
-    var h = '<div class="ref">' + issue + '<span class="repo">' + esc(r.repository) + "</span></div>";
+    // The card names its issue by the ref's last segment, optimizer#2,
+    // the full ref its tooltip: the path drowns the card, and the
+    // repository filter already narrows by project (GH-2857).
+    var cut = r.ref.lastIndexOf("/");
+    var short = cut < 0 ? r.ref : r.ref.slice(cut + 1);
+    var issue = r.url
+      ? '<a href="' + esc(r.url) + '" title="' + esc(r.ref) + '" target="_blank" rel="noopener">' + esc(short) + "</a>"
+      : '<span title="' + esc(r.ref) + '">' + esc(short) + "</span>";
+    var h = '<div class="ref">' + issue + "</div>";
     h += '<div class="t">' + esc(r.title) + "</div>";
     if ((r.who || []).length) h += '<div class="who">' + esc(r.who.join(", ")) + "</div>";
     var meta = [];
