@@ -160,15 +160,15 @@ func daysBetween(from, to string) string {
 	return fmt.Sprintf("%d days", d)
 }
 
-// backlogIndex is the folder's index: the embedded filterable view above
-// an open and a closed table, the forge's view of the same record, every
+// backlogIndex is the folder's index: the embedded kanban board (GH-2855)
+// above an open and a closed table, the forge's view of the same record, every
 // issue linked on its tracker where its url opens in a browser and named
 // without a link where it does not (R8.5), each with its story and epic.
 func backlogIndex(rows []backlogRow) string {
 	var b strings.Builder
 	b.WriteString(generated("backlog", "the timeline facts") + "# Backlog\n\n")
-	b.WriteString("Every issue the stories record (srd045 R4.4), across the program's repositories, open and closed, read from the checkouts, never the tracker. The embedded view filters by repository, state, and who; the tables are the forge's view of the same record.\n\n")
-	b.WriteString("<iframe class=\"timeline\" src=\"backlog/backlog.html?embed=1\" title=\"The backlog, filterable\"></iframe>\n")
+	b.WriteString("Every issue the stories record (srd045 R4.4), across the program's repositories, open and closed, read from the checkouts, never the tracker. The board's columns are the record: to do is open with nobody on it, in progress is open with someone, done is closed; it filters by repository, state, and who, and the tables are the forge's view of the same record.\n\n")
+	b.WriteString("<iframe class=\"timeline\" src=\"backlog/backlog.html?embed=1\" title=\"The backlog board, filterable\"></iframe>\n")
 	cell := func(r backlogRow) (issue, story, epic string) {
 		issue = r.Ref
 		if r.URL != "" {

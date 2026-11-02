@@ -72,20 +72,21 @@ func LedgerOf(doc []byte) ([]LedgerEntry, error) {
 	return out, nil
 }
 
-// EntryFor is the record of one tracker issue: who is its assignees, else
-// its author; the dates are days, not instants; and a tracker's "opened"
-// state reads as open.
+// EntryFor is the record of one tracker issue: who is who works on it —
+// its assignees, nobody for an open issue none has picked up, its author
+// for a closed one with none, who worked it (GH-2855); the dates are days,
+// not instants; and a tracker's "opened" state reads as open.
 func EntryFor(project string, i tracker.Issue) LedgerEntry {
-	who := append([]string(nil), i.Assignees...)
-	if len(who) == 0 && i.Author != "" {
-		who = []string{i.Author}
-	}
 	state := i.State
 	if state == "" || state == "opened" {
 		state = "open"
 	}
 	if i.ClosedAt != "" {
 		state = "closed"
+	}
+	who := append([]string(nil), i.Assignees...)
+	if len(who) == 0 && state == "closed" && i.Author != "" {
+		who = []string{i.Author}
 	}
 	return LedgerEntry{
 		Ref:    fmt.Sprintf("%s#%d", project, i.IID),

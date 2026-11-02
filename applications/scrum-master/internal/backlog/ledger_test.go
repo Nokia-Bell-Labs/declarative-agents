@@ -58,17 +58,23 @@ func TestLedgerRoundTrip(t *testing.T) {
 	}
 }
 
-// An entry reads who from the issue's assignees, else its author; keeps
-// days, not instants; and a tracker's "opened" state reads as open while
-// a closed date makes it closed (srd045 R4.4).
+// An entry reads who from the issue's assignees: an open unassigned issue
+// records nobody — nobody works on it yet — and a closed unassigned one
+// its author, who worked it (GH-2855); keeps days, not instants; and a
+// tracker's "opened" state reads as open while a closed date makes it
+// closed (srd045 R4.4).
 func TestEntryForNormalizes(t *testing.T) {
 	e := EntryFor("g/po-1", tracker.Issue{IID: 7, Title: "T", State: "opened", Author: "ana", CreatedAt: "2026-11-01T10:11:12Z"})
-	if e.Ref != "g/po-1#7" || e.State != "open" || e.Opened != "2026-11-01" || strings.Join(e.Who, ",") != "ana" {
+	if e.Ref != "g/po-1#7" || e.State != "open" || e.Opened != "2026-11-01" || len(e.Who) != 0 {
 		t.Errorf("open entry = %+v", e)
 	}
 	e = EntryFor("g/po-1", tracker.Issue{IID: 8, State: "opened", Assignees: []string{"bo"}, Author: "ana", CreatedAt: "2026-11-01T10:11:12Z", ClosedAt: "2026-11-03T09:00:00Z"})
 	if e.State != "closed" || e.Closed != "2026-11-03" || strings.Join(e.Who, ",") != "bo" {
 		t.Errorf("closed entry = %+v", e)
+	}
+	e = EntryFor("g/po-1", tracker.Issue{IID: 9, State: "closed", Author: "ana", CreatedAt: "2026-11-01T10:11:12Z", ClosedAt: "2026-11-03T09:00:00Z"})
+	if e.State != "closed" || strings.Join(e.Who, ",") != "ana" {
+		t.Errorf("closed unassigned entry = %+v", e)
 	}
 }
 

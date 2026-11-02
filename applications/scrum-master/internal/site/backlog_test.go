@@ -54,7 +54,9 @@ func TestFactsCarryTheStoriesRecord(t *testing.T) {
 // how long an issue took, every issue linked on its tracker where its url
 // opens and named without a link where it does not (R8.5), each row
 // linking its story's and its epic's pages; the embedded page inlines the
-// same rows and filters by repository, state, and who.
+// same rows as a kanban board — done is closed, in progress is open with
+// someone on it, to do is open with nobody (GH-2855) — and filters by
+// repository, state, and who.
 func TestBacklogPages(t *testing.T) {
 	dir := t.TempDir()
 	f := timeline.Facts{Today: "2026-11-04",
@@ -96,6 +98,7 @@ func TestBacklogPages(t *testing.T) {
 	for _, want := range []string{
 		`id="repo"`, `id="state"`, `id="who"`, `"ref":"g/code-1#3"`, `"story":"st001-z"`, `"epic":"ep001-x"`,
 		`timelineHeight`, `"projected":"release 01.0, by 2026-11-13"`,
+		`data-col="todo"`, `data-col="progress"`, `data-col="done"`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("the embedded page lacks %q", want)

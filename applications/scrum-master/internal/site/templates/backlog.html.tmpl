@@ -7,19 +7,26 @@
 body { font-family: system-ui, sans-serif; margin: 1rem; color: #1f2937; }
 html.embed body { margin: 0; }
 html.embed h1 { display: none; }
-.controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 0 0 8px; font-size: 14px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 0 0 10px; font-size: 14px; }
 .controls select { font: inherit; }
-table { border-collapse: collapse; font-size: 13px; width: 100%; }
-th, td { text-align: left; padding: 5px 10px; border-bottom: 1px solid #e5e7eb; white-space: nowrap; }
-td.title, td.story, td.epic { white-space: normal; }
-th { color: #6b7280; font-weight: 600; border-bottom: 1px solid #d1d5db; }
 a { color: #2563eb; text-decoration: none; }
 a:hover { text-decoration: underline; }
-.state { display: inline-block; padding: 1px 8px; border-radius: 9px; font-size: 12px; }
-.state.open { background: #dbeafe; color: #1d4ed8; }
-.state.closed { background: #dcfce7; color: #15803d; }
+.board { display: flex; gap: 12px; align-items: flex-start; }
+.col { flex: 1 1 0; min-width: 0; background: #f3f4f6; border-radius: 8px; padding: 8px; }
+.col h2 { font-size: 13px; font-weight: 600; color: #374151; margin: 2px 4px 8px; display: flex; justify-content: space-between; }
+.col h2 .n { color: #6b7280; font-weight: 500; }
+.col.todo h2 { color: #4b5563; }
+.col.progress h2 { color: #1d4ed8; }
+.col.done h2 { color: #15803d; }
+.card { background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px 10px; margin: 0 0 8px; font-size: 13px; }
+.card .ref { font-weight: 600; }
+.card .ref .repo { color: #6b7280; font-weight: 400; font-size: 12px; margin-left: 6px; }
+.card .t { margin: 3px 0 4px; }
+.card .meta { color: #6b7280; font-size: 12px; margin-top: 2px; }
+.card .who { color: #374151; font-size: 12px; margin-top: 4px; }
+.card .links { font-size: 12px; margin-top: 4px; }
+.empty { color: #9ca3af; font-size: 12px; margin: 2px 4px; }
 #count { color: #6b7280; font-size: 13px; }
-#none { color: #6b7280; }
 </style>
 <script>if (/[?&]embed=1(&|$)/.test(location.search)) document.documentElement.className = "embed";</script>
 </head>
@@ -32,18 +39,19 @@ a:hover { text-decoration: underline; }
   <label>Who <select id="who"><option value="">anyone</option></select></label>
   <span id="count"></span>
 </div>
-<p id="none" hidden>No recorded issue matches. A story records its issues once scrum-master backlog record runs in its scrum repository (srd045 R4.4).</p>
-<table id="rows" hidden>
-  <thead><tr><th>issue</th><th>title</th><th>state</th><th>who</th><th>opened</th><th>closed</th><th>days</th><th>projected</th><th>story</th><th>epic</th></tr></thead>
-  <tbody></tbody>
-</table>
+<div class="board" id="board">
+  <div class="col todo" data-col="todo"><h2>To do <span class="n"></span></h2><div class="cards"></div></div>
+  <div class="col progress" data-col="progress"><h2>In progress <span class="n"></span></h2><div class="cards"></div></div>
+  <div class="col done" data-col="done"><h2>Done <span class="n"></span></h2><div class="cards"></div></div>
+</div>
 <script type="application/json" id="backlog-data">{{.Data}}</script>
 <script>
 (function () {
-  // The stories' issues records, filterable in place (srd048 R10): the
-  // rows are inlined, the page makes no request, and a planning item
-  // opens its page in the site, in the top window, so the embedded table
-  // navigates the app.
+  // The stories' issues records as a kanban board (srd048 R10.2, GH-2855):
+  // the cards are inlined, the page makes no request, and a planning item
+  // opens its page in the site, in the top window, so the embedded board
+  // navigates the app. A card's column is its record: done is closed, in
+  // progress is open with someone on it, to do is open with nobody yet.
   var D = JSON.parse(document.getElementById("backlog-data").textContent);
   var query = new URLSearchParams(location.search);
   var state = { repo: query.get("repo") || "", state: query.get("state") || "", who: query.get("who") || "" };
@@ -68,31 +76,60 @@ a:hover { text-decoration: underline; }
   document.getElementById("state").value = state.state;
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function page(id) { return esc(new URL("../#/hierarchy/" + id, location.href).href); }
+  function column(r) {
+    if (r.state === "closed") return "done";
+    return (r.who || []).length ? "progress" : "todo";
+  }
+  function card(r) {
+    var div = document.createElement("div");
+    div.className = "card";
+    var issue = r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.ref) + "</a>" : esc(r.ref);
+    var h = '<div class="ref">' + issue + '<span class="repo">' + esc(r.repository) + "</span></div>";
+    h += '<div class="t">' + esc(r.title) + "</div>";
+    if ((r.who || []).length) h += '<div class="who">' + esc(r.who.join(", ")) + "</div>";
+    var meta = [];
+    if (r.state === "closed") {
+      if (r.opened) meta.push(esc(r.opened) + " → " + esc(r.closed));
+      if (r.days) meta.push("took " + esc(r.days));
+    } else {
+      if (r.opened) meta.push("opened " + esc(r.opened));
+      if (r.days) meta.push("open " + esc(r.days));
+    }
+    if (meta.length) h += '<div class="meta">' + meta.join(" · ") + "</div>";
+    if (r.state !== "closed" && r.projected) h += '<div class="meta">projected ' + esc(r.projected) + "</div>";
+    var links = '<a href="' + page(r.story) + '" target="_top">' + esc(r.story_title) + "</a>";
+    if (r.epic) links += ' · <a href="' + page(r.epic) + '" target="_top">' + esc(r.epic_title) + "</a>";
+    h += '<div class="links">' + links + "</div>";
+    div.innerHTML = h;
+    return div;
+  }
   function draw() {
-    var body = document.querySelector("#rows tbody");
-    body.innerHTML = "";
     var kept = D.rows.filter(function (r) {
       if (state.repo && r.repository !== state.repo) return false;
       if (state.state && r.state !== state.state) return false;
       if (state.who && (r.who || []).indexOf(state.who) < 0) return false;
       return true;
     });
-    kept.forEach(function (r) {
-      var tr = document.createElement("tr");
-      var issue = r.url ? '<a href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.ref) + "</a>" : esc(r.ref);
-      var story = '<a href="' + page(r.story) + '" target="_top">' + esc(r.story_title) + "</a>";
-      var epic = r.epic ? '<a href="' + page(r.epic) + '" target="_top">' + esc(r.epic_title) + "</a>" : "";
-      tr.innerHTML = "<td>" + issue + "</td><td class=\"title\">" + esc(r.title) + "</td>" +
-        '<td><span class="state ' + esc(r.state) + '">' + esc(r.state) + "</span></td>" +
-        "<td>" + esc((r.who || []).join(", ")) + "</td><td>" + esc(r.opened) + "</td><td>" + esc(r.closed) + "</td>" +
-        "<td>" + esc(r.days) + "</td><td>" + esc(r.projected) + "</td>" +
-        '<td class="story">' + story + '</td><td class="epic">' + epic + "</td>";
-      body.appendChild(tr);
+    document.querySelectorAll("#board .col").forEach(function (col) {
+      var name = col.getAttribute("data-col");
+      var cards = col.querySelector(".cards");
+      cards.innerHTML = "";
+      var mine = kept.filter(function (r) { return column(r) === name; });
+      mine.forEach(function (r) { cards.appendChild(card(r)); });
+      col.querySelector(".n").textContent = String(mine.length);
+      if (mine.length === 0) {
+        var p = document.createElement("div");
+        p.className = "empty";
+        p.textContent = "none";
+        cards.appendChild(p);
+      }
+      // A state filter narrows the board to its columns: open hides done,
+      // closed keeps only it.
+      col.style.display =
+        (state.state === "closed" && name !== "done") || (state.state === "open" && name === "done") ? "none" : "";
     });
-    document.getElementById("rows").hidden = kept.length === 0;
-    document.getElementById("none").hidden = kept.length > 0;
     document.getElementById("count").textContent = kept.length + " of " + D.rows.length + " issues";
-    // Embedded, the table tells the page holding it how tall it is, so
+    // Embedded, the board tells the page holding it how tall it is, so
     // the page sizes its frame and the reader scrolls once (GH-136).
     if (window.parent !== window) {
       window.parent.postMessage({ timelineHeight: document.documentElement.scrollHeight }, "*");
