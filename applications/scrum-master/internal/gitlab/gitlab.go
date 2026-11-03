@@ -488,18 +488,30 @@ func (t *Tracker) CurrentUser() (tracker.User, error) {
 // AssignIssue makes user the issue's only assignee; pop's rule that only
 // the caller is assigned stays scrum-master's (srd041 R9.1).
 func (t *Tracker) AssignIssue(project string, iid int, user tracker.User) error {
-	uid := user.ID
-	if uid == 0 {
-		var us []glUser
-		if err := t.get("users?username="+url.QueryEscape(user.Username), &us); err != nil {
-			return err
-		}
-		if len(us) == 0 {
-			return fmt.Errorf("no GitLab user %s: %w", user.Username, tracker.ErrNotFound)
-		}
-		uid = us[0].ID
+	if user.ID != 0 {
+		return t.setAssignees(project, iid, []int{user.ID})
 	}
-	_, err := t.API.Do("PUT", fmt.Sprintf("projects/%s/issues/%d", id(project), iid), map[string]any{"assignee_ids": []int{uid}})
+	return t.SetAssignee(project, iid, user.Username)
+}
+
+// SetAssignee is a person's assignment (srd041 R9.2); "" leaves the issue
+// with no assignee.
+func (t *Tracker) SetAssignee(project string, iid int, username string) error {
+	if username == "" {
+		return t.setAssignees(project, iid, []int{})
+	}
+	var us []glUser
+	if err := t.get("users?username="+url.QueryEscape(username), &us); err != nil {
+		return err
+	}
+	if len(us) == 0 {
+		return fmt.Errorf("no GitLab user %s: %w", username, tracker.ErrNotFound)
+	}
+	return t.setAssignees(project, iid, []int{us[0].ID})
+}
+
+func (t *Tracker) setAssignees(project string, iid int, uids []int) error {
+	_, err := t.API.Do("PUT", fmt.Sprintf("projects/%s/issues/%d", id(project), iid), map[string]any{"assignee_ids": uids})
 	return err
 }
 

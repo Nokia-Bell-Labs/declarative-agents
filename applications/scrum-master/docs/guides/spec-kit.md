@@ -45,7 +45,7 @@ Table 2: What this process covers that Spec Kit does not.
 | Concern | Spec Kit | This process |
 |---|---|---|
 | Who decides | One developer and an agent | Four roles, each owning a level: the technical program manager the system, the Product Owner a subsystem, the Developers the components, the Scrum Master the test subsystem |
-| Who takes work | Whoever runs `/implement` | Pull, never push: an item gets an assignee only when that person pops it |
+| Who takes work | Whoever runs `/implement` | People assign or pull: an item gets an assignee when that person pops it or a person assigns it to them; agents never assign |
 | Review | Left to the user | A person other than the author reviews a merge; with the policy's `require_approval`, merge waits for that approval |
 | Scope | One feature in one repository | A system of subsystems across repositories, linked by URLs pinned to a release tag |
 | Done | The tasks are implemented | The named tests pass in the named environment |

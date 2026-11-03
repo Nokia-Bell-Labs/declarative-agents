@@ -88,18 +88,58 @@ func init() {
 		},
 	})
 
-	var listArgs struct{ project, dir, story, epic string }
+	var listArgs struct {
+		project, dir, story, epic, control, ref string
+		mine                                    bool
+	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "list", Summary: "the open issues implementing a story, or an epic and every story under it, in the order implement works them",
+		Group: "issue", Name: "list", Summary: "the open issues implementing a story, or an epic and every story under it, in the order implement works them; or, with --mine, the caller's",
 		Flags: func(fs *flag.FlagSet) {
-			fs.StringVar(&listArgs.project, "project", "", "project path (required)")
+			fs.StringVar(&listArgs.project, "project", "", "project path; with --mine, empty is every repository of the program")
 			fs.StringVar(&listArgs.story, "implements", "", "the story the issues implement, by id")
 			fs.StringVar(&listArgs.epic, "epic", "", "this epic and every story under it, by id, read from --dir's hierarchy")
-			fs.StringVar(&listArgs.dir, "dir", ".", "the checkout holding the epic and stories, for --epic")
+			fs.BoolVar(&listArgs.mine, "mine", false, "the open issues assigned to the caller")
+			fs.StringVar(&listArgs.dir, "dir", ".", "the checkout holding the epic and stories, for --epic, or beside the system repository, for --mine")
+			fs.StringVar(&listArgs.control, "control", "", "with --mine and no --project, the system repository; empty is the one beside --dir")
+			fs.StringVar(&listArgs.ref, "ref", "main", "ref of the system repository's subsystem SRDs, for --mine")
 		},
 		Run: func(ctx *cli.Context) error {
+			if listArgs.mine {
+				if listArgs.story != "" || listArgs.epic != "" {
+					return fmt.Errorf("%w: list takes --mine or one of --implements or --epic, not both", cli.ErrUsage)
+				}
+				system := ControlFor(listArgs.control, listArgs.dir, "")
+				if listArgs.project == "" && system == "" {
+					return fmt.Errorf("%w: list --mine needs --project or --control, or a system repository's checkout beside --dir", cli.ErrUsage)
+				}
+				t, err := ctx.Tracker()
+				if err != nil {
+					return err
+				}
+				projects := []string{listArgs.project}
+				if listArgs.project == "" {
+					if projects, err = programProjects(t, system, listArgs.ref); err != nil {
+						return err
+					}
+				}
+				r, err := ListAssigned(t, projects)
+				if err != nil {
+					return err
+				}
+				var b strings.Builder
+				for _, i := range r.Issues {
+					fmt.Fprintf(&b, "%s  %-12s %s\n", i.Ref, orNone(i.Story), i.Title)
+				}
+				for _, i := range r.Blocked {
+					fmt.Fprintf(&b, "%s  %-12s blocked by %s  %s\n", i.Ref, orNone(i.Story), strings.Join(i.BlockedBy, ", "), i.Title)
+				}
+				if len(r.Issues)+len(r.Blocked) == 0 {
+					fmt.Fprintf(&b, "no open issue is assigned to you in %s\n", strings.Join(projects, ", "))
+				}
+				return ctx.Emit(r, b.String())
+			}
 			if listArgs.project == "" || (listArgs.story == "") == (listArgs.epic == "") {
-				return fmt.Errorf("%w: list needs --project and one of --implements or --epic", cli.ErrUsage)
+				return fmt.Errorf("%w: list needs --project and one of --implements or --epic, or --mine", cli.ErrUsage)
 			}
 			t, err := ctx.Tracker()
 			if err != nil {

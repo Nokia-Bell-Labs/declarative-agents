@@ -71,6 +71,18 @@ func TestIssuesRoundTrip(t *testing.T) {
 	if got, _ = tr.GetIssue(fleet, i.IID); !slices.Equal(got.Assignees, []string{"bob"}) {
 		t.Fatalf("assignees = %v", got.Assignees)
 	}
+	if err := tr.SetAssignee(fleet, i.IID, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = tr.GetIssue(fleet, i.IID); !slices.Equal(got.Assignees, []string{"bob"}) {
+		t.Fatalf("assignees after SetAssignee = %v", got.Assignees)
+	}
+	if err := tr.SetAssignee(fleet, i.IID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ = tr.GetIssue(fleet, i.IID); len(got.Assignees) != 0 {
+		t.Fatalf("assignees after clearing = %v", got.Assignees)
+	}
 	l.project(fleet).awards[i.IID] = []map[string]any{{"name": "thumbsup", "user": map[string]any{"username": "bob"}}}
 	if aw, _ := tr.IssueAwards(fleet, i.IID); len(aw) != 1 || aw[0] != (tracker.Award{Name: "thumbsup", User: "bob"}) {
 		t.Fatalf("awards = %+v", aw)

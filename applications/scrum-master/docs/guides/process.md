@@ -73,8 +73,11 @@ a spreadsheet of who waits on whom. Most of that is moving facts between
 people and the tracker, which already holds them. Two rules move it to
 scripts. Facts are fetched, judgment is asked: a script never asks a person
 for something the tracker records, and a skill asks only what it cannot read.
-Pull, never push: nobody assigns work to anyone, and the only way an item
-gets an assignee is that person's own `implement`.
+People assign or pull; agents never assign. An item gets an assignee when
+that person takes it with `implement`, or when a person hands it to them with
+the `assign` skill, which they then start with `implement` as usual. Until
+work has started it can go to someone else; after that its assignee gives it
+back first. `scrum-master issue list --mine` shows what is assigned to you.
 Who is on a scrum or an epic is a separate record: the technical program
 manager names them in `control/people.md` with `scrum-master people allocate`,
 which the `people` skill runs, the site shows it, and it assigns no one an issue.
@@ -190,7 +193,8 @@ Three conventions hold in every diagram on this page. An arrow from a person
 to the scripts is a skill the person runs; it asks only what the tracker
 cannot know. An arrow from the scripts to the tracker is a scrum-master subcommand; it
 fetches facts or writes changes and never asks anything. And the only arrow
-that assigns work is `implement`, run by the person taking it. Subsystems
+that assigns work is `implement`, run by the person taking it, or the `assign`
+skill, run by the person handing it over. Subsystems
 are placeholders: alpha produces a shared schema, beta consumes it, and both
 belong to one system.
 

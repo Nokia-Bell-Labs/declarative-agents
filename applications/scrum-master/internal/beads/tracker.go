@@ -391,6 +391,29 @@ func (t *Tracker) AssignIssue(project string, iid int, user tracker.User) error 
 	return nil
 }
 
+// SetAssignee is a person's assignment, which moves no state; "" is the
+// assignee giving the issue back (srd041 R9.2).
+func (t *Tracker) SetAssignee(project string, iid int, username string) error {
+	i, err := t.find(project, iid)
+	if err != nil {
+		return err
+	}
+	if username == "" {
+		return t.Store.Unassign(i.ID)
+	}
+	return t.Store.Assign(i.ID, username)
+}
+
+// Started reports whether the issue's work has started: it is taken or in
+// progress, as an issue a person only assigned is not.
+func (t *Tracker) Started(project string, iid int) (bool, error) {
+	i, err := t.find(project, iid)
+	if err != nil {
+		return false, err
+	}
+	return i.State == Taken || i.State == InProgress, nil
+}
+
 // Triage is admission as srd041's lint rows: an admitted open issue becomes
 // ready, an admitted issue in needs-triage becomes ready or, already taken
 // by its author, taken; a failing open issue goes to needs-triage. Only a

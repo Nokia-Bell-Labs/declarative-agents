@@ -164,8 +164,9 @@ The process defines, and scrum-master and the skills implement:
   release, push Sprint Goals downstream, run the Daily Scrum, review the
   Increment against evidence, and change the rules at the Retrospective.
   Each pushes issues in the issue body's work format.
-- Pull, not assignment: open, unassigned, admitted issues are ready, and
-  only a person's own implement assigns anything.
+- People assign or pull: open, unassigned, admitted issues are ready, a
+  person takes one with implement or hands one to someone, and no agent or
+  script assigns anyone.
 - Handoff: when an artifact is released, a script creates the downstream
   work its consumers owe, in their repositories; consumers are the
   repositories that cite the artifact's interface by pinned URL and the
@@ -195,7 +196,7 @@ Scripts read it and never ask a person for it. Skills ask a person only
 what the tracker cannot know: why the work mattered, what is blocked, what
 comes next, whether an Increment is acceptable.
 
-Pull, never push. Nobody assigns work to anyone. Producers release, the
+People assign or pull, and agents never assign. Producers release, the
 script routes, consumers pull. That is what lets the scrum master's
 administrative role be a set of scripts each person runs instead of a
 person, and what lets a program keep flowing on its last configuration
@@ -226,7 +227,7 @@ practices taken from the playbook, are in
 - pinned_references_resolve: Every cross-repository reference is pinned to a release tag and resolves; the audit fails otherwise.
 - cycle_time_from_ledger: Cycle time from Sprint Goal planned to met, and rework, are read from the ledger for every release; nobody types them.
 - generated_dashboard: The program's dashboard is regenerated from the tracker and is never edited by hand; deleting it loses nothing.
-- no_person_ranked: No script assigns, ranks, or estimates a person; the only assignment is a person's own implement.
+- no_person_ranked: No script assigns, ranks, or estimates a person; only a person assigns, taking an issue with implement or handing one to someone.
 - flows_without_management: A program keeps flowing for a full sprint with no management-plane action, on its last milestone, release, and policy.
 - one_unit_of_work: Every object the process uses is reachable from an issue by a label, a comment, a link, or a tag; there is no second unit of work.
 - clean_corpus_audit: The corpus audits clean: every SRD in a release, every use-case touchpoint names a requirement group, every acceptance criterion traced by a test.
@@ -234,7 +235,7 @@ practices taken from the playbook, are in
 <!-- field: not -->
 ## Not
 
-- Assigning people to work. Issues are ready; the person pops.
+- An agent assigning people to work. Issues are ready; a person pops one or hands it to someone.
 - Estimating or ranking people. Scripts report cycle time per component, never per person.
 - Role-specific agents. Every role runs the same inner loop; the scrum master's administrative work is audits and scripts, and the team view is what they wrote.
 - Tracker features beyond issues, labels, comments, links, and milestones: no tracker-native epic objects, no blocking links, no custom fields. Everything maps onto a plain tracker, which is how the beads tracker (srd042) serves it.

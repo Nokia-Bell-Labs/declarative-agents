@@ -25,7 +25,7 @@ Table 1: The Scrum Team's accountabilities.
 
 | Scrum Guide | Here | Fit |
 |---|---|---|
-| Scrum Team: small, cross-functional, self-managing | A level's owner and the people who pull its issues; nobody assigns work, people pop issues for themselves (srd041 R9.1) | Aligned |
+| Scrum Team: small, cross-functional, self-managing | A level's owner and the people who work its issues; people pop issues for themselves or a person assigns one to them, and agents never assign (srd041 R9.1) | Aligned |
 | Developers: create the Increment, own the Sprint Backlog, hold to the Definition of Done, adapt daily | Component owners: turn each selected story into issues with tasks, pull and build them, review every merge, release (roles.md developer) | Aligned |
 | Product Owner: maximizes value, owns the Product Backlog and the Product Goal, orders the backlog | Subsystem owner: writes the team's epics, features, and user stories, orders the Product Backlog by rank, selects stories at Sprint Planning, judges the Increment (roles.md product_owner) | Aligned |
 | Scrum Master: accountable for the team's effectiveness, the events, and removing impediments | Owns the test subsystem: environments, suites, evidence, and audits; facilitates the Retrospective (roles.md scrum_master) | Deviation, explained below |
@@ -172,9 +172,8 @@ interfaces, writes the program's themes and initiatives, declares each
 system release, and files each team's Sprint Goal. Nexus calls the equivalent
 integration work the Nexus Integration Team; SAFe splits it between the
 Release Train Engineer and Solution Management. Here it is one role, and
-it owns clarity and process, not the teams' delivery: it never assigns
-work, and it orders the program's backlog the way a Product Owner orders a
-team's.
+it owns clarity and process, not the teams' delivery, and it orders the
+program's backlog the way a Product Owner orders a team's.
 
 ### Stories cite specifications
 

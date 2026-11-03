@@ -122,6 +122,10 @@ func (r *Router) AssignIssue(project string, iid int, user User) error {
 	return r.For(project).AssignIssue(project, iid, user)
 }
 
+func (r *Router) SetAssignee(project string, iid int, username string) error {
+	return r.For(project).SetAssignee(project, iid, username)
+}
+
 func (r *Router) DefaultBranch(project string) (string, error) {
 	return r.For(project).DefaultBranch(project)
 }

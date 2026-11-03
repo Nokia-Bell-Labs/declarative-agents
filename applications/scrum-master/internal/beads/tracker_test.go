@@ -89,6 +89,45 @@ func TestTrackerMapsIssuesAndNotes(t *testing.T) {
 
 }
 
+// TestTrackerAssignment holds what scrum-master's issue words read and write
+// through the adapter: an assigned issue has not started, a pop of it starts
+// it even though it is already assigned, and "" gives it back.
+func TestTrackerAssignment(t *testing.T) {
+	tr := newTestTracker(t, "alice")
+	if _, err := tr.CreateIssue("g/po-1", tracker.NewIssue{Title: "first"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.SetAssignee("g/po-1", 1, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := tr.GetIssue("g/po-1", 1)
+	if err != nil || !slices.Equal(got.Assignees, []string{"alice"}) {
+		t.Fatalf("after assign = %+v, %v", got, err)
+	}
+	if started, err := tr.Started("g/po-1", 1); err != nil || started {
+		t.Fatalf("assigned: started = %v, %v", started, err)
+	}
+	me, _ := tr.CurrentUser()
+	if err := tr.AssignIssue("g/po-1", 1, me); err != nil {
+		t.Fatal(err)
+	}
+	if started, err := tr.Started("g/po-1", 1); err != nil || !started {
+		t.Fatalf("popped: started = %v, %v", started, err)
+	}
+	if err := tr.SetAssignee("g/po-1", 1, ""); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := tr.GetIssue("g/po-1", 1); len(got.Assignees) != 0 {
+		t.Fatalf("given back: assignees = %v", got.Assignees)
+	}
+	if started, err := tr.Started("g/po-1", 1); err != nil || started {
+		t.Fatalf("given back: started = %v, %v", started, err)
+	}
+	if err := tr.SetAssignee("g/po-1", 9, "alice"); !errors.Is(err, tracker.ErrNotFound) {
+		t.Fatalf("missing issue = %v, want ErrNotFound", err)
+	}
+}
+
 // TestCreatesRenumberOnCollidingIIDs: two clones create an issue in the same
 // repository between pulls and both pick the next IID; the earlier push
 // keeps it and the later one moves to the next free number.

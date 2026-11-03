@@ -2349,6 +2349,32 @@ applications/scrum-master/plugin/agents/approve/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-assign -->
+#### scrum-master-assign
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/assign/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-unassign -->
+#### scrum-master-unassign
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/unassign/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- scrum_master_entry: scrum-master-people-allocate -->
 #### scrum-master-people-allocate
 

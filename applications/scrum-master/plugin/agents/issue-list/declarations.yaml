@@ -12,14 +12,14 @@ tools:
   - list
   - --json
   visibility: internal
-  description: List the open issues implementing a story, in the order implement works them (srd036 R5.1).
+  description: List the open issues implementing a story, in the order implement works them (srd036 R5.1), or the caller's (srd013 R10.3).
   category: boundary
   parameters:
     type: object
     properties:
       project:
         type: string
-        description: Project path.
+        description: Project path; with mine, empty is every repository of the program.
         flag: --project
       implements:
         type: string
@@ -33,8 +33,15 @@ tools:
         type: string
         description: The checkout holding the stories, for --epic.
         flag: --dir
-    required:
-    - project
+      mine:
+        type: boolean
+        description: The open issues assigned to the caller, instead of a story's or an epic's.
+        flag: --mine
+        bool_flag: true
+      control:
+        type: string
+        description: With mine and no project, the system repository; empty is the one beside dir.
+        flag: --control
   signature:
     emits:
     - ToolDone

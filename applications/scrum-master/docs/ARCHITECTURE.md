@@ -296,7 +296,7 @@ Rules live in files, not in script code. A rule change is a plane::control issue
 <!-- component: data_plane -->
 ### data_plane
 
-Do the work. Continuous flow, pull only, headless when the management plane is absent.
+Do the work. Continuous flow, pulled or assigned by a person, headless when the management plane is absent.
 
 Its objects are the issue, a commitment with component, kind, plane, and
 milestone, and sub-issues for its units; the Sprint Goal, an issue citing
@@ -308,7 +308,7 @@ commitment, carrying a machine marker, whose mentions create to-dos; and
 the link: Upstream to an issue, Requires to a release, Cites to a pinned
 requirement or interface.
 
-Only implement assigns. Only a person files an upstream defect or request. Only a merge, a person's decline, or track-goals on a met Sprint Goal closes an issue.
+Only a person assigns: their own implement, or the assign skill for someone else. Only a person files an upstream defect or request. Only a merge, a person's decline, or track-goals on a met Sprint Goal closes an issue.
 
 <!-- field: capabilities -->
 #### Capabilities
@@ -381,9 +381,9 @@ Management sets intent per sprint, control holds rules as files, data flows cont
 Different timescales kept apart stop planning from thrashing the work and the work from thrashing the plan. The data plane runs headless on the last configuration.
 
 <!-- decision: 3 -->
-### 3 - Pull, never push
+### 3 - People assign or pull
 
-Nothing assigns an issue to a person except that person's own implement. Roles are declared by the person in their own config.
+Only a person assigns an issue: to themselves with implement, or to someone else with the assign skill. No agent or script does it on its own. Roles are declared by the person in their own config.
 
 It keeps the scrum master a script, removes the lead as a bottleneck, and makes capacity a person's own statement.
 

@@ -34,6 +34,7 @@ const (
 const (
 	ActorPerson     = "person"
 	ActorPop        = "pop"
+	ActorAssign     = "assign"
 	ActorMerge      = "merge"
 	ActorTrackGoals = "track-goals"
 	ActorHandoff    = "handoff"
@@ -87,6 +88,8 @@ var Table = []Row{
 	{From: []string{NeedsTriage}, To: Ready, Actor: ActorLint, Assignee: EffectNone},
 	{From: []string{NeedsTriage}, To: Taken, Actor: ActorLint, Assignee: EffectNone},
 	{From: []string{Ready}, To: Taken, Actor: ActorPop, Assignee: EffectSet},
+	{From: []string{Open}, To: Open, Actor: ActorAssign, Assignee: EffectSet},
+	{From: []string{Ready}, To: Ready, Actor: ActorAssign, Assignee: EffectSet},
 	{From: []string{Taken}, To: Ready, Actor: ActorPerson, Assignee: EffectClear},
 	{From: []string{Taken}, To: InProgress, Actor: ActorPerson, Assignee: EffectNone},
 	{From: []string{InProgress}, To: Taken, Actor: ActorPerson, Assignee: EffectNone},
@@ -115,7 +118,7 @@ type statesDoc struct {
 }
 
 var (
-	actors    = []string{ActorPerson, ActorPop, ActorMerge, ActorTrackGoals, ActorHandoff, ActorLint}
+	actors    = []string{ActorPerson, ActorPop, ActorAssign, ActorMerge, ActorTrackGoals, ActorHandoff, ActorLint}
 	effects   = []string{EffectNone, EffectSet, EffectClear}
 	allStates = []string{Open, NeedsTriage, Ready, Taken, InProgress, Closed}
 )
@@ -199,11 +202,27 @@ func row(rows []Row, i Issue, actor, to string) (Row, bool) {
 	return Row{}, false
 }
 
+// assign sets i's assignee in its state, through the assign row for that
+// state: a program's control/states.md written before the rows existed
+// refuses until it lists them, as it refuses any change its rows do not list
+// (srd041 R8.1). No state moves, so nothing but the assignee changes.
+func (s *Store) assign(i *Issue, username string) error {
+	rows, err := s.states()
+	if err != nil {
+		return err
+	}
+	if _, ok := row(rows, *i, ActorAssign, i.State); !ok {
+		return fmt.Errorf("%w: %s %s to %s by %s; work started, or %s lists no such row (srd041)", ErrRefused, i.ID, i.State, i.State, ActorAssign, StatesFile)
+	}
+	i.Assignee = username
+	return nil
+}
+
 // transition fires actor's move of i to to on behalf of caller, or refuses
 // with the attempted transition named, against the store's rows — the
-// program's control/states.md, else the embedded default (srd041 R8). Only
-// pop sets an assignee, and only the caller (R9.1); a person's moves on a
-// taken issue are the assignee's alone (R9.2).
+// program's control/states.md, else the embedded default (srd041 R8). Pop
+// assigns only the caller (R9.1); a person's moves on a taken issue are the
+// assignee's alone (R9.2).
 func (s *Store) transition(i *Issue, actor, to, caller string) error {
 	refuse := func(why string) error {
 		return fmt.Errorf("%w: %s %s to %s by %s%s (srd041)", ErrRefused, i.ID, i.State, to, actor, why)
