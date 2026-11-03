@@ -195,3 +195,19 @@ func TestReconcileOnBeads(t *testing.T) {
 		t.Fatalf("a retired epic's issue = %+v", i)
 	}
 }
+
+// TestReconcileIgnoresAForgesTrimming: GitLab drops a body's last newline, which is
+// no change of ours.
+func TestReconcileIgnoresAForgesTrimming(t *testing.T) {
+	dir, _ := epicCheckout(t)
+	f := fake.New()
+	if _, err := ReconcileEpicIssues(f, dir, false, false); err != nil {
+		t.Fatal(err)
+	}
+	f.Issues["g/system"][0].Description = strings.TrimRight(f.Issues["g/system"][0].Description, "\n")
+	writes := f.Writes
+	r, err := ReconcileEpicIssues(f, dir, false, false)
+	if err != nil || r.Epics[0].Action != "unchanged" || f.Writes != writes {
+		t.Fatalf("second run = %+v, %v, writes %d", r, err, f.Writes-writes)
+	}
+}

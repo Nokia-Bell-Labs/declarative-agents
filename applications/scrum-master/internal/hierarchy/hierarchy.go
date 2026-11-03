@@ -64,13 +64,21 @@ func PathOf(id string) string {
 
 // AgreedText is what a person agreed on in a document: everything but the issues
 // field, the record scrum-master backlog record keeps of the tracker (srd045
-// R4.4), and the frontmatter's people block, which says who rather than what. A
+// R4.4), an epic's issue items, which scrum-master backlog epic-issues writes
+// (R2.7), and the frontmatter's people block, which says who rather than what. A
 // change to those alone needs no sign-off, so a reviewer who is away can be
 // replaced.
 func AgreedText(doc []byte) []byte {
 	var kept [][]byte
 	inFront := bytes.HasPrefix(doc, []byte("---\n"))
+	inContext := false
 	for n, l := range bytes.SplitAfter(doc, []byte("\n")) {
+		if bytes.HasPrefix(l, []byte("<!-- ")) {
+			inContext = bytes.HasPrefix(l, []byte("<!-- field: context"))
+		}
+		if inContext && (bytes.HasPrefix(l, []byte("- issue:")) || bytes.HasPrefix(l, []byte("- issue_url:"))) {
+			continue
+		}
 		if inFront && n > 0 {
 			if bytes.Equal(bytes.TrimSpace(l), []byte("---")) {
 				inFront = false

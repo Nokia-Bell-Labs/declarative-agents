@@ -263,3 +263,30 @@ func TestClaimRefusesATrackingIssue(t *testing.T) {
 		t.Fatalf("a refused claim assigned %v", got.Assignees)
 	}
 }
+
+func TestListsLeaveOutTrackingIssues(t *testing.T) {
+	const p = "g/po-1"
+	f := fake.New()
+	mirror, _ := f.CreateIssue(p, tracker.NewIssue{Title: "Epic: x", Description: "Reviewer: " + f.Me.Username + "\n", Labels: Labels("management", "tracking", "", "")})
+	if err := f.SetAssignees(p, mirror.IID, []string{f.Me.Username}); err != nil {
+		t.Fatal(err)
+	}
+	work, _ := f.CreateIssue(p, tracker.NewIssue{Title: "Work"})
+	if err := f.SetAssignee(p, work.IID, f.Me.Username); err != nil {
+		t.Fatal(err)
+	}
+	r, err := ListAssigned(f, []string{p})
+	if err != nil || len(r.Issues) != 1 || r.Issues[0].IID != work.IID {
+		t.Fatalf("mine = %+v, %v", r.Issues, err)
+	}
+	reviews, err := LoadReviews(f, Policy{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.SetAssignees(p, mirror.IID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if r, err = ListReviewing(f, reviews, []string{p}); err != nil || len(r.Issues) != 0 {
+		t.Fatalf("reviewing = %+v, %v", r.Issues, err)
+	}
+}

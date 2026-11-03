@@ -101,7 +101,8 @@ func ListImplementing(t tracker.Tracker, project, dir, story, epic string) (List
 }
 
 // ListAssigned lists the caller's open issues in projects, by project then
-// IID, whoever assigned them and whether or not they have started (srd013).
+// IID, whoever assigned them and whether or not they have started (srd013). A
+// tracking issue is left out: its assignees are following it, and it holds no work.
 func ListAssigned(t tracker.Tracker, projects []string) (ListResult, error) {
 	r := ListResult{Stories: []string{}, Issues: []Listed{}, Blocked: []Listed{}}
 	if len(projects) == 1 {
@@ -123,7 +124,7 @@ func ListAssigned(t tracker.Tracker, projects []string) (ListResult, error) {
 		}
 		slices.SortStableFunc(open, func(a, b tracker.Issue) int { return a.IID - b.IID })
 		for _, i := range open {
-			if !slices.Contains(i.Assignees, me.Username) {
+			if !slices.Contains(i.Assignees, me.Username) || i.HasLabel("type::tracking") {
 				continue
 			}
 			it, err := listing(t, project, i)

@@ -222,7 +222,7 @@ scrum-master issue unassign is the assignee giving an issue back: it clears thei
 <!-- req: R10.3 -->
 ### R10.3
 
-scrum-master issue list --mine lists the caller's open issues, in --project, or, with no --project, in the system repository and every repository its subsystem SRDs declare, taken from --control or the system repository beside --dir. Issues an open blocker holds back are listed apart.
+scrum-master issue list --mine lists the caller's open issues, leaving out tracking issues, which hold no work, in --project, or, with no --project, in the system repository and every repository its subsystem SRDs declare, taken from --control or the system repository beside --dir. Issues an open blocker holds back are listed apart.
 
 <!-- req: R10.4 -->
 ### R10.4
@@ -240,7 +240,7 @@ Who signs off on an issue is, most specific first: the person its Reviewer line 
 <!-- req: R11.2 -->
 ### R11.2
 
-A merge needs the approval of the tip by whoever signs off on its issue, and by whoever signs off on each such document the branch changes, even with admission.require_approval off, and only their approval counts for them. A document's reviewer is added to the issue's, so an issue's Reviewer line replaces the default but not a changed document's reviewer. Signing off on a document means the document is agreed; a change to its issues record (srd045 R4.4) or its people block alone changes nothing agreed and needs nobody, so a reviewer who is away can be replaced. merge reads who signs off from each document at its repository's default branch and the control files at --ref, not from the branch, except that a document the branch adds says it from the branch, and its refusal names everyone still needed and any earlier commit they approved. An inherited reviewer who wrote the work cannot approve it, so that requirement falls back to anyone but the assignee, or anyone but the merger when nobody took the issue; a Reviewer line naming them is refused, for a person to change.
+A merge needs the approval of the tip by whoever signs off on its issue, and by whoever signs off on each such document the branch changes, even with admission.require_approval off, and only their approval counts for them. A document's reviewer is added to the issue's, so an issue's Reviewer line replaces the default but not a changed document's reviewer. Signing off on a document means the document is agreed; a change to its issues record (srd045 R4.4), its issue items (srd045 R2.7), or its people block alone changes nothing agreed and needs nobody, so a reviewer who is away can be replaced. merge reads who signs off from each document at its repository's default branch and the control files at --ref, not from the branch, except that a document the branch adds says it from the branch, and its refusal names everyone still needed and any earlier commit they approved. An inherited reviewer who wrote the work cannot approve it, so that requirement falls back to anyone but the assignee, or anyone but the merger when nobody took the issue; a Reviewer line naming them is refused, for a person to change.
 
 <!-- req: R11.3 -->
 ### R11.3
@@ -265,7 +265,7 @@ On a tracking system whose host reviews branches, the person who signs off on th
 <!-- req: R11.7 -->
 ### R11.7
 
-scrum-master issue list --reviewing lists the open issues the caller signs off on and is not assigned, taken as issue list --mine takes its repositories (R10.3).
+scrum-master issue list --reviewing lists the open issues the caller signs off on and is not assigned, leaving out tracking issues, taken as issue list --mine takes its repositories (R10.3).
 
 <!-- field: non_goals -->
 ## Non-goals
