@@ -9,7 +9,7 @@ title: "Script: issue (scrum-master issue ...)"
 ## Design notes
 
 - The group is named for its object. Every subcommand acts on an issue, and the group was named program before release 01.4, which said nothing about any of them.
-- pop keeps its name. Pull, never push, is the process's rule, and popping an issue is its verb in the skills (implement), the vision, and the states (srd041); under the issue group the command reads as what it does.
+- pop keeps its name. People pull their work or a person assigns it, and popping an issue is the verb for taking it in the skills (implement), the vision, and the states (srd041); under the issue group the command reads as what it does.
 - The old name breaks cleanly. Every caller is a skill embedded in the same scrum-master (srd037), so an alias would only keep stale skills running; instead scrum-master program runs nothing and names the fix.
 - recur moves here from standup (srd010 R8.2, retired). It closes and reopens a recurring issue, wherever the issue lives and whoever runs it, which is the issue lifecycle, not a person's morning. The marker it writes into an issue body is tracker data, so its text does not change.
 
@@ -163,7 +163,7 @@ With --migrate and --control naming the system repository, also relabels issues 
 <!-- req: R7.1 -->
 ### R7.1
 
-Claims one issue for the caller: assigns the caller and no one else (srd041 R9.1). Refuses an issue assigned to someone else, a closed issue, and a plane::data issue that admission has not admitted (srd041 R2). With --issue-project, the issue is claimed there and the branch, which --branch may name, opens in --project: a weekly status issue's report lands in the reports repository (srd018). A plane::management or plane::control issue that admission has not admitted is popped, and pop reports the reasons it fails.
+Claims one issue for the caller: assigns the caller and no one else (srd041 R9.1). Refuses an issue assigned to someone else, a closed issue, and a plane::data issue that admission has not admitted (srd041 R2). An issue a person assigned the caller (R10.1) is theirs to pop like any other. With --issue-project, the issue is claimed there and the branch, which --branch may name, opens in --project: a weekly status issue's report lands in the reports repository (srd018). A plane::management or plane::control issue that admission has not admitted is popped, and pop reports the reasons it fails.
 
 <!-- req: R7.2 -->
 ### R7.2
@@ -206,13 +206,36 @@ The marker recur writes into the next instance's body, naming the issue it recur
 
 scrum-master issue comment posts the person's text, from --body or --body-file, on an issue as the person running it, through the tracking system serving the project, so a skill writes to an issue only through scrum-master, such as a completed issue's Actual LOC line. It refuses an issue that does not exist, an empty body, and both body flags at once; a dry run posts nothing.
 
+<!-- req: R10 -->
+## R10 - scrum-master issue assign
+
+<!-- req: R10.1 -->
+### R10.1
+
+scrum-master issue assign makes --person the issue's assignee and leaves the issue for them to pop (srd041 R9.1); any person may run it, and the tracking system's own permissions stand. It refuses a closed issue, and, once work has started, refuses and names the assignee, who gives it back first (R10.2), so nobody loses work in progress unknowingly. Work has started when the tracking system records it, as beads' taken and in-progress do, and otherwise when the issue's branch <iid>-<slug> exists in --project; --issue-project names the issue's project when it is not --project. It reports an error when the tracking system took the write without assigning the person. --dry-run changes nothing, and a second identical run changes nothing.
+
+<!-- req: R10.2 -->
+### R10.2
+
+scrum-master issue unassign is the assignee giving an issue back: it clears their assignment, and an issue they had started on beads is ready again (srd041 R9.2). It refuses anyone else and names the assignee. An issue given back keeps its branch, which the next assignee's pop reuses, and can be assigned again.
+
+<!-- req: R10.3 -->
+### R10.3
+
+scrum-master issue list --mine lists the caller's open issues, in --project, or, with no --project, in the system repository and every repository its subsystem SRDs declare, taken from --control or the system repository beside --dir. Issues an open blocker holds back are listed apart.
+
+<!-- req: R10.4 -->
+### R10.4
+
+The assign and unassign skills each run their one word in a model-free profile; no other profile declares either word, and a gate holds this. The assign skill confirms the issue and the person before it runs.
+
 <!-- field: non_goals -->
 ## Non-goals
 
 - Working a story's issues in one branch; that is implement at the story level (srd036 R5).
 - Choosing what goes in a release; that is plan.
 - Tracking Sprint Goals, verifying merged work, or closing tracking issues; that is track-goals (srd019). Rendering the dashboard; that is the site (srd048).
-- Offering or assigning work to a person.
+- Offering work to a person, or an agent assigning it (srd041 R9.1).
 
 <!-- field: acceptance_criteria -->
 ## Acceptance criteria
@@ -362,3 +385,43 @@ After a merge, the issue's worktree, its branch, and origin's branch are gone an
 #### Traces
 
 - [R5.8](#r58)
+
+<!-- ac: AC14 -->
+### AC14
+
+issue assign sets the assignee on GitHub, GitLab, and beads and leaves the state; the assignee's pop takes the issue and another person's is refused; assigning after work has started is refused naming the assignee; a tracker that took the write without assigning is an error; --dry-run and a second run change nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R10.1](#r101)
+
+<!-- ac: AC15 -->
+### AC15
+
+issue unassign clears the caller's own assignment from any open state and refuses anyone else's; an issue given back can be assigned again even with its branch still there.
+
+<!-- field: traces -->
+#### Traces
+
+- [R10.2](#r102)
+
+<!-- ac: AC16 -->
+### AC16
+
+issue list --mine lists only the caller's open issues, across the named project or the program's repositories, with blocked ones apart.
+
+<!-- field: traces -->
+#### Traces
+
+- [R10.3](#r103)
+
+<!-- ac: AC17 -->
+### AC17
+
+A gate fails when a profile other than assign or unassign declares its word, and when either has a model.
+
+<!-- field: traces -->
+#### Traces
+
+- [R10.4](#r104)

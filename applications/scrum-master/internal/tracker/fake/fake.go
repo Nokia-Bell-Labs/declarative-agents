@@ -247,6 +247,19 @@ func (f *Fake) AssignIssue(project string, iid int, user tracker.User) error {
 	return nil
 }
 
+func (f *Fake) SetAssignee(project string, iid int, username string) error {
+	f.Writes++
+	i, err := f.find(project, iid)
+	if err != nil {
+		return err
+	}
+	i.Assignees = nil
+	if username != "" {
+		i.Assignees = []string{username}
+	}
+	return nil
+}
+
 func (f *Fake) DefaultBranch(string) (string, error) { return f.Default, nil }
 
 // GroupProjects lists the group's projects, as a host that can would.

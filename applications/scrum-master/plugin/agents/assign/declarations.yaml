@@ -1,0 +1,58 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The assign machine's words (GH-2866). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue; the person and the
+# optional flags are parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-assign-declarations
+tools:
+- name: issue_assign
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - assign
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: 'Assign the issue to a person, for them to pop (srd013 R10.1).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      person:
+        type: string
+        description: 'The tracker username to assign.'
+        flag: --person
+      issue_project:
+        type: string
+        description: 'The project holding the issue, when SCRUM_MASTER_PROJECT holds only its branch.'
+        flag: --issue-project
+    required:
+    - person
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The assign word''s JSON report: the issue, who it was assigned to before, and what it did.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Sets the issue''s assignee and leaves its state.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse, by assigning again before work starts.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_assign: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

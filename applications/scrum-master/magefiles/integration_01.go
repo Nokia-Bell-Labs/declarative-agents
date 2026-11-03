@@ -98,6 +98,23 @@ func (Integration) Pop() error {
 	_, err = r.runWords("issue", "pop", "--project", po1, "--issue", fmt.Sprint(triaged.IID), "--dir", clone)
 	c.expect(err != nil && strings.Contains(err.Error(), "not admitted"), "pop of a needs-triage issue: %v", err)
 
+	// A person hands an issue to someone: only they pop it, they see it as
+	// theirs, and they give it back. An issue with work started is not handed on.
+	handed, err := file("Handed to the reviewer", good)
+	if err != nil {
+		return err
+	}
+	_, err = r.runWords("issue", "assign", "--project", po1, "--issue", fmt.Sprint(handed.IID), "--person", rigReviewer)
+	c.expect(err == nil, "assign: %v", err)
+	_, err = r.runWords("issue", "pop", "--project", po1, "--issue", fmt.Sprint(handed.IID), "--dir", clone)
+	c.expect(err != nil && strings.Contains(err.Error(), rigReviewer), "pop of an issue assigned to the reviewer: %v", err)
+	mine, err := r.runWordsAs(rigReviewer, "issue", "list", "--mine", "--project", po1)
+	c.expect(err == nil && strings.Contains(string(mine), "Handed to the reviewer"), "the reviewer's list --mine: %s, %v", mine, err)
+	_, err = r.runWordsAs(rigReviewer, "issue", "unassign", "--project", po1, "--issue", fmt.Sprint(handed.IID))
+	c.expect(err == nil, "unassign: %v", err)
+	_, err = r.runWords("issue", "assign", "--project", po1, "--issue", fmt.Sprint(work.IID), "--person", rigReviewer)
+	c.expect(err != nil && strings.Contains(err.Error(), "started by "+r.user), "assign after work started: %v", err)
+
 	writeFileTo(filepath.Join(popped.Worktree, "GRADER.md"), "# Grader notes\n")
 	if err := r.commitPush(popped.Worktree, "Add grader notes", "GRADER.md"); err != nil {
 		return err

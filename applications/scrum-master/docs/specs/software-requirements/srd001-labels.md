@@ -684,7 +684,7 @@ Admission fails an issue with more than one op:: label and requires none, so iss
 <!-- ac: AC1 -->
 ### AC1
 
-A management-plane issue filed by a non-lead, or a script-created management issue other than the sprint issue or a tasks Sprint Goal issue, is flagged by admission; no management-plane issue appears in the backlog; each is assigned only by the pop of the lead who works it; no management-plane action creates, labels, or assigns a data-plane issue.
+A management-plane issue filed by a non-lead, or a script-created management issue other than the sprint issue or a tasks Sprint Goal issue, is flagged by admission; no management-plane issue appears in the backlog; each is assigned only by the pop of the lead who works it or by a person's issue assign; no management-plane action creates, labels, or assigns a data-plane issue.
 
 <!-- field: traces -->
 #### Traces

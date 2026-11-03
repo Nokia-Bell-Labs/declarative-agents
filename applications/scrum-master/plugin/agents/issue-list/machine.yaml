@@ -3,8 +3,9 @@
 name: issue-list
 purpose: |-
   List a project's issues (srd013), filtered to the ones implementing a
-  story or under an epic. Use when a model skill's steps list issues
-  without a model.
+  story or under an epic, or the ones assigned to the caller. Use when a
+  person asks what is assigned to them, or a model skill's steps list
+  issues without a model.
 
   This machine has no model state: scrum-master issue list (design.md D10,
   D14; GH-48). The run starts in a checkout of the program.
