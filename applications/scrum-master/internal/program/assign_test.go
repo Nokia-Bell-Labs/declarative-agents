@@ -233,6 +233,7 @@ func TestListAssigned(t *testing.T) {
 }
 
 func TestAssignCommandsRefuseBadUsage(t *testing.T) {
+	t.Chdir(t.TempDir()) // outside any checkout, so no project is read from one
 	for _, args := range [][]string{
 		{"issue", "assign", "--project", "g/p", "--issue", "1"},
 		{"issue", "assign", "--project", "g/p", "--person", "alice"},
@@ -288,5 +289,48 @@ func TestListsLeaveOutTrackingIssues(t *testing.T) {
 	}
 	if r, err = ListReviewing(f, reviews, []string{p}); err != nil || len(r.Issues) != 0 {
 		t.Fatalf("reviewing = %+v, %v", r.Issues, err)
+	}
+}
+
+func TestTakeable(t *testing.T) {
+	const p = "g/po-1"
+	f := fake.New()
+	free := admitted(f, "Free and admitted")
+	mine := admitted(f, "Already mine")
+	if err := f.SetAssignee(p, mine.IID, f.Me.Username); err != nil {
+		t.Fatal(err)
+	}
+	theirs := admitted(f, "Someone else's")
+	if err := f.SetAssignee(p, theirs.IID, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.CreateIssue(p, tracker.NewIssue{Title: "A data issue not admitted", Labels: []string{"plane::data"}})
+	_, _ = f.CreateIssue(p, tracker.NewIssue{Title: "Epic: x", Labels: Labels("management", "tracking", "", "")})
+	closed := admitted(f, "Closed")
+	state := "close"
+	if _, err := f.UpdateIssue(p, closed.IID, tracker.IssueUpdate{State: &state}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Takeable(f, p, Defaults())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var titles []string
+	for _, i := range got {
+		titles = append(titles, i.Title)
+	}
+	if !reflect.DeepEqual(titles, []string{free.Title, mine.Title}) {
+		t.Fatalf("takeable = %q", titles)
+	}
+	writes := f.Writes
+	err = noIssueNamed(f, p, Defaults())
+	if err == nil || !strings.Contains(err.Error(), "Free and admitted") || !strings.Contains(err.Error(), "SCRUM_MASTER_ISSUE") || strings.Contains(err.Error(), "alice") {
+		t.Fatalf("no issue named = %v", err)
+	}
+	if f.Writes != writes {
+		t.Fatal("listing wrote")
+	}
+	if err := noIssueNamed(fake.New(), p, Defaults()); err == nil || !strings.Contains(err.Error(), "none can be taken") {
+		t.Fatalf("nothing to take = %v", err)
 	}
 }

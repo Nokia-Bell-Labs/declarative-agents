@@ -126,7 +126,7 @@ func init() {
 		force                              bool
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "link", Summary: "name the story or epic a filed issue implements, and lint it again",
+		Group: "issue", Name: "link", FromCheckout: true, Summary: "name the story or epic a filed issue implements, and lint it again",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&a.project, "project", "", "project path (required)")
 			fs.IntVar(&a.iid, "issue", 0, "issue IID (required)")

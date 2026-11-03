@@ -11,10 +11,8 @@ tools:
   - issue
   - assign
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: 'Assign the issue to a person, for them to pop (srd013 R10.1).'
   category: boundary

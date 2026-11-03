@@ -11,10 +11,8 @@ tools:
   - issue
   - close
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: 'Close the issue on the merge commit on the default branch that delivered it (srd013 R5).'
   category: boundary

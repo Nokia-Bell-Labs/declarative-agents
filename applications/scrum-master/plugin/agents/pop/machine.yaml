@@ -8,7 +8,12 @@ purpose: |-
 
   This machine has no model state: a pop is deterministic, words all
   the way down (design.md D10, D14; GH-201, GH-204). The run starts in the
-  project's clone; SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue. A refusal from
+  project's clone. SCRUM_MASTER_ISSUE names the issue; with none named, the
+  run takes nothing and its reason lists what the person can take, for them to
+  choose from. SCRUM_MASTER_PROJECT defaults to the project the clone's origin
+  names. When the run is done, work continues in the worktree path it reports,
+  from the current session: change into it, on a remote host as on a local one.
+  It needs no new editor or window. A refusal from
   the claim — a closed issue, someone else's, a data issue admission has
   not admitted — ends the run in Refused with the word's reason; a word that
   fails after the claim ends in a partial state a re-run finishes, since
@@ -68,14 +73,14 @@ states:
 - name: Install
   meaning: |
     The install word: scrum-master issue install-skills writes the checkout's
-    agents' skills into the worktree (srd036 R2.3), so an agent started
+    agents' skills into the worktree (srd036 R2.3), so an agent working
     there can finish the issue; a worktree that has them gets nothing.
 - name: Done
   run_status: succeeded
   meaning: |
     Terminal. The issue is claimed, its branch and worktree are open, and
-    the skills are in place; the worktree path is the run's report
-    (srd013 R7).
+    the skills are in place; the worktree path is the run's report, and work
+    continues there from the current session (srd013 R7).
 - name: Refused
   run_status: failed
   meaning: |

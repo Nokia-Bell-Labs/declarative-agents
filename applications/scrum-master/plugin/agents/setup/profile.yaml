@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The setup workflow as a declarative-agents profile (GH-2885, design.md D14): a
+# model-free machine of 2 words, the first thing a person runs in a fresh clone.
+name: setup
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

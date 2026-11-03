@@ -185,6 +185,11 @@ Installs into the worktree the skills of every agent installed in the checkout (
 
 pop decomposes into four words the pop profile composes (GH-201, GH-204, design.md D14): scrum-master issue claim — the assignment with pop's refusals, the atomic transaction the word boundary protects, naming the branch to open — scrum-master issue open-branch, scrum-master issue add-worktree, and scrum-master issue install-skills (srd036 R2.3). scrum-master issue pop runs the same code as one command. Each word reuses what is already in place, so a word that fails after the claim is a partial machine state a re-run of the pop finishes.
 
+<!-- req: R7.6 -->
+### R7.6
+
+A word acting on one issue defaults an empty --project to the project the checkout's origin names, and an empty --issue to the number its branch is named for, as 7-some-title names issue 7; a flag given, or the variable behind it, still wins. pop and claim with no issue named take nothing and refuse, their reason listing what the caller can take: open, not type::tracking, unassigned or already theirs, and, for a data issue, admitted, by IID.
+
 <!-- req: R8 -->
 ## R8 - scrum-master issue recur
 
@@ -533,3 +538,13 @@ issue list --reviewing lists the open issues the caller signs off on, by a Revie
 #### Traces
 
 - [R11.7](#r117)
+
+<!-- ac: AC25 -->
+### AC25
+
+A one-issue word given no project reads it from the checkout's origin and given no issue reads it from a branch named for one, and a flag given wins; pop and claim with no issue list only what the caller can take, leaving out tracking issues, others' issues, and data issues not admitted, and assign no one.
+
+<!-- field: traces -->
+#### Traces
+
+- [R7.6](#r76)

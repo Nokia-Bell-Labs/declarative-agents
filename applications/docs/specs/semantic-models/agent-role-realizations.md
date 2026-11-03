@@ -2505,6 +2505,19 @@ applications/scrum-master/plugin/agents/epic-issues/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-setup -->
+#### scrum-master-setup
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/setup/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- scrum_master_entry: scrum-master-comment -->
 #### scrum-master-comment
 

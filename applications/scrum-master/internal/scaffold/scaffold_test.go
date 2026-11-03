@@ -3,6 +3,7 @@
 package scaffold
 
 import (
+	ident "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/identity"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -466,5 +467,25 @@ func TestInitRecordsTheProgramGroup(t *testing.T) {
 	r, err = Init(InitOptions{Dir: repo(t), Group: "aeop"})
 	if err != nil || r.Group != "" || !strings.Contains(r.GroupReason, "no tracking system is known") {
 		t.Fatalf("init --group with no tracker: %+v, %v", r, err)
+	}
+}
+
+// TestAReadmeGetsANewPersonStarted: the README init and onboard write gives the install
+// and the setup profile, at both levels (srd043 R6.5).
+func TestAReadmeGetsANewPersonStarted(t *testing.T) {
+	for _, level := range []string{"system", "subsystem"} {
+		files, err := corpusFiles(level, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		readme := string(files["README.md"])
+		for _, want := range []string{"## Getting started", ident.InstallURL, "agents/setup/profile.yaml", "SCRUM_MASTER_RELEASE_FORGE", "pop skill"} {
+			if !strings.Contains(readme, want) {
+				t.Errorf("%s README does not say %q", level, want)
+			}
+		}
+		if strings.Contains(readme, "{{") {
+			t.Errorf("%s README holds an unfilled placeholder", level)
+		}
 	}
 }

@@ -19,10 +19,8 @@ tools:
   - merge
   - --dry-run
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: Run every delivery gate and write nothing — the issue and closes open, commits over the base, the summary format, the audit on a docs/ change, the approval the policy requires (srd013 R5.3, R5.5).
   category: boundary
@@ -76,10 +74,8 @@ tools:
   - issue
   - merge-branch
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: Merge the branch --no-ff into the default branch with a message citing the issue and each closes, and push it; close nothing (GH-201, srd013 R5.7).
   category: boundary
@@ -136,10 +132,8 @@ tools:
   - issue
   - close-delivered
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: Close the issue and each closes reference on the merge commit, and report complete each closed Sprint Goal (GH-201, srd013 R5.7, srd038 R2.2).
   category: boundary

@@ -1,0 +1,83 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The setup machine's words (GH-2885). The run starts in a fresh clone of any of the
+# program's repositories; the agents whose skills install are a parameter from the run's
+# request, never a ${VAR} arg (GH-135).
+unit: scrum-master-setup-declarations
+tools:
+- name: checkouts
+  type: exec
+  binary: scrum-master
+  args:
+  - checkouts
+  - --json
+  visibility: internal
+  description: Lay the program's repositories down and bring them level with origin, so every word reads what they hold now.
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The word's JSON: each repository and whether it was cloned, updated, kept, or failed."
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Clones and fast-forwards the program's checkouts; one holding changes or on another branch is kept.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word only clones and fast-forwards.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'checkouts: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the skills still install
+- name: install_skills
+  type: exec
+  binary: scrum-master
+  args:
+  - install
+  - --json
+  visibility: internal
+  description: Write the skills of this release into the clone, for the agents named, all of them by default.
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      agent:
+        type: string
+        description: The agents whose skills install, cursor, claude, copilot, or all.
+        flag: --agent
+        default: all
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The word's JSON: each skill and what it did."
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes the skills, which stay out of git through .git/info/exclude.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The skills are generated and excluded from git; a later run rewrites them.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'install_skills: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the skills are as the word's refusal left them

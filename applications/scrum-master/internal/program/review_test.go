@@ -560,6 +560,7 @@ func TestListReviewing(t *testing.T) {
 }
 
 func TestReviewerCommandRefusesBadUsage(t *testing.T) {
+	t.Chdir(t.TempDir()) // outside any checkout, so no project is read from one
 	for _, args := range [][]string{
 		{"issue", "reviewer", "--project", "g/p", "--issue", "1"},
 		{"issue", "reviewer", "--project", "g/p", "--issue", "1", "--person", "a", "--clear"},

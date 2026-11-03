@@ -10,10 +10,8 @@ tools:
   - issue
   - unassign
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: 'Give back an issue assigned to the caller (srd013 R10.2).'
   category: boundary
