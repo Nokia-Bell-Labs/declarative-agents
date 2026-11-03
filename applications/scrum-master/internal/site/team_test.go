@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
@@ -506,8 +507,20 @@ func TestSignOffOnTheSite(t *testing.T) {
 	}
 	scrum := facts.Teams[0].Name
 	doc := "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | reviews |\n| --- | --- |\n" +
-		"| alice | " + epic + ", ep999-gone |\n| sam | " + scrum + " |\n"
+		"| sam | " + scrum + ", no-such-scrum |\n"
 	if err := os.WriteFile(filepath.Join(system, "control", "people.md"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	epicFile := filepath.Join(system, "docs", "specs", "epics", epic+".md")
+	plain, err := os.ReadFile(epicFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	named, err := corpus.SetFront(plain, corpus.FrontReviewer, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(epicFile, named, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	policy := "---\nid: policy\ntitle: Policy\n---\n\n<!-- field: admission -->\n## Admission\n\n<!-- field: default_reviewer -->\n### Default reviewer\n\ndee\n"
@@ -529,8 +542,8 @@ func TestSignOffOnTheSite(t *testing.T) {
 	if got := item(teamStory).Reviewer; got != "alice" {
 		t.Errorf("a team's story under the epic = %q, want the epic's reviewer", got)
 	}
-	if !slices.ContainsFunc(facts.Notes, func(n string) bool { return strings.Contains(n, "ep999-gone") }) {
-		t.Errorf("no note names ep999-gone: %v", facts.Notes)
+	if !slices.ContainsFunc(facts.Notes, func(n string) bool { return strings.Contains(n, "no-such-scrum") }) {
+		t.Errorf("no note names no-such-scrum: %v", facts.Notes)
 	}
 	if !slices.ContainsFunc(facts.People, func(p timeline.Person) bool { return p.Username == "dee" }) {
 		t.Errorf("the default has no row: %+v", facts.People)
@@ -554,7 +567,7 @@ func TestSignOffOnTheSite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if page := string(pages[Dir+"/"+PeopleDir+"/alice.md"]); !strings.Contains(page, "**Reviews:** [") || strings.Contains(page, "ep999-gone") {
+	if page := string(pages[Dir+"/"+PeopleDir+"/alice.md"]); !strings.Contains(page, "**Reviews:** [") {
 		t.Errorf("alice's page:\n%s", page)
 	}
 	if _, ok := pages[Dir+"/"+PeopleDir+"/dee.md"]; !ok {
@@ -563,8 +576,7 @@ func TestSignOffOnTheSite(t *testing.T) {
 
 	// With the epic unnamed, a team's document falls to its scrum and the
 	// system's own to the default.
-	doc = "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | reviews |\n| --- | --- |\n| sam | " + scrum + " |\n"
-	if err := os.WriteFile(filepath.Join(system, "control", "people.md"), []byte(doc), 0o644); err != nil {
+	if err := os.WriteFile(epicFile, plain, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	facts = generate()
@@ -637,20 +649,19 @@ func TestSignoffOf(t *testing.T) {
 		t.Fatalf("after a change to the record alone = %v", again)
 	}
 
-	os.MkdirAll(filepath.Join(dir, "control"), 0o755)
-	doc := "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | reviews |\n| --- | --- |\n| carol | srd045-x |\n"
-	if err := os.WriteFile(filepath.Join(dir, "control", "people.md"), []byte(doc), 0o644); err != nil {
+	named, err := corpus.SetFront([]byte("---\nid: srd045-x\ntitle: X\n---\n\n# two\n"), corpus.FrontReviewer, "carol")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if s := signoffSection(dir, rel, file); !strings.Contains(s, "**Reviewer:** carol") || !strings.Contains(s, "Signed off by carol, dan") {
+	if s := signoffSection(dir, rel, file, named); !strings.Contains(s, "**Reviewer:** carol") || !strings.Contains(s, "Signed off by carol, dan") {
 		t.Fatalf("section = %q", s)
 	}
-	if s := signoffSection(dir, "docs/VISION.md", file); s != "" {
-		t.Fatalf("a document that is no SRD = %q", s)
+	if s := signoffSection(dir, "docs/guides/process.md", file, named); s != "" {
+		t.Fatalf("a document that carries no reviewer = %q", s)
 	}
 
 	merge("# three\n", "unapproved", "Merge unapproved\n\nMerged-by: ann")
-	if s := signoffSection(dir, rel, file); !strings.Contains(s, "Not signed off") {
+	if s := signoffSection(dir, rel, file, named); !strings.Contains(s, "Not signed off") {
 		t.Fatalf("section after an unapproved change = %q", s)
 	}
 }

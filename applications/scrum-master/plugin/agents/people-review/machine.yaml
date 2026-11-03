@@ -2,10 +2,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 name: people-review
 purpose: |-
-  Name who signs off on a scrum or document in control/people.md (srd013). Use
-  only when a person asks to name a reviewer, after confirming with them which
-  scrum or document and which person; an agent never names one on its own. Merges
-  that change the document then need that person's approval.
+  Name who signs off on a scrum in control/people.md (srd013). Use
+  only when a person asks to name a scrum's reviewer, after confirming with them
+  which scrum and which person; an agent never names one on its own. A document
+  names its own, with the backlog-reviewer skill.
 
   This machine has no model state: scrum-master people review (design.md D10,
   D14; GH-2869). The run starts in the system repository's checkout, or one
@@ -37,7 +37,7 @@ states:
 - name: Refused
   run_status: failed
   meaning: |
-    Terminal. The word refused — no scrum or document was named, another
+    Terminal. The word refused — no scrum was named, another
     person reviews it without force, or no system repository's checkout is at
     or beside the directory — and its reason is the run's last output.
 - name: Failed

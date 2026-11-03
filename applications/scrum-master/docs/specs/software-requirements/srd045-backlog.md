@@ -99,7 +99,7 @@ Every hierarchy document may carry an architecture context item listing the ARCH
 <!-- req: R2.5 -->
 ### R2.5
 
-A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. The people skill runs them, and list, through the model-free people-allocate, people-release, and people-list profiles. Naming a person assigns no issue, files no status issue, and changes no label; an epic's owner stays its one owner in its document. The same document names who signs off on a scrum or document, in its reviews column (srd013 R11.4), which does hold merges to their approval (srd013 R11.2).
+A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. The people skill runs them, and list, through the model-free people-allocate, people-release, and people-list profiles. Naming a person assigns no issue, files no status issue, and changes no label; an epic's owner stays its one owner in its document. The same document names who signs off on a scrum, in its reviews column (srd013 R11.4), which does hold merges to their approval (srd013 R11.2); a document names its own reviewer in its frontmatter.
 
 <!-- req: R3 -->
 ## R3 - Parent and roll-up

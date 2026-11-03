@@ -242,9 +242,10 @@ type Person struct {
 	Username string   `json:"username"`
 	Scrums   []string `json:"scrums,omitempty"`
 	Epics    []string `json:"epics,omitempty"`
-	// Reviews is the scrums and documents control/people.md names them to sign
-	// off on. A person only the policy's default, an issue's line, or a merge's
-	// trailer names has a row with none, so their page exists to link to.
+	// Reviews is the scrums control/people.md names them to sign off on and the
+	// documents naming them as reviewer. A person only the policy's default, an
+	// issue's line, or a merge's trailer names has a row with none, so their page
+	// exists to link to.
 	Reviews []string `json:"reviews,omitempty"`
 }
 

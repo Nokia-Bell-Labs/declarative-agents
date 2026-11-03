@@ -25,11 +25,12 @@ func TestSkillFilesStayWithinLineLimit(t *testing.T) {
 // peopleOnlyWords are the words only a person runs (srd041 R9.1, srd013 R11.5),
 // each with the one profile that may declare it.
 var peopleOnlyWords = map[string]string{
-	"issue assign":    "assign",
-	"issue unassign":  "unassign",
-	"issue reviewer":  "reviewer",
-	"people review":   "people-review",
-	"people unreview": "people-unreview",
+	"issue assign":     "assign",
+	"issue unassign":   "unassign",
+	"issue reviewer":   "reviewer",
+	"backlog reviewer": "backlog-reviewer",
+	"people review":    "people-review",
+	"people unreview":  "people-unreview",
 }
 
 // TestOnlyItsOwnProfileRunsAPersonsWord holds that people assign and name who

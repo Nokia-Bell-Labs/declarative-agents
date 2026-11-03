@@ -13,7 +13,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/people"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
@@ -38,14 +38,11 @@ func peopleFacts(system string, f timeline.Facts) (out []timeline.Person, notes 
 		}
 	}
 	var epics []string
-	documents := slices.Clone(scrums)
 	for _, it := range f.Items {
 		if it.Kind == "epic" {
 			epics = append(epics, it.ID)
 		}
-		documents = append(documents, it.ID)
 	}
-	documents = append(documents, heldSRDs(system, f)...)
 	resolved := func(p, what string, names, known []string) []string {
 		var ok []string
 		for _, n := range names {
@@ -59,35 +56,16 @@ func peopleFacts(system string, f timeline.Facts) (out []timeline.Person, notes 
 	}
 	for _, p := range c.People {
 		out = append(out, timeline.Person{Username: p.Username, Scrums: resolved(p.Username, "scrum", p.Scrums, scrums), Epics: resolved(p.Username, "epic", p.Epics, epics),
-			Reviews: resolved(p.Username, "reviewing", p.Reviews, documents)})
+			Reviews: resolved(p.Username, "reviewing", p.Reviews, scrums)})
 	}
 	return out, notes
 }
 
-// heldSRDs are the SRDs a person may be named to review: the system's by id, and
-// a team's as <name>/<id> where its scrum repository has a checkout beside the
-// system's.
-func heldSRDs(system string, f timeline.Facts) []string {
-	var out []string
-	list := func(dir, prefix string) {
-		paths, _ := filepath.Glob(filepath.Join(dir, filepath.FromSlash(program.SRDDir), "*.md"))
-		for _, p := range paths {
-			out = append(out, prefix+strings.TrimSuffix(filepath.Base(p), ".md"))
-		}
-	}
-	list(system, "")
-	for _, tm := range f.Teams {
-		if dir, ok := checkout.Locate(system, tm.Scrum); ok {
-			list(dir, tm.Name+"/")
-		}
-	}
-	return out
-}
-
 // reviewFacts sets who signs off on each document, by srd013 R11.1's order from
-// its own name up: its reviewer, its parents' up to its epic, its scrum's, the
+// its own name up: its own reviewer, its parents' up to its epic, its scrum's, the
 // program's default. Where someone does, it reads whether they have, from the
-// document's checkout. Everyone named gets a row, so a page links to them.
+// document's checkout. A document naming its reviewer, an SRD among them, is on
+// that person's list, and everyone named gets a row, so a page links to them.
 func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes []string) {
 	c, err := people.Load(system)
 	if err != nil {
@@ -98,6 +76,10 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 		if def, err = program.DefaultReviewerIn(b); err != nil {
 			notes = append(notes, fmt.Sprintf("%s: not read, so its default reviewer is not shown: %v", program.PolicyFile, err))
 		}
+	}
+	own, paths := map[string]string{}, map[string]string{}
+	for _, d := range docs {
+		own[d.ID], paths[d.ID] = d.Reviewer, d.Path
 	}
 	items := map[string]*timeline.Item{}
 	for i := range f.Items {
@@ -110,7 +92,7 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 	reviewer := func(it *timeline.Item) string {
 		id := it.ID
 		for depth := 0; depth < 8; depth++ {
-			if who := c.ReviewerOf(id); who != "" {
+			if who := own[id]; who != "" {
 				return who
 			}
 			at := items[id]
@@ -130,21 +112,36 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 	if def != "" {
 		named[def] = true
 	}
-	paths := map[string]string{}
-	for _, d := range docs {
-		paths[d.ID] = d.Path
-	}
+	reviews := map[string][]string{}
 	for i := range f.Items {
 		it := &f.Items[i]
 		if it.Reviewer = reviewer(it); it.Reviewer == "" {
 			continue
 		}
 		named[it.Reviewer] = true
+		if own[it.ID] != "" {
+			reviews[own[it.ID]] = append(reviews[own[it.ID]], it.ID)
+		}
 		if p := paths[it.ID]; p != "" {
 			it.ApprovedBy, it.ApprovedAt = signoffOf(p)
 		}
 		for _, who := range it.ApprovedBy {
 			named[who] = true
+		}
+	}
+	srds, _ := filepath.Glob(filepath.Join(system, filepath.FromSlash(program.SRDDir), "*.md"))
+	for _, p := range srds {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		front, err := corpus.Front(b)
+		if err != nil {
+			continue
+		}
+		if who, _ := front[corpus.FrontReviewer].(string); who != "" {
+			named[who] = true
+			reviews[who] = append(reviews[who], strings.TrimSuffix(filepath.Base(p), ".md"))
 		}
 	}
 	for i := range f.Items {
@@ -158,6 +155,9 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 		if !slices.ContainsFunc(f.People, func(p timeline.Person) bool { return p.Username == who }) {
 			f.People = append(f.People, timeline.Person{Username: who})
 		}
+	}
+	for i := range f.People {
+		f.People[i].Reviews = append(f.People[i].Reviews, reviews[f.People[i].Username]...)
 	}
 	slices.SortFunc(f.People, func(a, b timeline.Person) int { return strings.Compare(a.Username, b.Username) })
 	return notes

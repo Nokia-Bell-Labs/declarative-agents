@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/people"
@@ -40,9 +41,10 @@ type Signoff struct {
 	Own    bool   `json:"own,omitempty"`
 }
 
-// Reviews finds who signs off (srd013 R11.1) from the control files a policy
-// was read from. They are read at that ref, never from the branch being merged,
-// so a branch cannot name its own reviewer.
+// Reviews finds who signs off (srd013 R11.1). What a document says is read at its
+// repository's default branch, and control/people.md and the policy at the ref
+// they were read from, never from the branch being merged, so a branch cannot
+// name its own reviewer.
 type Reviews struct {
 	t       tracker.Tracker
 	system  string
@@ -53,14 +55,16 @@ type Reviews struct {
 	subs    Subsystems
 	subsErr error
 	loaded  bool
-	parents map[string]string
+	docs    map[string]docPeople
 }
 
+// docPeople is what the lookup needs of a document.
+type docPeople struct{ reviewer, parent string }
+
 // LoadReviews reads who the program names from where p was read. A program with
-// no control/people.md and no default names no one, and only an issue's own line
-// can.
+// no control/people.md and no default names no scrum's reviewer and no default.
 func LoadReviews(t tracker.Tracker, p Policy) (*Reviews, error) {
-	r := &Reviews{t: t, ref: p.Ref, def: p.DefaultReviewer, parents: map[string]string{}}
+	r := &Reviews{t: t, ref: p.Ref, def: p.DefaultReviewer, docs: map[string]docPeople{}}
 	if p.Control == "" {
 		return r, nil
 	}
@@ -79,52 +83,38 @@ func LoadReviews(t tracker.Tracker, p Policy) (*Reviews, error) {
 	return r, nil
 }
 
-// inherits reports whether the program names anyone beyond an issue's own line,
-// so a program that names no one reads no document on a merge.
-func (r *Reviews) inherits() bool { return r.def != "" || r.people.HasReviewers() }
-
-// name is a document as the site and control/people.md name it: the system's
-// by id, a team's as <name>/<id>.
-func (r *Reviews) name(project, id string) string {
-	if project == r.system {
-		return id
+func documentPeople(file string, b []byte) docPeople {
+	var d docPeople
+	if front, err := corpus.Front(b); err == nil {
+		d.reviewer, _ = front[corpus.FrontReviewer].(string)
 	}
-	return RepositoryName(r.group, project) + "/" + id
+	if hierarchy.PathOf(strings.TrimSuffix(path.Base(file), ".md")) != "" {
+		if doc, err := hierarchy.Parse(file, b); err == nil {
+			d.parent = doc.Parent
+		}
+	}
+	return d
 }
 
-// parent is the document's parent as holder and id, read at the holder's
-// default branch; a document that cannot be read has none.
-func (r *Reviews) parent(project, id string) (string, string) {
-	key := project + "\x00" + id
-	target, ok := r.parents[key]
-	if !ok {
-		target = r.readParent(project, id)
-		r.parents[key] = target
+// read is what the document at file says, at its repository's default branch; a
+// document that cannot be read says nothing.
+func (r *Reviews) read(project, file string) docPeople {
+	key := project + "\x00" + file
+	d, ok := r.docs[key]
+	if ok {
+		return d
 	}
-	return targetDocument(project, target)
+	if branch, err := r.t.DefaultBranch(project); err == nil {
+		if b, err := r.t.GetFile(project, file, branch); err == nil {
+			d = documentPeople(file, b)
+		}
+	}
+	r.docs[key] = d
+	return d
 }
 
-func (r *Reviews) readParent(project, id string) string {
-	file := hierarchy.PathOf(id)
-	if file == "" {
-		return ""
-	}
-	branch, err := r.t.DefaultBranch(project)
-	if err != nil {
-		return ""
-	}
-	b, err := r.t.GetFile(project, file, branch)
-	if err != nil {
-		return ""
-	}
-	d, err := hierarchy.Parse(file, b)
-	if err != nil {
-		return ""
-	}
-	return d.Parent
-}
-
-// targetDocument is what a same-repository id or a pinned URL names.
+// targetDocument is what a same-repository id or a pinned URL names, as its
+// holder and its file.
 func targetDocument(project, target string) (string, string) {
 	if target == "" {
 		return "", ""
@@ -134,45 +124,49 @@ func targetDocument(project, target string) (string, string) {
 		if err != nil {
 			return "", ""
 		}
-		return ref.Project, docID(ref.Path)
+		return ref.Project, ref.Path
 	}
-	return project, docID(target)
+	return project, hierarchy.PathOf(docID(target))
 }
 
 // ofDocument is step two of the lookup: the document's reviewer, else its
-// parents' up to its epic.
-func (r *Reviews) ofDocument(project, id string) (Signoff, bool) {
-	for depth := 0; id != "" && depth < 8; depth++ {
-		name := r.name(project, id)
-		if who := r.people.ReviewerOf(name); who != "" {
-			return Signoff{Person: who, Why: "the reviewer of " + name}, true
+// parents' up to its epic. A new document says it from the branch adding it,
+// having no earlier version to read: a parent's reviewer still applies to it.
+func (r *Reviews) ofDocument(project, file string, added []byte) (Signoff, bool) {
+	for depth := 0; file != "" && depth < 8; depth++ {
+		d := r.read(project, file)
+		if depth == 0 && added != nil {
+			d = documentPeople(file, added)
 		}
-		if kind, ok := hierarchy.KindOf(id); !ok || kind == hierarchy.Epic {
+		if d.reviewer != "" {
+			return Signoff{Person: d.reviewer, Why: "the reviewer of " + file}, true
+		}
+		if kind, ok := hierarchy.KindOf(docID(file)); !ok || (kind != hierarchy.Story && kind != hierarchy.Feature) {
 			break
 		}
-		project, id = r.parent(project, id)
+		project, file = targetDocument(project, d.parent)
 	}
 	return Signoff{}, false
 }
 
 // ofScrum and the default are the lookup's last steps.
 func (r *Reviews) ofScrum(project string) (Signoff, bool, error) {
-	if !r.loaded {
-		r.loaded = true
-		if r.system != "" {
+	if r.people.HasReviewers() {
+		if !r.loaded {
+			r.loaded = true
 			r.subs, r.subsErr = LoadSubsystems(r.t, r.system, r.ref)
 			if errors.Is(r.subsErr, tracker.ErrNotFound) {
 				r.subsErr = nil
 			}
 		}
-	}
-	if r.subsErr != nil {
-		return Signoff{}, false, r.subsErr
-	}
-	if sub, ok := r.subs.SubsystemFor(project); ok {
-		name := RepositoryName(r.group, sub.ScrumRepository())
-		if who := r.people.ReviewerOf(name); who != "" {
-			return Signoff{Person: who, Why: "the reviewer of the scrum " + name}, true, nil
+		if r.subsErr != nil {
+			return Signoff{}, false, r.subsErr
+		}
+		if sub, ok := r.subs.SubsystemFor(project); ok {
+			name := RepositoryName(r.group, sub.ScrumRepository())
+			if who := r.people.ReviewerOf(name); who != "" {
+				return Signoff{Person: who, Why: "the reviewer of the scrum " + name}, true, nil
+			}
 		}
 	}
 	if r.def != "" {
@@ -186,15 +180,12 @@ func (r *Reviews) ForIssue(project string, i tracker.Issue) (Signoff, bool, erro
 	if who := ReviewerLine(i.Description); who != "" {
 		return Signoff{Person: who, Why: "the issue's Reviewer line", Own: true}, true, nil
 	}
-	if !r.inherits() {
-		return Signoff{}, false, nil
-	}
 	for _, l := range links.ParseLinks(i.Description) {
 		if l.Kind != links.Implements {
 			continue
 		}
-		if holder, id := targetDocument(project, l.Target); id != "" {
-			if s, ok := r.ofDocument(holder, id); ok {
+		if holder, file := targetDocument(project, l.Target); file != "" {
+			if s, ok := r.ofDocument(holder, file, nil); ok {
 				return s, true, nil
 			}
 		}
@@ -202,12 +193,16 @@ func (r *Reviews) ForIssue(project string, i tracker.Issue) (Signoff, bool, erro
 	return r.ofScrum(project)
 }
 
+// ChangedDocument is a document a branch changes; Added holds its text where the
+// branch adds it.
+type ChangedDocument struct {
+	Path  string
+	Added []byte
+}
+
 // ForDocument is who signs off on a document in project.
-func (r *Reviews) ForDocument(project, id string) (Signoff, bool, error) {
-	if !r.inherits() {
-		return Signoff{}, false, nil
-	}
-	if s, ok := r.ofDocument(project, id); ok {
+func (r *Reviews) ForDocument(project string, d ChangedDocument) (Signoff, bool, error) {
+	if s, ok := r.ofDocument(project, d.Path, d.Added); ok {
 		return s, true, nil
 	}
 	return r.ofScrum(project)
@@ -216,7 +211,7 @@ func (r *Reviews) ForDocument(project, id string) (Signoff, bool, error) {
 // Required is everyone a merge of branch needs: the issue's reviewer and the
 // reviewer of each document it changes. A document's reviewer is added, not
 // replaced, so an issue's Reviewer line cannot stand in for them.
-func (r *Reviews) Required(project, issueProject string, i tracker.Issue, documents []string) ([]Signoff, error) {
+func (r *Reviews) Required(project, issueProject string, i tracker.Issue, documents []ChangedDocument) ([]Signoff, error) {
 	var out []Signoff
 	add := func(s Signoff, ok bool, err error) error {
 		if err != nil {
@@ -231,8 +226,8 @@ func (r *Reviews) Required(project, issueProject string, i tracker.Issue, docume
 	if err := add(s, ok, err); err != nil {
 		return nil, err
 	}
-	for _, id := range documents {
-		s, ok, err := r.ForDocument(project, id)
+	for _, d := range documents {
+		s, ok, err := r.ForDocument(project, d)
 		if err := add(s, ok, err); err != nil {
 			return nil, err
 		}
@@ -240,26 +235,39 @@ func (r *Reviews) Required(project, issueProject string, i tracker.Issue, docume
 	return out, nil
 }
 
-// changedDocuments are the stories, features, epics, and SRDs a branch changes.
-// A change to a document's issues record alone is scrum-master backlog record's
-// bookkeeping, not a change to what was agreed. Files are read through textconv,
-// as GetFile reads them.
-func changedDocuments(inMain func(...string) (string, error), upstream, branch string, paths []string) []string {
-	dirs := []string{SRDDir, hierarchy.ObjectiveDir}
-	for _, l := range hierarchy.Levels {
-		dirs = append(dirs, l.Dir)
+// SignedDocument reports whether the document at the repository path carries a
+// reviewer and needs their sign-off: the vision, the architecture, the road map,
+// SRDs, use cases, and the planning hierarchy.
+func SignedDocument(p string) bool {
+	if path.Ext(p) != ".md" {
+		return false
 	}
-	var out []string
+	if slices.Contains([]string{"docs/VISION.md", hierarchy.ArchitectureFile, "docs/road-map.md"}, p) {
+		return true
+	}
+	dir := path.Dir(p)
+	if dir == SRDDir || dir == hierarchy.ObjectiveDir || dir == "docs/specs/use-cases" {
+		return true
+	}
+	return slices.ContainsFunc(hierarchy.Levels, func(l hierarchy.Level) bool { return l.Dir == dir })
+}
+
+// changedDocuments are the signed documents a branch changes. A change to a
+// document's issues record or people block alone is no change to what was agreed
+// (hierarchy.AgreedText). Files are read through textconv, as GetFile reads them.
+func changedDocuments(inMain func(...string) (string, error), upstream, branch string, paths []string) []ChangedDocument {
+	var out []ChangedDocument
 	for _, p := range paths {
-		if path.Ext(p) != ".md" || !slices.Contains(dirs, path.Dir(p)) {
+		if !SignedDocument(p) {
 			continue
 		}
-		before, _ := inMain("cat-file", "--textconv", upstream+":"+p)
+		before, beforeErr := inMain("cat-file", "--textconv", upstream+":"+p)
 		after, _ := inMain("cat-file", "--textconv", "refs/heads/"+branch+":"+p)
-		if bytes.Equal(hierarchy.WithoutIssues([]byte(before)), hierarchy.WithoutIssues([]byte(after))) {
-			continue
+		if beforeErr != nil {
+			out = append(out, ChangedDocument{Path: p, Added: []byte(after)})
+		} else if !bytes.Equal(hierarchy.AgreedText([]byte(before)), hierarchy.AgreedText([]byte(after))) {
+			out = append(out, ChangedDocument{Path: p})
 		}
-		out = append(out, strings.TrimSuffix(path.Base(p), ".md"))
 	}
 	return out
 }

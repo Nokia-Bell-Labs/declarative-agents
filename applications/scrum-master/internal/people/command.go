@@ -85,7 +85,7 @@ func changeCommand(name, summary string, release bool) {
 }
 
 // reviewCommand registers review or unreview, which name who signs off on a
-// scrum or document.
+// scrum. A document names its own reviewer (scrum-master backlog reviewer).
 func reviewCommand(name, summary string, release bool) {
 	var a struct {
 		dir, person       string
@@ -95,15 +95,11 @@ func reviewCommand(name, summary string, release bool) {
 	cli.Default.Register(&cli.Command{
 		Group: "people", Name: name, Summary: summary,
 		Flags: func(fs *flag.FlagSet) {
-			a.scrums, a.documents = nil, nil
+			a.scrums = nil
 			fs.StringVar(&a.dir, "dir", ".", "the system repository's checkout, or a checkout beside it")
 			fs.StringVar(&a.person, "person", "", "the person's tracker username (required)")
 			fs.Func("scrum", "a scrum, as the site names it (repeatable)", func(v string) error {
 				a.scrums = append(a.scrums, v)
-				return nil
-			})
-			fs.Func("document", "a story, feature, epic, or SRD, as the site names it (repeatable)", func(v string) error {
-				a.documents = append(a.documents, v)
 				return nil
 			})
 			fs.BoolVar(&a.commit, "commit", false, "commit the changed document on the current branch")
@@ -112,8 +108,8 @@ func reviewCommand(name, summary string, release bool) {
 			}
 		},
 		Run: func(ctx *cli.Context) error {
-			if a.person == "" || len(a.scrums)+len(a.documents) == 0 {
-				return fmt.Errorf("%w: %s needs --person and at least one --scrum or --document", cli.ErrUsage, name)
+			if a.person == "" || len(a.scrums) == 0 {
+				return fmt.Errorf("%w: %s needs --person and at least one --scrum", cli.ErrUsage, name)
 			}
 			if strings.ContainsAny(a.person, `/\`) {
 				return fmt.Errorf("%w: %q is not a username", cli.ErrUsage, a.person)
@@ -122,8 +118,7 @@ func reviewCommand(name, summary string, release bool) {
 			if err != nil {
 				return err
 			}
-			names := append(append([]string{}, a.scrums...), a.documents...)
-			r, err := Run(dir, Change{Username: a.person, Reviews: names, Release: release, Force: a.force}, a.commit, ctx.DryRun)
+			r, err := Run(dir, Change{Username: a.person, Reviews: a.scrums, Release: release, Force: a.force}, a.commit, ctx.DryRun)
 			if err != nil {
 				return err
 			}
@@ -142,13 +137,13 @@ func reviewCommand(name, summary string, release bool) {
 
 func init() {
 	changeCommand("allocate", "name a person on a scrum or epic in control/people.md; it assigns no issue", false)
-	reviewCommand("review", "name who signs off on a scrum or document in control/people.md; agents never run it", false)
-	reviewCommand("unreview", "take a person off signing off on a scrum or document in control/people.md; agents never run it", true)
+	reviewCommand("review", "name who signs off on a scrum in control/people.md; agents never run it", false)
+	reviewCommand("unreview", "take a person off signing off on a scrum in control/people.md; agents never run it", true)
 	changeCommand("release", "take a person off a scrum or epic in control/people.md", true)
 
 	var la struct{ dir string }
 	cli.Default.Register(&cli.Command{
-		Group: "people", Name: "list", Summary: "who control/people.md names on which scrums and epics, and who signs off on what",
+		Group: "people", Name: "list", Summary: "who control/people.md names on which scrums and epics, and who signs off on which scrum",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&la.dir, "dir", ".", "the system repository's checkout, or a checkout beside it")
 		},

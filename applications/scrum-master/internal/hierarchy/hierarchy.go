@@ -62,9 +62,25 @@ func PathOf(id string) string {
 	return ""
 }
 
-// WithoutIssues is the document without its issues field, the record scrum-master
-// backlog record keeps of the tracker (srd045 R4.4): what a person agreed on.
-func WithoutIssues(doc []byte) []byte {
+// AgreedText is what a person agreed on in a document: everything but the issues
+// field, the record scrum-master backlog record keeps of the tracker (srd045
+// R4.4), and the frontmatter's people block, which says who rather than what. A
+// change to those alone needs no sign-off, so a reviewer who is away can be
+// replaced.
+func AgreedText(doc []byte) []byte {
+	var kept [][]byte
+	inFront := bytes.HasPrefix(doc, []byte("---\n"))
+	for n, l := range bytes.SplitAfter(doc, []byte("\n")) {
+		if inFront && n > 0 {
+			if bytes.Equal(bytes.TrimSpace(l), []byte("---")) {
+				inFront = false
+			} else if bytes.HasPrefix(l, []byte(corpus.FrontAuthors+":")) || bytes.HasPrefix(l, []byte(corpus.FrontReviewer+":")) {
+				continue
+			}
+		}
+		kept = append(kept, l)
+	}
+	doc = bytes.Join(kept, nil)
 	start := bytes.Index(doc, []byte("<!-- field: issues"))
 	if start < 0 {
 		return bytes.TrimRight(doc, "\n")
@@ -102,12 +118,16 @@ type Doc struct {
 	Title        string
 	Status       string
 	Owner        string
-	Horizon      string
-	Parent       string
-	Links        map[string][]string
-	Problem      string
-	Goals        []string
-	NonGoals     []string
+	// Reviewer and Authors are the frontmatter's people block: who signs off on
+	// the document (srd013 R11.1) and who wrote it.
+	Reviewer string
+	Authors  []string
+	Horizon  string
+	Parent   string
+	Links    map[string][]string
+	Problem  string
+	Goals    []string
+	NonGoals []string
 	// Groups maps each requirement group to its item ids, in document order.
 	Groups   map[string][]string
 	Due      map[string]string
@@ -248,6 +268,8 @@ func Parse(path string, data []byte) (*Doc, error) {
 	d.Kind, _ = KindOf(strings.TrimSuffix(filepath.Base(path), ".md"))
 	d.Title, _ = md.Front["title"].(string)
 	d.Status, _ = md.Front["status"].(string)
+	d.Reviewer, _ = md.Front[corpus.FrontReviewer].(string)
+	d.Authors = corpus.FrontNames(md.Front, corpus.FrontAuthors)
 	context, err := md.Field("context").TreeErr()
 	if err != nil {
 		d.ContextError = err.Error()

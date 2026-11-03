@@ -1,0 +1,73 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The backlog-reviewer machine's words (GH-2869). The run starts in a checkout of the repository holding the
+# document; every flag is a parameter from the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-backlog-reviewer-declarations
+tools:
+- name: backlog_reviewer
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - reviewer
+  - --json
+  visibility: internal
+  description: 'Name who signs off on a document, in its frontmatter (srd013 R11.4).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      document:
+        type: string
+        description: 'The document, by id or path.'
+        flag: --document
+      person:
+        type: string
+        description: 'The tracker username who signs off; give this or clear.'
+        flag: --person
+      clear:
+        type: boolean
+        description: 'Drop the reviewer instead of naming someone.'
+        flag: --clear
+        bool_flag: true
+      force:
+        type: boolean
+        description: 'Replace the reviewer the document already names.'
+        flag: --force
+        bool_flag: true
+      dir:
+        type: string
+        description: 'A checkout of the repository holding the document.'
+        flag: --dir
+      commit:
+        type: boolean
+        description: 'Commit the changed document on the current branch.'
+        flag: --commit
+        bool_flag: true
+    required:
+    - document
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The reviewer word's JSON report: the document, who it names now and before, and what it did."
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: the document
+    description: "Writes the reviewer into the document's frontmatter and, with commit, commits it."
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: "The word's write is a person's to reverse, by naming another with force or clearing it."
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_reviewer: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the program is as the word's refusal left it

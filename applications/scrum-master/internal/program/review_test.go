@@ -18,12 +18,15 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
 
-func planDoc(id, parent string) []byte {
-	line := ""
+func planDoc(id, parent string, reviewer ...string) []byte {
+	line, front := "", ""
 	if parent != "" {
 		line = "- parent: " + parent + "\n"
 	}
-	return []byte(fmt.Sprintf("---\nid: %s\ntitle: %s\nstatus: agreed\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: Product Owner, po\n%s", id, id, line))
+	if len(reviewer) > 0 {
+		front = "reviewer: " + reviewer[0] + "\n"
+	}
+	return []byte(fmt.Sprintf("---\nid: %s\ntitle: %s\nstatus: agreed\n%s---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: Product Owner, po\n%s", id, id, front, line))
 }
 
 const platformSubsystem = `---
@@ -46,28 +49,35 @@ title: "Platform"
 `
 
 // reviewProgram is a system repository and a team's scrum repository holding
-// st001 under ft001 under ep001 under in001, naming reviewers as given.
+// st001 under ft001 under ep001 under in001, each document naming the reviewer
+// reviews gives it, and control/people.md naming the rest, which are scrums.
 func reviewProgram(t *testing.T, reviews map[string]string) *fake.Fake {
 	t.Helper()
 	f := fake.New()
 	f.Default = "main"
-	f.AddFile("g/system", "main", SRDDir+"/srd002-platform.md", []byte(platformSubsystem))
-	f.AddFile("g/platform", "main", "docs/specs/stories/st001-a.md", planDoc("st001-a", "ft001-b"))
-	f.AddFile("g/platform", "main", "docs/specs/features/ft001-b.md", planDoc("ft001-b", "ep001-c"))
-	f.AddFile("g/platform", "main", "docs/specs/epics/ep001-c.md", planDoc("ep001-c", "in001-d"))
-	f.AddFile("g/platform", "main", "docs/specs/initiatives/in001-d.md", planDoc("in001-d", ""))
-	f.AddFile("g/platform", "main", "docs/specs/stories/st002-e.md",
-		planDoc("st002-e", "https://gitlab.example.com/g/system/-/blob/v1.0.0/docs/specs/epics/ep009-f.md#R1"))
-	f.AddFile("g/system", "main", "docs/specs/epics/ep009-f.md", planDoc("ep009-f", ""))
-	var c people.Config
-	for name, who := range reviews {
-		c, _ = people.Apply(c, people.Change{Username: who, Reviews: []string{name}})
+	doc := func(id, parent string) []byte {
+		if who := reviews[id]; who != "" {
+			return planDoc(id, parent, who)
+		}
+		return planDoc(id, parent)
 	}
-	doc, err := people.Document(c)
+	f.AddFile("g/system", "main", SRDDir+"/srd002-platform.md", []byte(platformSubsystem))
+	f.AddFile("g/platform", "main", "docs/specs/stories/st001-a.md", doc("st001-a", "ft001-b"))
+	f.AddFile("g/platform", "main", "docs/specs/features/ft001-b.md", doc("ft001-b", "ep001-c"))
+	f.AddFile("g/platform", "main", "docs/specs/epics/ep001-c.md", doc("ep001-c", "in001-d"))
+	f.AddFile("g/platform", "main", "docs/specs/initiatives/in001-d.md", doc("in001-d", ""))
+	f.AddFile("g/platform", "main", "docs/specs/stories/st002-e.md",
+		doc("st002-e", "https://gitlab.example.com/g/system/-/blob/v1.0.0/docs/specs/epics/ep009-f.md#R1"))
+	f.AddFile("g/system", "main", "docs/specs/epics/ep009-f.md", doc("ep009-f", ""))
+	var c people.Config
+	if who := reviews["platform"]; who != "" {
+		c, _ = people.Apply(c, people.Change{Username: who, Reviews: []string{"platform"}})
+	}
+	control, err := people.Document(c)
 	if err != nil {
 		t.Fatal(err)
 	}
-	f.AddFile("g/system", "main", people.ControlFile, doc)
+	f.AddFile("g/system", "main", people.ControlFile, control)
 	return f
 }
 
@@ -89,13 +99,13 @@ func TestWhoSignsOff(t *testing.T) {
 		{name: "the program's default", def: "dee", project: "g/platform", issue: story(""), want: "dee"},
 		{name: "the scrum over the default", reviews: map[string]string{"platform": "sam"}, def: "dee", project: "g/platform", issue: story(""), want: "sam"},
 		{name: "a code repository's scrum", reviews: map[string]string{"platform": "sam"}, project: "g/api", issue: tracker.Issue{}, want: "sam"},
-		{name: "the epic over the scrum", reviews: map[string]string{"platform/ep001-c": "eve", "platform": "sam"}, project: "g/platform", issue: story(""), want: "eve"},
-		{name: "the feature over the epic", reviews: map[string]string{"platform/ft001-b": "fay", "platform/ep001-c": "eve"}, project: "g/platform", issue: story(""), want: "fay"},
-		{name: "the story over the feature", reviews: map[string]string{"platform/st001-a": "sue", "platform/ft001-b": "fay"}, project: "g/platform", issue: story(""), want: "sue"},
-		{name: "the line over the story", reviews: map[string]string{"platform/st001-a": "sue"}, project: "g/platform", issue: story("Reviewer: lee\n"), want: "lee", own: true},
-		{name: "nothing above the epic", reviews: map[string]string{"platform/in001-d": "ian"}, project: "g/platform", issue: story("")},
+		{name: "the epic over the scrum", reviews: map[string]string{"ep001-c": "eve", "platform": "sam"}, project: "g/platform", issue: story(""), want: "eve"},
+		{name: "the feature over the epic", reviews: map[string]string{"ft001-b": "fay", "ep001-c": "eve"}, project: "g/platform", issue: story(""), want: "fay"},
+		{name: "the story over the feature", reviews: map[string]string{"st001-a": "sue", "ft001-b": "fay"}, project: "g/platform", issue: story(""), want: "sue"},
+		{name: "the line over the story", reviews: map[string]string{"st001-a": "sue"}, project: "g/platform", issue: story("Reviewer: lee\n"), want: "lee", own: true},
+		{name: "nothing above the epic", reviews: map[string]string{"in001-d": "ian"}, project: "g/platform", issue: story("")},
 		{name: "a parent pinned in the system", reviews: map[string]string{"ep009-f": "eve"}, project: "g/platform", issue: tracker.Issue{Description: "Implements: st002-e\n"}, want: "eve"},
-		{name: "an issue naming the epic directly", reviews: map[string]string{"platform/ep001-c": "eve"}, project: "g/platform", issue: tracker.Issue{Description: "Implements: ep001-c\n"}, want: "eve"},
+		{name: "an issue naming the epic directly", reviews: map[string]string{"ep001-c": "eve"}, project: "g/platform", issue: tracker.Issue{Description: "Implements: ep001-c\n"}, want: "eve"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			f := reviewProgram(t, c.reviews)
@@ -119,10 +129,22 @@ func TestLoadReviewsRefusesAnUnreadableDocument(t *testing.T) {
 	}
 }
 
+func TestSignedDocument(t *testing.T) {
+	for p, want := range map[string]bool{
+		"docs/VISION.md": true, "docs/ARCHITECTURE.md": true, "docs/road-map.md": true, SRDDir + "/srd1-a.md": true,
+		"docs/specs/use-cases/rel1-uc1-a.md": true, "docs/specs/stories/st1-a.md": true, "docs/specs/epics/ep1-a.md": true,
+		"docs/specs/objectives/obj1-a.md": true, "docs/guides/process.md": false, "docs/specs/stories/notes.txt": false, "control/people.md": false,
+	} {
+		if SignedDocument(p) != want {
+			t.Errorf("SignedDocument(%s) = %v", p, !want)
+		}
+	}
+}
+
 // TestRequiredAddsADocumentsReviewer: an issue's line replaces the default but
 // not the reviewer of a document the branch changes.
 func TestRequiredAddsADocumentsReviewer(t *testing.T) {
-	f := reviewProgram(t, map[string]string{"platform/st001-a": "sue"})
+	f := reviewProgram(t, map[string]string{"st001-a": "sue"})
 	r, err := LoadReviews(f, Policy{Control: "g/system", Ref: "main", DefaultReviewer: "dee"})
 	if err != nil {
 		t.Fatal(err)
@@ -138,13 +160,19 @@ func TestRequiredAddsADocumentsReviewer(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(people(got), []string{"lee"}) {
 		t.Fatalf("the line alone = %v, %v", people(got), err)
 	}
-	got, err = r.Required("g/platform", "g/platform", i, []string{"st001-a", "ft002-unnamed"})
+	story, feature := ChangedDocument{Path: "docs/specs/stories/st001-a.md"}, ChangedDocument{Path: "docs/specs/features/ft002-unnamed.md"}
+	got, err = r.Required("g/platform", "g/platform", i, []ChangedDocument{story, feature})
 	if err != nil || !reflect.DeepEqual(people(got), []string{"lee", "sue", "dee"}) {
 		t.Fatalf("with documents = %v, %v", people(got), err)
 	}
-	got, err = r.Required("g/platform", "g/platform", tracker.Issue{Description: "Reviewer: sue\n"}, []string{"st001-a"})
+	got, err = r.Required("g/platform", "g/platform", tracker.Issue{Description: "Reviewer: sue\n"}, []ChangedDocument{story})
 	if err != nil || !reflect.DeepEqual(people(got), []string{"sue"}) {
 		t.Fatalf("one person twice = %v, %v", people(got), err)
+	}
+	added := ChangedDocument{Path: "docs/specs/stories/st009-new.md", Added: planDoc("st009-new", "ep001-c", "nan")}
+	got, err = r.Required("g/platform", "g/platform", tracker.Issue{Description: "Reviewer: lee\n"}, []ChangedDocument{added})
+	if err != nil || !reflect.DeepEqual(people(got), []string{"lee", "nan"}) {
+		t.Fatalf("a document the branch adds = %v, %v", people(got), err)
 	}
 }
 
@@ -282,9 +310,9 @@ func TestMergeHoldsADefaultAndFallsBack(t *testing.T) {
 	}
 }
 
-// TestADocumentsReviewerHoldsItsChange: changing an SRD needs its reviewer, read
-// from main so the branch cannot rename them; a change to a document's issues
-// record alone does not.
+// TestADocumentsReviewerHoldsItsChange: changing a document needs its reviewer,
+// read from main so the branch cannot rename them; a change to its issues record
+// or people block alone does not, so someone away can be replaced.
 func TestADocumentsReviewerHoldsItsChange(t *testing.T) {
 	alice, checkout := newBeadsTracker(t, "alice")
 	write := func(dir, rel, content string) {
@@ -296,73 +324,77 @@ func TestADocumentsReviewerHoldsItsChange(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	reviews := func(who string) string {
-		c, _ := people.Apply(people.Config{}, people.Change{Username: who, Reviews: []string{"srd045-x", "st001-a"}})
-		doc, err := people.Document(c)
-		if err != nil {
-			t.Fatal(err)
-		}
-		return string(doc)
-	}
 	srd, story := SRDDir+"/srd045-x.md", "docs/specs/stories/st001-a.md"
-	write(checkout, srd, "# one\n")
-	write(checkout, story, string(planDoc("st001-a", "")))
-	write(checkout, people.ControlFile, reviews("carol"))
+	srdDoc := func(reviewer, body string) string {
+		return "---\nid: srd045-x\ntitle: X\nreviewer: " + reviewer + "\n---\n\n" + body + "\n"
+	}
+	write(checkout, srd, srdDoc("carol", "one"))
+	write(checkout, story, string(planDoc("st001-a", "", "carol")))
 	beadstest.Git(t, checkout, "add", "-A")
 	beadstest.Git(t, checkout, "commit", "-q", "-m", "Name carol")
 	beadstest.Git(t, checkout, "push", "-q", "origin", "main")
-	gate := func(dir string) MergeGate {
-		return MergeGate{Command: "true", Dir: dir, Policy: Policy{Control: "g/po-1", Ref: "main"}}
-	}
-	file := func(title string) tracker.Issue {
+	deliver := func(title string, change func(worktree string)) func() (MergeResult, error) {
+		t.Helper()
 		i, err := alice.CreateIssue("g/po-1", tracker.NewIssue{Title: title, Milestone: "m", Description: goodBody,
 			Labels: []string{"plane::data", "kind::spec", "component::po-1"}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		return i
+		p, err := Pop(alice, ExecGit{}, "g/po-1", i.IID, checkout, Defaults(), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		change(p.Worktree)
+		beadstest.Git(t, p.Worktree, "add", "-A")
+		beadstest.Git(t, p.Worktree, "commit", "-q", "-m", title)
+		beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
+		return func() (MergeResult, error) {
+			gate := MergeGate{Command: "true", Dir: p.Worktree, Policy: Policy{Control: "g/po-1", Ref: "main"}}
+			return Merge(alice, ExecGit{}, "g/po-1", "g/po-1", i.IID, p.Branch, p.Worktree, gate, nil, false)
+		}
+	}
+	approve := func(user string, m func() (MergeResult, error)) {
+		t.Helper()
+		out := beadstest.Git(t, checkout, "branch", "--list", "--sort=-committerdate", "--format=%(refname:short)")
+		branch := strings.Fields(out)[0]
+		iid, _, _ := strings.Cut(branch, "-")
+		var n int
+		fmt.Sscan(iid, &n)
+		if _, err := Approve(reviewer(t, alice, checkout, user), ExecGit{}, "g/po-1", "g/po-1", n, "", checkout); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	ledger := file("Record the issues")
-	p, err := Pop(alice, ExecGit{}, "g/po-1", ledger.IID, checkout, Defaults(), false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	write(p.Worktree, story, string(planDoc("st001-a", ""))+"\n<!-- field: issues | form: \"tree\" -->\n## Issues\n\n- \"g/po-1#1\":\n  - state: open\n")
-	beadstest.Git(t, p.Worktree, "add", "-A")
-	beadstest.Git(t, p.Worktree, "commit", "-q", "-m", "Record")
-	beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
-	if m, err := Merge(alice, ExecGit{}, "g/po-1", "g/po-1", ledger.IID, p.Branch, p.Worktree, gate(p.Worktree), nil, false); err != nil || !m.Merged {
+	record := deliver("Record the issues", func(w string) {
+		write(w, story, string(planDoc("st001-a", "", "carol"))+"\n<!-- field: issues | form: \"tree\" -->\n## Issues\n\n- \"g/po-1#1\":\n  - state: open\n")
+	})
+	if m, err := record(); err != nil || !m.Merged {
 		t.Fatalf("merge of the issues record alone = %+v, %v", m, err)
 	}
 
-	change := file("Change the SRD")
-	p, err = Pop(alice, ExecGit{}, "g/po-1", change.IID, checkout, Defaults(), false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	write(p.Worktree, srd, "# two\n")
-	write(p.Worktree, people.ControlFile, reviews("bob"))
-	beadstest.Git(t, p.Worktree, "add", "-A")
-	beadstest.Git(t, p.Worktree, "commit", "-q", "-m", "Change, and name bob")
-	beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
-	merge := func() (MergeResult, error) {
-		return Merge(alice, ExecGit{}, "g/po-1", "g/po-1", change.IID, p.Branch, p.Worktree, gate(p.Worktree), nil, false)
-	}
-	if _, err := merge(); err == nil || !strings.Contains(err.Error(), "carol") {
+	change := deliver("Change the SRD and rename its reviewer", func(w string) { write(w, srd, srdDoc("bob", "two")) })
+	if _, err := change(); err == nil || !strings.Contains(err.Error(), "carol") {
 		t.Fatalf("merge changing the SRD = %v, want a refusal naming carol", err)
 	}
-	if _, err := Approve(reviewer(t, alice, checkout, "bob"), ExecGit{}, "g/po-1", "g/po-1", change.IID, "", checkout); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := merge(); err == nil || !strings.Contains(err.Error(), "carol") {
+	approve("bob", change)
+	if _, err := change(); err == nil || !strings.Contains(err.Error(), "carol") {
 		t.Fatalf("merge on the branch's own reviewer = %v, want a refusal naming carol", err)
 	}
-	if _, err := Approve(reviewer(t, alice, checkout, "carol"), ExecGit{}, "g/po-1", "g/po-1", change.IID, "", checkout); err != nil {
-		t.Fatal(err)
-	}
-	if m, err := merge(); err != nil || m.ApprovedBy != "carol" {
+	approve("carol", change)
+	if m, err := change(); err != nil || m.ApprovedBy != "carol" {
 		t.Fatalf("merge on carol's approval = %+v, %v", m, err)
+	}
+
+	// Main now names bob. Replacing him touches only the people block.
+	replace := deliver("Replace the reviewer", func(w string) { write(w, srd, srdDoc("dan", "two")) })
+	if m, err := replace(); err != nil || !m.Merged {
+		t.Fatalf("merge replacing the reviewer alone = %+v, %v", m, err)
+	}
+	addition := deliver("Add a document", func(w string) {
+		write(w, "docs/specs/software-requirements/srd046-y.md", "---\nid: srd046-y\ntitle: Y\nreviewer: erin\n---\n\nBody\n")
+	})
+	if _, err := addition(); err == nil || !strings.Contains(err.Error(), "erin") {
+		t.Fatalf("merge adding a document = %v, want a refusal naming erin", err)
 	}
 }
 
@@ -476,7 +508,7 @@ func TestRequestReview(t *testing.T) {
 
 func TestListReviewing(t *testing.T) {
 	const a = "g/platform"
-	f := reviewProgram(t, map[string]string{"platform/st001-a": "me"})
+	f := reviewProgram(t, map[string]string{"st001-a": "me"})
 	mine, _ := f.CreateIssue(a, tracker.NewIssue{Title: "By the story", Description: "Implements: st001-a\n"})
 	line, _ := f.CreateIssue(a, tracker.NewIssue{Title: "By the line", Description: "Reviewer: me\n"})
 	other, _ := f.CreateIssue(a, tracker.NewIssue{Title: "Someone else", Description: "Reviewer: bob\n"})

@@ -197,7 +197,7 @@ The site shows who is on what, as the system checkout's control/people.md (confi
 <!-- req: R8.9 -->
 ### R8.9
 
-The site shows who signs off (srd013 R11.1), from committed data and never the tracker: control/people.md, the policy's default_reviewer, and each issues record. The timeline facts carry each document's reviewer and, where it has one, who approved the latest merge that changed it, from that merge's Approved-by trailers, passing over a merge that changed only the issues record. Epic, feature, and story pages, an SRD's corpus copy, and a scrum's page show the reviewer, and a document whose latest change no one approved reads as not signed off, so a document older than the trailer does too. A person's page lists what they review and the open issues in the issues records that wait on their sign-off. Everyone named has a page, and a name that resolves to nothing is a note in the facts.
+The site shows who signs off (srd013 R11.1), from committed data and never the tracker: each document's frontmatter, control/people.md, the policy's default_reviewer, and each issues record. The timeline facts carry each document's reviewer and, where it has one, who approved the latest merge that changed it, from that merge's Approved-by trailers, passing over a merge that changed only the issues record or the people block. Planning document pages, the corpus copy of a signed document, and a scrum's page show the reviewer, and a document whose latest change no one approved reads as not signed off, so a document older than the trailer does too. A person's page lists what they review and the open issues in the issues records that wait on their sign-off. Everyone named has a page, and a name that resolves to nothing is a note in the facts.
 
 <!-- req: R9 -->
 ## R9 - Architecture pages
@@ -391,7 +391,7 @@ On a fixture program whose epic carries an issues record of its own, the facts c
 <!-- ac: AC13 -->
 ### AC13
 
-On a fixture program, a document's reviewer follows its parents to its epic, then its scrum, then the policy's default; the epic's and scrum's pages name them, an unsigned document reads as not signed off, and a person's page lists what they review, leaving out a name that resolves to nothing, which is a note. A merge's Approved-by trailers read as who signed off, and a later merge changing only the issues record does not hide them; an SRD's corpus copy shows the same; the default reviewer has a page.
+On a fixture program, a document's reviewer follows its parents to its epic, then its scrum, then the policy's default; the epic's and scrum's pages name them, an unsigned document reads as not signed off, and a person's page lists what they review, leaving out a name that resolves to nothing, which is a note. A merge's Approved-by trailers read as who signed off, and a later merge changing only the issues record or people block does not hide them; a signed document's corpus copy shows the same; the default reviewer has a page.
 
 <!-- field: traces -->
 #### Traces

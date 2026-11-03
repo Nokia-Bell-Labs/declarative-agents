@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 // Package people is who works on which scrum and epic, and who signs off on
-// which scrum and document: the system repository's control/people.md (config
-// format people). Being on something assigns nothing: no issue, status report,
+// which scrum: the system repository's control/people.md (config format
+// people). A document names its own reviewer, in its frontmatter. Being on something assigns nothing: no issue, status report,
 // or label follows from it (srd045 R2.5). Reviewing something holds its merges
 // to that person's approval (srd013 R11.2).
 package people
@@ -53,8 +53,7 @@ type Person struct {
 	Username string `yaml:"username" json:"username"`
 	Scrums   Names  `yaml:"scrums,omitempty" json:"scrums,omitempty"`
 	Epics    Names  `yaml:"epics,omitempty" json:"epics,omitempty"`
-	// Reviews is the scrums and documents this person signs off on, named as
-	// Scrums and Epics are; an SRD by its id, a team's as <name>/<id>.
+	// Reviews is the scrums this person signs off on, named as Scrums are.
 	Reviews Names `yaml:"reviews,omitempty" json:"reviews,omitempty"`
 }
 
@@ -90,7 +89,7 @@ func Parse(b []byte) (Config, error) {
 	return c, nil
 }
 
-// ReviewerOf is who signs off on the scrum or document name, if anyone.
+// ReviewerOf is who signs off on the scrum name, if anyone.
 func (c Config) ReviewerOf(name string) string {
 	for _, p := range c.People {
 		if slices.Contains(p.Reviews, name) {
@@ -124,7 +123,7 @@ func Document(c Config) ([]byte, error) {
 }
 
 // Change is one person's allocation or release, or their naming as reviewer
-// or removal, in the names given. Force moves a name another person reviews.
+// or removal, in the names given. Force moves a scrum another person reviews.
 type Change struct {
 	Username string
 	Scrums   []string
@@ -146,7 +145,7 @@ type Result struct {
 // Apply makes the change in c: people and their names stay sorted, so a
 // document reads the same however it was built, and a person left on nothing
 // leaves the document. A name this person now reviews leaves whoever held it,
-// a scrum or document having one reviewer.
+// a scrum having one reviewer.
 func Apply(c Config, ch Change) (Config, Person) {
 	out := Config{People: slices.Clone(c.People)}
 	if !ch.Release && len(ch.Reviews) > 0 {

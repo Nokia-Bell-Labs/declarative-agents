@@ -12,7 +12,7 @@ tools:
   - review
   - --json
   visibility: internal
-  description: 'Name who signs off on a scrum or document in control/people.md (srd013 R11.4).'
+  description: 'Name who signs off on a scrum in control/people.md (srd013 R11.4).'
   category: boundary
   parameters:
     type: object
@@ -21,12 +21,6 @@ tools:
         type: string
         description: 'The person''s tracker username.'
         flag: --person
-      document:
-        type: array
-        items:
-          type: string
-        description: 'The stories, features, epics, or SRDs to sign off on, each as the site names it.'
-        flag: --document
       scrum:
         type: array
         items:
@@ -58,7 +52,7 @@ tools:
   side_effects:
   - kind: filesystem_write
     target: control/people.md
-    description: "Writes control/people.md and, with commit, commits it. Merges then need this person's approval."
+    description: "Writes control/people.md and, with commit, commits it. Merges in its repositories then need this person's approval unless something nearer names another."
   reversibility:
     classification: irreversible
     requires_confirmation: false

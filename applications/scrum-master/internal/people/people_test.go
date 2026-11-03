@@ -230,19 +230,19 @@ func TestReviewCommands(t *testing.T) {
 		err := cli.Default.Run(append([]string{"people"}, args...), &out, nil)
 		return out.String(), err
 	}
-	for _, args := range [][]string{{"review", "--dir", system}, {"review", "--dir", system, "--person", "alice"}, {"unreview", "--dir", system, "--person", "../a", "--document", "e"}} {
+	for _, args := range [][]string{{"review", "--dir", system}, {"review", "--dir", system, "--person", "alice"}, {"unreview", "--dir", system, "--person", "../a", "--scrum", "e"}} {
 		if _, err := run(args...); !errors.Is(err, cli.ErrUsage) {
 			t.Errorf("%v: err = %v, want usage", args, err)
 		}
 	}
-	if out, err := run("review", "--dir", system, "--person", "alice", "--document", "srd045-x", "--scrum", "platform"); err != nil || !strings.Contains(out, "named reviewer") {
+	if out, err := run("review", "--dir", system, "--person", "alice", "--scrum", "serving", "--scrum", "platform"); err != nil || !strings.Contains(out, "named reviewer") {
 		t.Fatalf("review = %q, %v", out, err)
 	}
 	out, err := run("list", "--dir", system)
-	if err != nil || !strings.Contains(out, "alice: scrums none; epics none; reviews platform, srd045-x") {
+	if err != nil || !strings.Contains(out, "alice: scrums none; epics none; reviews platform, serving") {
 		t.Fatalf("list = %q, %v", out, err)
 	}
-	if out, err := run("unreview", "--dir", system, "--person", "alice", "--document", "srd045-x"); err != nil || !strings.Contains(out, "removed as reviewer") {
+	if out, err := run("unreview", "--dir", system, "--person", "alice", "--scrum", "serving"); err != nil || !strings.Contains(out, "removed as reviewer") {
 		t.Fatalf("unreview = %q, %v", out, err)
 	}
 }

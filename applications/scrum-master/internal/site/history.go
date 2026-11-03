@@ -260,8 +260,8 @@ var approvedBy = regexp.MustCompile(`(?m)^Approved-by: (\S+)$`)
 
 // signoffOf is who signed off on the document at file, from local git alone:
 // the Approved-by trailers of the latest merge that changed it, and that merge.
-// A merge that changed only its issues record is scrum-master's bookkeeping and
-// is passed over, read through textconv as the document is everywhere. A document
+// A merge that changed only its issues record or people block is passed over,
+// read through textconv as the document is everywhere. A document
 // no merge changed, or whose latest change no one approved, has no one.
 func signoffOf(file string) ([]string, string) {
 	dir, base := filepath.Dir(file), "./"+filepath.Base(file)
@@ -271,7 +271,7 @@ func signoffOf(file string) ([]string, string) {
 	}
 	show := func(rev string) []byte {
 		b, _ := exec.Command("git", "-C", dir, "cat-file", "--textconv", rev+":"+base).Output()
-		return hierarchy.WithoutIssues(b)
+		return hierarchy.AgreedText(b)
 	}
 	for _, rec := range strings.Split(string(out), "\x1e") {
 		commit, body, ok := strings.Cut(strings.TrimSpace(rec), "\x1f")

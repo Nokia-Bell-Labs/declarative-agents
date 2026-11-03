@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 name: people-unreview
 purpose: |-
-  Take a person off signing off on a scrum or document in control/people.md
+  Take a person off signing off on a scrum in control/people.md
   (srd013). Use only when a person asks; an agent never changes a reviewer on
   its own.
 
@@ -36,7 +36,7 @@ states:
 - name: Refused
   run_status: failed
   meaning: |
-    Terminal. The word refused — no scrum or document was named, or no system
+    Terminal. The word refused — no scrum was named, or no system
     repository's checkout is at or beside the directory — and its reason is the
     run's last output.
 - name: Failed

@@ -85,10 +85,11 @@ An issue usually names a story in its `Implements` line; work with no story
 yet can name its epic instead, with `scrum-master issue link --epic`, which
 the `issue` skill lists as `issue-link`.
 Someone can be named to sign off. An issue names them with
-`scrum-master issue reviewer`; `control/people.md` names them for a scrum,
-story, feature, epic, or SRD with `scrum-master people review`; and the
-policy's `admission.default_reviewer` names who signs off on the rest. The
-most specific name wins, and a change to a document also needs that document's
+`scrum-master issue reviewer`; a document, whether vision, architecture, SRD,
+use case, epic, or story, carries them in its frontmatter, written with
+`scrum-master backlog reviewer`; `control/people.md` names them for a scrum with
+`scrum-master people review`; and the policy's `admission.default_reviewer`
+names who signs off on the rest. The most specific name wins, and a change to a document also needs that document's
 reviewer. A named reviewer blocks the merge: only their approval of the exact
 commit counts, even with `require_approval` off, and signing off on a document
 means it is agreed. Changing the reviewer is the way out when someone is away.
