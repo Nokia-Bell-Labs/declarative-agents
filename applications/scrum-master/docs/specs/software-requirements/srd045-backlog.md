@@ -232,7 +232,7 @@ Until then, reports render no forecast and no burn-up.
 <!-- req: R8.1 -->
 ### R8.1
 
-scrum-master backlog list reads the hierarchy documents of the repository at --dir and prints each one's id, kind, title, status, parent, and path, and a story's points and rank; --kind keeps one kind. With --json it prints one object per document.
+scrum-master backlog list reads the hierarchy documents of the repository at --dir and prints each one's id, kind, title, status, parent, and path, and a story's points and rank; --kind keeps one kind. With --json it prints one object per document. At the top of a clean checkout on its default branch it first fast-forwards from origin, and each story and epic carries its open and closed issues, read from the tracker as scrum-master backlog record reads them (R4.4); it writes no document. What it cannot do is a note beside a listing that still prints: a checkout it could not pull is listed as it stands, and a tracker or project it could not read leaves what the document records (GH-2893).
 
 <!-- req: R8.2 -->
 ### R8.2
@@ -366,7 +366,7 @@ Release 06.0's planning writes the forecast items from R7.1; until then the inte
 <!-- ac: AC8 -->
 ### AC8
 
-scrum-master backlog list prints every hierarchy document with its id, kind, title, status, parent, path, and a story's points and rank, filtered by --kind; scrum-master backlog check reports exactly the gate's findings on the same documents, names a document git does not track, reports a document the spec tool cannot parse as a finding, refuses an unknown road-map release status, and exits non-zero when there is any, reporting R6.3's warnings apart from its findings; scrum-master backlog guide prints a shipped guide and, with --with-request, the guide before the request it reads, refusing an empty request and an unknown guide; none opens a tracker, uses the network, or writes.
+scrum-master backlog list pulls a clean checkout first, then prints every hierarchy document with its id, kind, title, status, parent, path, a story's points and rank, and each story's and epic's issues from the tracker, filtered by --kind, and says so when it could not pull or read the tracker; scrum-master backlog check reports exactly the gate's findings on the same documents, names a document git does not track, reports a document the spec tool cannot parse as a finding, refuses an unknown road-map release status, and exits non-zero when there is any, reporting R6.3's warnings apart from its findings; scrum-master backlog guide prints a shipped guide and, with --with-request, the guide before the request it reads, refusing an empty request and an unknown guide; none opens a tracker, uses the network, or writes.
 
 <!-- field: traces -->
 #### Traces

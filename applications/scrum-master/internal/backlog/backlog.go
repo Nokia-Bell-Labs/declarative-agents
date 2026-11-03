@@ -39,6 +39,12 @@ type Entry struct {
 	// Architecture is the ARCHITECTURE components the document cites
 	// (GH-55).
 	Architecture []string `json:"architecture,omitempty"`
+	// Issues is a story's or epic's issues, from the tracker where it can be
+	// read and the document's own record where not (srd045 R8.1).
+	Issues []LedgerEntry `json:"issues,omitempty"`
+	// IssueNotes says what the listing could not do, on each story and epic:
+	// its checkout not pulled, a project or the tracker not read.
+	IssueNotes []string `json:"issue_notes,omitempty"`
 }
 
 // Report is what scrum-master backlog check prints: how many documents it read and
@@ -233,13 +239,25 @@ func init() {
 			if la.kind != "" && !strings.Contains(" "+strings.Join(kinds(), " ")+" ", " "+la.kind+" ") {
 				return fmt.Errorf("%w: --kind is one of %s", cli.ErrUsage, strings.Join(kinds(), ", "))
 			}
+			var notes []string
+			if note := pullFirst(la.dir, ctx.DryRun); note != "" {
+				notes = append(notes, note)
+			}
 			entries, err := List(la.dir, la.kind)
 			if err != nil {
 				return err
 			}
+			notes = append(notes, addIssues(ctx.Tracker, la.dir, entries)...)
 			var h strings.Builder
-			for _, e := range entries {
+			for _, n := range notes {
+				fmt.Fprintf(&h, "note: %s\n", n)
+			}
+			for i, e := range entries {
+				if e.Kind == string(hierarchy.Story) || e.Kind == string(hierarchy.Epic) {
+					entries[i].IssueNotes = notes
+				}
 				fmt.Fprintf(&h, "%-12s %-40s %-12s parent=%s  %s\n", e.Kind, e.ID, e.Status, orNone(e.Parent), e.Title)
+				h.WriteString(issueLines(e.Issues))
 			}
 			if len(entries) == 0 {
 				h.WriteString("no hierarchy documents\n")
