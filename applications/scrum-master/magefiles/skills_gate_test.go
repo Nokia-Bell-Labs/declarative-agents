@@ -29,6 +29,7 @@ var peopleOnlyWords = map[string]string{
 	"issue unassign":   "unassign",
 	"issue reviewer":   "reviewer",
 	"backlog reviewer": "backlog-reviewer",
+	"backlog author":   "backlog-author",
 	"people review":    "people-review",
 	"people unreview":  "people-unreview",
 }

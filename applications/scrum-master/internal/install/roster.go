@@ -42,7 +42,7 @@ var groups = []group{
 		[]string{"issue-file", "issue-list", "issue-lint", "issue-link", "comment", "close", "clean-up", "recur", "admit", "approve", "assign", "unassign", "reviewer", "labels"}},
 	{"backlog", "List and check the planning hierarchy, print a document's template or the components ARCHITECTURE declares, route a guide, render the architecture status, and record each story's issues, each with the model-free profile that runs one scrum-master word.",
 		"Use these to read or check the backlog; to write a document, use the draft skill, and design for the architecture.",
-		[]string{"backlog-list", "backlog-check", "backlog-template", "backlog-components", "backlog-guide", "backlog-record", "backlog-reviewer", "architecture-status"}},
+		[]string{"backlog-list", "backlog-check", "backlog-template", "backlog-components", "backlog-guide", "backlog-record", "backlog-author", "backlog-reviewer", "architecture-status"}},
 	{"reports", "File the week's status and rollup issues, lay down a reports repository, and collect, aggregate, validate, or read back weekly reports, each with the model-free profile that runs one scrum-master word.",
 		"Use these for one reporting operation; to write your weekly report, use status-report, and status-rollup for a team's or the program's rollup.",
 		[]string{"status-issues", "reports-init", "reports-collect", "aggregate", "reports-validate", "reports-previous", "reports-path", "status"}},

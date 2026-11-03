@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/backlog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/people"
@@ -78,8 +79,10 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 		}
 	}
 	own, paths := map[string]string{}, map[string]string{}
+	authors := map[string][]string{}
 	for _, d := range docs {
 		own[d.ID], paths[d.ID] = d.Reviewer, d.Path
+		authors[d.ID] = slices.DeleteFunc(d.Authors, func(n string) bool { return n == backlog.AuthorPlaceholder })
 	}
 	items := map[string]*timeline.Item{}
 	for i := range f.Items {
@@ -112,9 +115,14 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 	if def != "" {
 		named[def] = true
 	}
-	reviews := map[string][]string{}
+	reviews, wrote := map[string][]string{}, map[string][]string{}
 	for i := range f.Items {
 		it := &f.Items[i]
+		it.Authors = authors[it.ID]
+		for _, who := range it.Authors {
+			named[who] = true
+			wrote[who] = append(wrote[who], it.ID)
+		}
 		if it.Reviewer = reviewer(it); it.Reviewer == "" {
 			continue
 		}
@@ -139,9 +147,16 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 		if err != nil {
 			continue
 		}
+		id := strings.TrimSuffix(filepath.Base(p), ".md")
 		if who, _ := front[corpus.FrontReviewer].(string); who != "" {
 			named[who] = true
-			reviews[who] = append(reviews[who], strings.TrimSuffix(filepath.Base(p), ".md"))
+			reviews[who] = append(reviews[who], id)
+		}
+		for _, who := range corpus.FrontNames(front, corpus.FrontAuthors) {
+			if who != backlog.AuthorPlaceholder {
+				named[who] = true
+				wrote[who] = append(wrote[who], id)
+			}
 		}
 	}
 	for i := range f.Items {
@@ -158,6 +173,7 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 	}
 	for i := range f.People {
 		f.People[i].Reviews = append(f.People[i].Reviews, reviews[f.People[i].Username]...)
+		f.People[i].Wrote = wrote[f.People[i].Username]
 	}
 	slices.SortFunc(f.People, func(a, b timeline.Person) int { return strings.Compare(a.Username, b.Username) })
 	return notes
@@ -169,6 +185,15 @@ func cutLast(s, sep string) (string, string, bool) {
 		return s[:i], s[i+len(sep):], true
 	}
 	return s, "", false
+}
+
+// authorsLine is who wrote the document, on the page at from; nothing where it
+// names no one.
+func authorsLine(from string, it timeline.Item) string {
+	if len(it.Authors) == 0 {
+		return ""
+	}
+	return "**Authors:** " + personLinks(from, it.Authors) + ".\n\n"
 }
 
 // reviewerLine is who signs off on the document, and whether they have, on the
@@ -306,6 +331,7 @@ func PeoplePages(dir string) (map[string][]byte, error) {
 		b.WriteString(`<div class="crumbs">` + "\n\n[People](" + relLink(page, index) + ")\n\n</div>\n\n")
 		fmt.Fprintf(&b, "# %s\n\n", p.Username)
 		fmt.Fprintf(&b, "**Scrums:** %s.\n\n**Epics:** %s.\n\n**Reviews:** %s.\n", orNone(scrumLinks(page, p.Scrums)), orNone(epicLinks(page, p.Epics)), orNone(reviewLinks(page, p.Reviews)))
+		fmt.Fprintf(&b, "\n**Wrote:** %s.\n", orNone(reviewLinks(page, p.Wrote)))
 		if waiting := waitingOn(p.Username, f); len(waiting) > 0 {
 			b.WriteString("\n## Waiting on your sign-off\n\nOpen issues you sign off on, as the issues records in the planning documents hold them.\n\n")
 			for _, w := range waiting {

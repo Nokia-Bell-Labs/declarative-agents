@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/backlog"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
@@ -663,5 +664,82 @@ func TestSignoffOf(t *testing.T) {
 	merge("# three\n", "unapproved", "Merge unapproved\n\nMerged-by: ann")
 	if s := signoffSection(dir, rel, file, named); !strings.Contains(s, "Not signed off") {
 		t.Fatalf("section after an unapproved change = %q", s)
+	}
+}
+
+// TestAuthorsOnTheSite: a document's authors reach its page and its authors' pages
+// from committed data, and a template's placeholder names no one.
+func TestAuthorsOnTheSite(t *testing.T) {
+	in, system, f := scrumProgram(t)
+	s, err := LoadSources(system, f, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	generate := func() timeline.Facts {
+		t.Helper()
+		facts, err := Facts(system, "", s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		j, _ := json.Marshal(facts)
+		os.MkdirAll(filepath.Join(in.Reports, Dir, "timeline"), 0o755)
+		if err := os.WriteFile(filepath.Join(in.Reports, Dir, "timeline", "facts.json"), j, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return facts
+	}
+	facts := generate()
+	var epic string
+	for _, it := range facts.Items {
+		if it.Kind == "epic" {
+			epic = it.ID
+			break
+		}
+	}
+	file := filepath.Join(system, "docs", "specs", "epics", epic+".md")
+	plain, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := func(value string) {
+		t.Helper()
+		named, err := corpus.SetFront(plain, corpus.FrontAuthors, value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(file, named, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set(backlog.AuthorPlaceholder)
+	facts = generate()
+	if i := slices.IndexFunc(facts.Items, func(it timeline.Item) bool { return it.ID == epic }); len(facts.Items[i].Authors) != 0 {
+		t.Fatalf("the placeholder reads as %v", facts.Items[i].Authors)
+	}
+	set("alice, bob")
+	facts = generate()
+	if i := slices.IndexFunc(facts.Items, func(it timeline.Item) bool { return it.ID == epic }); !slices.Equal(facts.Items[i].Authors, []string{"alice", "bob"}) {
+		t.Fatalf("authors = %v", facts.Items[i].Authors)
+	}
+	nodes, _, _, _, err := HierarchyPages(in.Reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := string(nodes[Dir+"/"+HierarchyDir+"/"+epic+".md"]); !strings.Contains(page, "**Authors:** [alice](") || !strings.Contains(page, "[bob](") {
+		t.Errorf("the epic's page:\n%s", page)
+	}
+	pages, err := PeoplePages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := string(pages[Dir+"/"+PeopleDir+"/alice.md"]); !strings.Contains(page, "**Wrote:** [") {
+		t.Errorf("alice's page:\n%s", page)
+	}
+	if s := authorsSection("docs/VISION.md", []byte("---\nid: v\ntitle: V\nauthors: alice, bob\n---\n")); !strings.Contains(s, "alice, bob") {
+		t.Errorf("a corpus copy = %q", s)
+	}
+	if s := authorsSection("docs/guides/process.md", []byte("---\nid: v\ntitle: V\nauthors: alice\n---\n")); s != "" {
+		t.Errorf("a document that carries none = %q", s)
 	}
 }

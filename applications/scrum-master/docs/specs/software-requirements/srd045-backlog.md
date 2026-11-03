@@ -101,6 +101,11 @@ Every hierarchy document may carry an architecture context item listing the ARCH
 
 A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. The people skill runs them, and list, through the model-free people-allocate, people-release, and people-list profiles. Naming a person assigns no issue, files no status issue, and changes no label; an epic's owner stays its one owner in its document. The same document names who signs off on a scrum, in its reviews column (srd013 R11.4), which does hold merges to their approval (srd013 R11.2); a document names its own reviewer in its frontmatter.
 
+<!-- req: R2.6 -->
+### R2.6
+
+The vision, the architecture, the road map, an SRD, a use case, and a planning document name who wrote them in the authors key of their frontmatter, as tracker usernames, beside the reviewer who signs off (srd013 R11.1); together they are the document's people block. scrum-master backlog template fills it with the person running it, whose account an agent drafting the document runs as, so an agent is never listed; with no tracker to ask, it leaves a placeholder that names no one. scrum-master backlog author adds or removes one, in its own model-free profile no other declares. backlog check refuses a document with no authors when the latest release's tag does not hold it, and reports those it does hold with one warning, as it does every document in a program with no release. A change to authors alone needs no sign-off (srd013 R11.2). They are separate from owner, who is accountable, and decide nothing about who may approve.
+
 <!-- req: R3 -->
 ## R3 - Parent and roll-up
 
@@ -407,3 +412,13 @@ With an open issue naming an epic in an Implements line, bare in the epic's repo
 
 - [R4.4](#r44)
 - [R2.3](#r23)
+
+<!-- ac: AC13 -->
+### AC13
+
+backlog template fills authors with the caller for every kind; backlog author adds and removes one, finds a document by id or path, and a second run or a dry run changes nothing; backlog check fails a document newer than the latest release that names no one, a placeholder counting as no one, and draws one warning for the rest; a gate fails when another profile declares the word or it has a model.
+
+<!-- field: traces -->
+#### Traces
+
+- [R2.6](#r26)

@@ -127,6 +127,8 @@ type Item struct {
 	// (srd045 R4.4), read from the checkouts, never the tracker, so the
 	// backlog pages draw it offline (srd048 R10).
 	Ledger []IssueRecord `json:"ledger,omitempty"`
+	// Authors is who wrote the document, from its frontmatter (srd045 R2.6).
+	Authors []string `json:"authors,omitempty"`
 	// Reviewer is who signs off on the document (srd013 R11.1); ApprovedBy is
 	// whose approval the latest merge that changed it carries, the trailers of
 	// that merge, and ApprovedAt that merge, read from the checkouts. A reviewer
@@ -247,6 +249,8 @@ type Person struct {
 	// issue's line, or a merge's trailer names has a row with none, so their page
 	// exists to link to.
 	Reviews []string `json:"reviews,omitempty"`
+	// Wrote is the documents naming them as an author.
+	Wrote []string `json:"wrote,omitempty"`
 }
 
 // Team is one scrum: the subsystem it owns, its Product Owner, the

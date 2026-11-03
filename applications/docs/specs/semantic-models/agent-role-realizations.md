@@ -2479,6 +2479,19 @@ applications/scrum-master/plugin/agents/backlog-reviewer/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-backlog-author -->
+#### scrum-master-backlog-author
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/backlog-author/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- scrum_master_entry: scrum-master-comment -->
 #### scrum-master-comment
 
