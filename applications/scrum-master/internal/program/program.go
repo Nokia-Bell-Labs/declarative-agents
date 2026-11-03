@@ -186,10 +186,10 @@ func init() {
 		iid                                                        int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "pop", Summary: "claim an issue and open its own branch and worktree",
+		Group: "issue", Name: "pop", FromCheckout: true, Summary: "claim an issue and open its own branch and worktree",
 		Flags: func(fs *flag.FlagSet) {
-			fs.StringVar(&popArgs.project, "project", "", "project path (required)")
-			fs.IntVar(&popArgs.iid, "issue", 0, "issue IID (required)")
+			fs.StringVar(&popArgs.project, "project", "", "project path; empty is the one the checkout's origin names")
+			fs.IntVar(&popArgs.iid, "issue", 0, "issue IID; empty lists what you can take")
 			fs.StringVar(&popArgs.issueProject, "issue-project", "", "project holding the issue, when not --project")
 			fs.StringVar(&popArgs.branch, "branch", "", "the branch to open; empty names it from the issue")
 			fs.StringVar(&popArgs.dir, "dir", ".", "a directory in the local checkout of the project")
@@ -198,8 +198,8 @@ func init() {
 			fs.StringVar(&popArgs.ref, "ref", "main", "ref of the control files")
 		},
 		Run: func(ctx *cli.Context) error {
-			if popArgs.project == "" || popArgs.iid == 0 {
-				return fmt.Errorf("%w: pop needs --project and --issue", cli.ErrUsage)
+			if popArgs.project == "" {
+				return fmt.Errorf("%w: pop needs --project, or a checkout whose origin names one", cli.ErrUsage)
 			}
 			t, err := ctx.Tracker()
 			if err != nil {
@@ -208,6 +208,9 @@ func init() {
 			p, err := LoadPolicy(t, ControlFor(popArgs.control, popArgs.dir, ""), popArgs.ref)
 			if err != nil {
 				return err
+			}
+			if popArgs.iid == 0 {
+				return noIssueNamed(t, popArgs.project, p)
 			}
 			issueProject := popArgs.issueProject
 			if issueProject == "" {
@@ -254,18 +257,18 @@ func init() {
 		iid                                         int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "claim", Summary: "the claim word: assign the issue to the caller with pop's refusals, naming the branch to open (GH-204)",
+		Group: "issue", Name: "claim", FromCheckout: true, Summary: "the claim word: assign the issue to the caller with pop's refusals, naming the branch to open (GH-204)",
 		Flags: func(fs *flag.FlagSet) {
-			fs.StringVar(&claimArgs.project, "project", "", "project path (required)")
-			fs.IntVar(&claimArgs.iid, "issue", 0, "issue IID (required)")
+			fs.StringVar(&claimArgs.project, "project", "", "project path; empty is the one the checkout's origin names")
+			fs.IntVar(&claimArgs.iid, "issue", 0, "issue IID; empty lists what you can take")
 			fs.StringVar(&claimArgs.issueProject, "issue-project", "", "project holding the issue, when not --project")
 			fs.StringVar(&claimArgs.branch, "branch", "", "the branch to open in place of the one named for the issue (GH-47)")
 			fs.StringVar(&claimArgs.control, "control", "", "program repository holding control/ files; empty is the system repository beside the checkout, else the defaults")
 			fs.StringVar(&claimArgs.ref, "ref", "main", "ref of the control files")
 		},
 		Run: func(ctx *cli.Context) error {
-			if claimArgs.project == "" || claimArgs.iid == 0 {
-				return fmt.Errorf("%w: claim needs --project and --issue", cli.ErrUsage)
+			if claimArgs.project == "" {
+				return fmt.Errorf("%w: claim needs --project, or a checkout whose origin names one", cli.ErrUsage)
 			}
 			t, err := ctx.Tracker()
 			if err != nil {
@@ -274,6 +277,9 @@ func init() {
 			p, err := LoadPolicy(t, ControlFor(claimArgs.control, ".", ""), claimArgs.ref)
 			if err != nil {
 				return err
+			}
+			if claimArgs.iid == 0 {
+				return noIssueNamed(t, claimArgs.project, p)
 			}
 			issueProject := claimArgs.issueProject
 			if issueProject == "" {
@@ -301,7 +307,7 @@ func init() {
 		iid                           int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "open-branch", Summary: "the branch word: create or reuse the issue's branch and, on a hosted tracker, its review (GH-204)",
+		Group: "issue", Name: "open-branch", FromCheckout: true, Summary: "the branch word: create or reuse the issue's branch and, on a hosted tracker, its review (GH-204)",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&obArgs.project, "project", "", "project path (required)")
 			fs.IntVar(&obArgs.iid, "issue", 0, "issue IID (required)")
@@ -426,7 +432,7 @@ func init() {
 		iid          int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "close", Summary: "close an issue on the local merge that delivered it (beads tracker)",
+		Group: "issue", Name: "close", FromCheckout: true, Summary: "close an issue on the local merge that delivered it (beads tracker)",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&closeArgs.project, "project", "", "project path (required)")
 			fs.IntVar(&closeArgs.iid, "issue", 0, "issue IID (required)")
@@ -457,7 +463,7 @@ func init() {
 		iid                     int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "comment", Summary: "post a comment on an issue, such as a completed issue's Actual LOC line",
+		Group: "issue", Name: "comment", FromCheckout: true, Summary: "post a comment on an issue, such as a completed issue's Actual LOC line",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&commentArgs.project, "project", "", "project holding the issue (required)")
 			fs.IntVar(&commentArgs.iid, "issue", 0, "issue IID (required)")
@@ -503,7 +509,7 @@ func init() {
 		iid                                int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "approve", Summary: "approve an issue's branch for merge, as a reviewer other than its assignee",
+		Group: "issue", Name: "approve", FromCheckout: true, Summary: "approve an issue's branch for merge, as a reviewer other than its assignee",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&approveArgs.project, "project", "", "project holding the branch (required)")
 			fs.IntVar(&approveArgs.iid, "issue", 0, "issue IID (required)")
@@ -545,7 +551,7 @@ func init() {
 		cleanUp                                                 bool
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "merge", Summary: "deliver an issue by a local merge that closes it (beads tracker)",
+		Group: "issue", Name: "merge", FromCheckout: true, Summary: "deliver an issue by a local merge that closes it (beads tracker)",
 		Flags: func(fs *flag.FlagSet) {
 			// A repeatable flag appends, so each run starts it empty: the
 			// words run many times in one agent process (GH-28).
@@ -651,7 +657,7 @@ func init() {
 		closes                                                  cli.Strings
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "merge-branch", Summary: "the merge word: gates, the --no-ff merge, and the push, closing nothing (GH-201)",
+		Group: "issue", Name: "merge-branch", FromCheckout: true, Summary: "the merge word: gates, the --no-ff merge, and the push, closing nothing (GH-201)",
 		Flags: func(fs *flag.FlagSet) {
 			// A repeatable flag appends, so each run starts it empty: the
 			// words run many times in one agent process (GH-28).
@@ -726,7 +732,7 @@ func init() {
 		iid                                int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "close-delivered", Summary: "the close word: close the issue and each --closes on the merge commit, and report complete each closed Sprint Goal (GH-201)",
+		Group: "issue", Name: "close-delivered", FromCheckout: true, Summary: "the close word: close the issue and each --closes on the merge commit, and report complete each closed Sprint Goal (GH-201)",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&cdArgs.project, "project", "", "project path (required)")
 			fs.IntVar(&cdArgs.iid, "issue", 0, "issue IID (required)")
@@ -783,7 +789,7 @@ func init() {
 
 	var cuArgs struct{ branch, dir string }
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "clean-up", Summary: "the clean-up word: remove a delivered issue's worktree and its branch, here and on origin (GH-2796)",
+		Group: "issue", Name: "clean-up", FromCheckout: true, Summary: "the clean-up word: remove a delivered issue's worktree and its branch, here and on origin (GH-2796)",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&cuArgs.branch, "branch", "", "the merged branch; empty uses the current branch of --dir")
 			fs.StringVar(&cuArgs.dir, "dir", ".", "the issue's worktree, or any checkout of the repository")

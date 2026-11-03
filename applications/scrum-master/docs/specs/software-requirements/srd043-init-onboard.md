@@ -220,6 +220,11 @@ The output is one line per repository — cloned, updated, kept with the reason,
 
 checkouts runs from a clone of any of a program's repositories. With no system repository's checkout at or beside it, it finds the system repository, named by --system or, through the forge the clone's origin is on, as the project holding control/trackers.md in the nearest of the clone's groups that holds one; it clones that beside the clone and goes on from there. Finding none, or more than one, is refused, naming them and --system, and so is a group too large to search. It also lays down the site repository control/program.md names.
 
+<!-- req: R6.5 -->
+### R6.5
+
+The setup profile is the first thing a person runs in a fresh clone: checkouts (R6.4), then the skills, a repository it cannot reach not stopping them. The README init and onboard write opens with how to get started: installing the agent, including from an internal GitLab, and this profile.
+
 <!-- req: R7 -->
 ## R7 - scrum-master roll
 
@@ -436,3 +441,13 @@ From a clone of a team repository with nothing beside it, checkouts finds the sy
 #### Traces
 
 - [R6.4](#r64)
+
+<!-- ac: AC15 -->
+### AC15
+
+The setup profile, run in a fresh clone, leaves the program's checkouts and the skills in place, and the README init and onboard write gives its command and the install.
+
+<!-- field: traces -->
+#### Traces
+
+- [R6.5](#r65)

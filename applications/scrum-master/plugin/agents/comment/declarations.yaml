@@ -11,10 +11,8 @@ tools:
   - issue
   - comment
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: 'Post a comment on the issue as the caller.'
   category: boundary

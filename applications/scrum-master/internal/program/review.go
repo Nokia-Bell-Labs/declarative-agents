@@ -457,7 +457,7 @@ func init() {
 		force, clear                                bool
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "reviewer", Summary: "name who signs off on an issue, whose approval its merge then needs; agents never run it",
+		Group: "issue", Name: "reviewer", FromCheckout: true, Summary: "name who signs off on an issue, whose approval its merge then needs; agents never run it",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&a.project, "project", "", "project holding the issue's branch (required)")
 			fs.IntVar(&a.iid, "issue", 0, "issue IID (required)")

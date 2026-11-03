@@ -328,3 +328,47 @@ func InstallSkills(checkout, worktree string) ([]string, error) {
 	}
 	return changed, nil
 }
+
+// Takeable are the open issues in project the caller could pop now, by IID: not a
+// tracking issue, unassigned or already theirs, and admitted if a data issue, as Claim
+// would have it.
+func Takeable(t tracker.Tracker, project string, p Policy) ([]tracker.Issue, error) {
+	me, err := tracker.UserIn(t, project)
+	if err != nil {
+		return nil, err
+	}
+	open, err := t.ListIssues(project, tracker.IssueQuery{State: "opened"})
+	if err != nil {
+		return nil, err
+	}
+	var out []tracker.Issue
+	for _, i := range open {
+		switch {
+		case i.HasLabel("type::tracking"):
+		case len(i.Assignees) > 0 && !slices.Contains(i.Assignees, me.Username):
+		case i.HasLabel("plane::data") && len(Lint(i, p)) > 0:
+		default:
+			out = append(out, i)
+		}
+	}
+	slices.SortStableFunc(out, func(a, b tracker.Issue) int { return a.IID - b.IID })
+	return out, nil
+}
+
+// noIssueNamed answers a pop that names no issue: what could be taken, for the person
+// to choose from. It takes nothing, so it is a refusal with the choice as its reason.
+func noIssueNamed(t tracker.Tracker, project string, p Policy) error {
+	issues, err := Takeable(t, project, p)
+	if err != nil {
+		return err
+	}
+	if len(issues) == 0 {
+		return fmt.Errorf("no issue named, and none can be taken in %s: nothing is open and free", project)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "no issue named; choose one in %s and pop it with SCRUM_MASTER_ISSUE or --issue:", project)
+	for _, i := range issues {
+		fmt.Fprintf(&b, "\n  #%d  %s", i.IID, i.Title)
+	}
+	return errors.New(b.String())
+}

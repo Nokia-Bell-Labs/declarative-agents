@@ -1,0 +1,94 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: setup
+purpose: |-
+  Get a fresh clone of any of a program's repositories ready to work in
+  (srd043): the program's other repositories laid down beside it, the system
+  repository among them, and the skills installed. Use when a person has just
+  cloned a repository, or asks how to get started.
+
+  This machine has no model state: two words (design.md D10, D14; GH-2885). It
+  needs the agent installed and the forge's command line logged in. A
+  repository that cannot be reached is reported and does not stop the skills.
+configuration:
+  machine: plugin/agents/setup/machine.yaml
+  tools: plugin/agents/setup/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- Nothing a person changed is touched, and a second run changes nothing it need not
+lifecycle: |-
+  1. Idle → Checkouts (Seed): scrum-master checkouts finds the program and lays its
+     repositories down
+  2. Checkouts → Skills (ToolDone, ToolFailed): scrum-master install writes the skills
+  3. Skills → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Checkouts
+  meaning: |
+    The checkouts word: scrum-master checkouts finds the system repository through
+    the forge, clones it beside this clone, and lays down the rest; one already
+    there is brought level unless it holds changes.
+- name: Skills
+  meaning: |
+    The skills word: scrum-master install writes this release's skills into the
+    clone, excluded from git.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The program's checkouts are in place and the skills installed.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The skills did not install, and the word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Checkouts
+  action: checkouts
+  summary: true
+- state: Checkouts
+  signal: ToolDone
+  next: Skills
+  action: install_skills
+  summary: true
+- state: Checkouts
+  signal: ToolFailed
+  next: Skills
+  action: install_skills
+  summary: true
+- state: Skills
+  signal: ToolDone
+  next: Done
+- state: Skills
+  signal: ToolFailed
+  next: Refused
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Checkouts
+  signal: CommandError
+  next: Failed
+- state: Skills
+  signal: CommandError
+  next: Failed

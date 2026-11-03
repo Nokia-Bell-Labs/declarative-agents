@@ -109,7 +109,7 @@ func init() {
 		iid                           int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "assign", Summary: "assign an issue to someone, for them to pop; agents never run it",
+		Group: "issue", Name: "assign", FromCheckout: true, Summary: "assign an issue to someone, for them to pop; agents never run it",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&a.project, "project", "", "project holding the issue's branch (required)")
 			fs.IntVar(&a.iid, "issue", 0, "issue IID (required)")
@@ -144,7 +144,7 @@ func init() {
 		iid     int
 	}
 	cli.Default.Register(&cli.Command{
-		Group: "issue", Name: "unassign", Summary: "give back an issue assigned to you, so it can be popped or assigned again",
+		Group: "issue", Name: "unassign", FromCheckout: true, Summary: "give back an issue assigned to you, so it can be popped or assigned again",
 		Flags: func(fs *flag.FlagSet) {
 			fs.StringVar(&u.project, "project", "", "project holding the issue (required)")
 			fs.IntVar(&u.iid, "issue", 0, "issue IID (required)")

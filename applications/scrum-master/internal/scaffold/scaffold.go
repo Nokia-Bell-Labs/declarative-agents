@@ -69,6 +69,20 @@ var levels = map[string]string{
 	"subsystem": "the Product Owner",
 }
 
+// gettingStarted opens a program repository's README (srd043 R6.5): what a person
+// who has just cloned it runs. It is written here and not in the templates, which name
+// no project (design.md D6).
+func gettingStarted() string {
+	return "## Getting started\n\n" +
+		"Cloning this repository is the first step. To work in it, install the agent, log in to your forge's command line (gh or glab), and get the program's other repositories and the skills:\n\n" +
+		"```bash\n" +
+		"curl -fsSL " + repos.InstallURL + " | sh\n" +
+		"agent --profile .scrum-master/agents/setup/profile.yaml --core-root .scrum-master/agent-core --directory .\n" +
+		"```\n\n" +
+		"To install from an internal GitLab's copy of the releases, set `SCRUM_MASTER_RELEASE_FORGE=gitlab` and `SCRUM_MASTER_RELEASE_URL` to its project URL first, with `GITLAB_TOKEN` for a private one. The agent installs in `~/.local/bin`, which must be on your `PATH`.\n\n" +
+		"Then ask your coding agent to run the pop skill. With no issue named it lists what you can take; once you choose, it opens a worktree for the issue, and work continues there from the same session, on a remote host as on a local one."
+}
+
 // corpusFiles is the corpus skeleton every repository of a program carries
 // (design.md D7), for a repository at level: the common templates and the
 // level's own orientation files (srd043 R1.6, R2.4) with the level and its
@@ -81,7 +95,7 @@ func corpusFiles(level, dir string) (map[string][]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("no corpus for level %q", level)
 	}
-	fill := strings.NewReplacer("{{level}}", level, "{{Level}}", strings.ToUpper(level[:1])+level[1:],
+	fill := strings.NewReplacer("{{getting_started}}", gettingStarted(), "{{level}}", level, "{{Level}}", strings.ToUpper(level[:1])+level[1:],
 		"{{owner}}", owner, "{{Owner}}", strings.ToUpper(owner[:1])+owner[1:], "{{implementation_targets}}", implementationTargets(dir))
 	files := map[string][]byte{}
 	for _, root := range []string{path.Join("templates", "corpus"), path.Join("templates", level)} {

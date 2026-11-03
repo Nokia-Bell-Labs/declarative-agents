@@ -79,6 +79,15 @@ func Of(dir, project string) bool {
 // named by the repository it is of (GH-2752).
 func MainCheckout(dir string) string { return mainOf(dir) }
 
+// CurrentBranch is the branch checked out at dir, empty when it has none.
+func CurrentBranch(dir string) string {
+	out, err := exec.Command("git", "-C", dir, "branch", "--show-current").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // IsForge reports whether an origin names a forge project, not a local
 // path.
 func IsForge(origin string) bool {

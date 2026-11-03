@@ -15,10 +15,8 @@ tools:
   - issue
   - pop
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   - --dir
   - ${SCRUM_MASTER_CHECKOUT}
   visibility: internal
@@ -95,10 +93,8 @@ tools:
   - issue
   - merge
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: Finish the work — audit a docs/ change, merge the approved branch, push, and close each issue (srd013 R5.5).
   category: boundary

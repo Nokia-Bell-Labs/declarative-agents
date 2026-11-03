@@ -11,10 +11,8 @@ tools:
   - issue
   - link
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: 'Name the story or epic a filed issue implements, and lint it again (srd007 R6.6).'
   category: boundary

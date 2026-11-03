@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -322,7 +323,11 @@ func runSection(name string, env []string, model bool, steps []string) string {
 		if n := len(env); n > 1 {
 			names = strings.Join(env[:n-1], ", ") + " and " + env[n-1]
 		}
-		fmt.Fprintf(&b, "\nIt reads %s from the environment.\n", names)
+		unset := ""
+		if slices.Contains(env, "SCRUM_MASTER_PROJECT") || slices.Contains(env, "SCRUM_MASTER_ISSUE") {
+			unset = " Left unset, the project is the one the checkout's origin names, and the issue the number the branch is named for."
+		}
+		fmt.Fprintf(&b, "\nIt reads %s from the environment.%s\n", names, unset)
 	}
 	if model {
 		b.WriteString("\nWithout a model configured for the agent, do the model's part yourself:\nwrite what it would write, and run each of its words through the\nmodel-free profile named for it, the word's parameters in the request\n(request.json holding {\"parameters\": {...}}):\n\n")

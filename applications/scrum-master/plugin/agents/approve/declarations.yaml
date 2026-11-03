@@ -11,10 +11,8 @@ tools:
   - issue
   - approve
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: 'Approve the issue''s branch at its tip, as a reviewer other than its assignee (srd041 R9).'
   category: boundary

@@ -11,10 +11,8 @@ tools:
   - issue
   - reviewer
   - --json
-  - --project
-  - ${SCRUM_MASTER_PROJECT}
-  - --issue
-  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --issue=${SCRUM_MASTER_ISSUE}
   visibility: internal
   description: 'Name who signs off on the issue, whose approval its merge then needs (srd013 R11.4).'
   category: boundary

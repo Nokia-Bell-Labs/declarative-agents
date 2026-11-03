@@ -29,6 +29,16 @@ No Go toolchain is needed: the agent runs the words, and the corpus gate's shape
 
 To install from a GitLab fork's releases, such as an internal one, set `SCRUM_MASTER_RELEASE_FORGE=gitlab` and `SCRUM_MASTER_RELEASE_URL` to the project's URL, with `GITLAB_TOKEN` for a private project; `docs/engineering/eng03-releasing-scrum-master.md` says how the fork publishes them.
 
+## Get started in a program
+
+From a fresh clone of any of a program's repositories, with the agent installed and `gh` or `glab` logged in, one command lays the program's other repositories down beside it and installs the skills:
+
+```bash
+agent --profile .scrum-master/agents/setup/profile.yaml --core-root .scrum-master/agent-core --directory .
+```
+
+Then ask your coding agent to run the pop skill. With no issue named it lists what you can take. Issue skills read the project from the clone's origin and the issue from a branch named for one, so `SCRUM_MASTER_PROJECT` and `SCRUM_MASTER_ISSUE` are only needed to override them.
+
 ## Tutorials
 
 Five walkthroughs under `docs/tutorials/` take a new program from nothing to a running process: [start a program](docs/tutorials/tut01-start-a-program.md), [file and deliver an issue](docs/tutorials/tut02-file-and-deliver-an-issue.md), [plan a release and run the sprint](docs/tutorials/tut03-plan-a-release-and-run-the-sprint.md), [write the backlog](docs/tutorials/tut04-write-the-backlog.md), and [weekly status](docs/tutorials/tut05-weekly-status.md). The guides under `docs/guides/` explain the model behind them, starting with [the process](docs/guides/process.md) and [plan-vs-architecture](docs/guides/plan-vs-architecture.md).

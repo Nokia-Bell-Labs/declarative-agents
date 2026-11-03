@@ -11,9 +11,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
@@ -27,6 +30,10 @@ type Command struct {
 	// added for every subcommand.
 	Flags func(fs *flag.FlagSet)
 	Run   func(ctx *Context) error
+	// FromCheckout has an empty --project default to the project the checkout's
+	// origin names, and an empty --issue to the number the branch is named for,
+	// as 7-some-title names issue 7 (srd013 R7.6).
+	FromCheckout bool
 }
 
 // Context is what a subcommand runs with.
@@ -149,6 +156,29 @@ func (r *Registry) Commands(group string) []*Command {
 // ErrUsage marks a usage error; cmd/tpm exits 2 for it.
 var ErrUsage = errors.New("usage")
 
+// issueBranch is a branch pop opened: the issue's number, then its title.
+var issueBranch = regexp.MustCompile(`^([1-9][0-9]*)-`)
+
+// fillFromCheckout sets what the checkout at --dir, else the working directory,
+// says of a --project or --issue left empty. What it cannot tell stays empty, for the
+// command to refuse or to answer.
+func fillFromCheckout(fs *flag.FlagSet) {
+	dir := "."
+	if f := fs.Lookup("dir"); f != nil && f.Value.String() != "" {
+		dir = f.Value.String()
+	}
+	if f := fs.Lookup("project"); f != nil && f.Value.String() == "" {
+		if origin := checkout.Origin(dir); checkout.IsForge(origin) {
+			_ = fs.Set("project", checkout.ProjectPath(origin))
+		}
+	}
+	if f := fs.Lookup("issue"); f != nil && (f.Value.String() == "" || f.Value.String() == "0") {
+		if m := issueBranch.FindStringSubmatch(checkout.CurrentBranch(dir)); m != nil {
+			_ = fs.Set("issue", m[1])
+		}
+	}
+}
+
 // Run parses args (without the program name) and runs one subcommand.
 func (r *Registry) Run(args []string, out io.Writer, open func() (tracker.Tracker, error)) error {
 	return r.RunIn(args, nil, out, open)
@@ -210,7 +240,15 @@ func (r *Registry) RunIn(args []string, in io.Reader, out io.Writer, open func()
 	if cmd.Flags != nil {
 		cmd.Flags(fs)
 	}
-	if err := fs.Parse(rest); err != nil {
+	if cmd.FromCheckout {
+		// A profile passes --issue=${SCRUM_MASTER_ISSUE}, which reads empty when unset.
+		rest = slices.DeleteFunc(slices.Clone(rest), func(a string) bool { return a == "--project=" || a == "--issue=" })
+	}
+	err := fs.Parse(rest)
+	if err == nil && cmd.FromCheckout {
+		fillFromCheckout(fs)
+	}
+	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
