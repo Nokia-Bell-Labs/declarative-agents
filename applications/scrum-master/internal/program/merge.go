@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/events"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/spectool"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
@@ -22,10 +23,11 @@ type MergeResult struct {
 	IID          int    `json:"issue"`
 	Branch       string `json:"branch"`
 	Commit       string `json:"commit"`
-	Audit        bool   `json:"audit_run"` // the branch changes docs/, so the audit ran
+	Audit        bool   `json:"audit_run"` // the branch changes docs/ beyond the format pin, so the audit ran
 	AuditCommand string `json:"audit_command"`
-	// AuditReason says why the audit ran or did not: "docs/ changed" or
-	// "no docs/ change" (srd013 R5.3).
+	// AuditReason says why the audit ran or did not: "docs/ changed",
+	// "only the format pin changed in docs/", or "no docs/ change" (srd013
+	// R5.3).
 	AuditReason string `json:"audit_reason"`
 	// ApprovedBy is whoever's approval the merge carries, comma-joined, and
 	// each is an Approved-by trailer on the merge commit (srd013 R11.3).
@@ -195,8 +197,13 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 		if err != nil {
 			return r, err
 		}
+		pinMoved := false
 		for _, p := range strings.Split(paths, "\n") {
-			if p == "docs" || strings.HasPrefix(p, "docs/") {
+			if p == spectool.PinsFile {
+				// An upgrade moves the pin and no document, so it is not held
+				// to problems it did not cause (GH-2889).
+				pinMoved = true
+			} else if p == "docs" || strings.HasPrefix(p, "docs/") {
 				r.Audit = true
 			}
 			if path.Dir(p) == sprintgoal.SummaryDir && path.Ext(p) == ".md" {
@@ -212,6 +219,9 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 			}
 		}
 		r.AuditCommand, r.AuditReason = gate.Command, "no docs/ change"
+		if pinMoved {
+			r.AuditReason = "only the format pin changed in docs/"
+		}
 		if r.Audit {
 			r.AuditReason = "docs/ changed"
 			if err := gate.checkBefore("nothing merged"); err != nil {

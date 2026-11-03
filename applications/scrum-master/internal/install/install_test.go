@@ -407,6 +407,29 @@ func TestInstallCommandDetectsTheAgentsInUse(t *testing.T) {
 	}
 }
 
+// With --if-any, a repository using no agent is reported and written to not
+// at all, for the upgrade profile; without detect the flag changes nothing
+// (srd037 R2.1, GH-2889).
+func TestInstallIfAnyReportsARepositoryUsingNoAgent(t *testing.T) {
+	noTracker := func() (tracker.Tracker, error) { return nil, errors.New("install reads no tracker") }
+	dir := repoDir(t)
+	var out bytes.Buffer
+	if err := cli.Default.Run([]string{"install", "--agent", Detect, "--if-any", "--dir", dir, "--json"}, &out, noTracker); err != nil {
+		t.Fatalf("install --agent detect --if-any: %v", err)
+	}
+	if !strings.Contains(out.String(), `"action": "none"`) || !strings.Contains(out.String(), "no skills written") {
+		t.Errorf("the report = %s, want it to say no skills were written", out.String())
+	}
+	for _, d := range []string{".claude", ".cursor", ".github"} {
+		if _, err := os.Stat(filepath.Join(dir, d)); err == nil {
+			t.Errorf("%s was written", d)
+		}
+	}
+	if err := cli.Default.Run([]string{"install", "--agent", "nobody", "--if-any", "--dir", dir, "--json"}, &out, noTracker); err == nil {
+		t.Error("--if-any let an unknown agent through")
+	}
+}
+
 // With no release's profiles installed, the source check refuses and says
 // nothing was written (GH-49).
 func TestCheckSourceRefusesWithNoProfilesInstalled(t *testing.T) {

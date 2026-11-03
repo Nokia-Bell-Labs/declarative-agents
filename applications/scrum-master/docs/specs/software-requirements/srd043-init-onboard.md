@@ -185,7 +185,7 @@ Reports the release whose profiles the repository vendored, from .scrum-master's
 <!-- req: R5.1 -->
 ### R5.1
 
-The upgrade profile brings a program repository to the release install.sh installed on the host, in three words and in this order: scrum-master install --profiles vendors the release (srd037 R7.4); scrum-master doctor repairs the repository at it (R4), writing the missing files, refreshing the managed blocks, and moving the format pin as a rerun does (R3.3); and scrum-master install --agent detect rewrites the skills of the agents the repository uses (srd037 R2.1). No model acts in it (design.md D10, D14).
+The upgrade profile brings a program repository to the release install.sh installed on the host, in three words and in this order: scrum-master install --profiles vendors the release (srd037 R7.4); scrum-master doctor repairs the repository at it (R4), writing the missing files, refreshing the managed blocks, and moving the format pin as a rerun does (R3.3); and scrum-master install --agent detect --if-any rewrites the skills of the agents the repository uses, reporting a repository that uses none without failing the run (srd037 R2.1). No model acts in it (design.md D10, D14).
 
 <!-- req: R5.2 -->
 ### R5.2

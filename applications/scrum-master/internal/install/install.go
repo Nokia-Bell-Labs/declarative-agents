@@ -194,7 +194,7 @@ type Result struct {
 	Agent  string `json:"agent"`
 	Skill  string `json:"skill"`
 	Path   string `json:"path"`
-	Action string `json:"action"` // created, updated, unchanged, kept, replaced, removed; exclude file: created, updated
+	Action string `json:"action"` // created, updated, unchanged, kept, replaced, removed, or none when --if-any finds no agent; exclude file: created, updated
 	Reason string `json:"reason,omitempty"`
 }
 

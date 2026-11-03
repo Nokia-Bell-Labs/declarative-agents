@@ -416,6 +416,46 @@ func TestMergeReadsTheBranchAgainstOrigin(t *testing.T) {
 	}
 }
 
+// A branch whose only change in docs/ is the format pin, as an upgrade's is,
+// merges without the corpus gate and says why; the same pin beside a document
+// is held to the gate (srd013 R5.3, GH-2889).
+func TestMergeHoldsNoPinMoveToTheCorpusGate(t *testing.T) {
+	tr, checkout := newBeadsTracker(t, "alice")
+	work, _ := tr.CreateIssue("g/po-1", tracker.NewIssue{Title: "Take the release", Milestone: "m", Description: goodBody,
+		Labels: []string{"plane::data", "kind::build", "component::po-1"}})
+	p, err := Pop(tr, ExecGit{}, "g/po-1", work.IID, checkout, Defaults(), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(p.Worktree, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p.Worktree, "docs", "VISION.md"), []byte("# Vision\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(p.Worktree, "docs", "external-pins.yaml"), []byte("pins: {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	beadstest.Git(t, p.Worktree, "add", "-A")
+	beadstest.Git(t, p.Worktree, "commit", "-q", "-m", "Take the release")
+	beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
+	gate := MergeGate{Command: "false", Dir: p.Worktree}
+	if _, err := Merge(tr, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false); err == nil {
+		t.Fatal("a pin beside a document merged past a failing gate")
+	}
+
+	beadstest.Git(t, p.Worktree, "rm", "-q", "docs/VISION.md")
+	beadstest.Git(t, p.Worktree, "commit", "-q", "-m", "Only the pin")
+	beadstest.Git(t, p.Worktree, "push", "-q", "origin", "HEAD")
+	if _, err := Approve(reviewer(t, tr, checkout, "bob"), ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, checkout); err != nil {
+		t.Fatal(err)
+	}
+	m, err := Merge(tr, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false)
+	if err != nil || m.Audit || !m.Merged || m.AuditReason != "only the format pin changed in docs/" {
+		t.Fatalf("merge = %+v, %v; want merged with no audit and the reason named", m, err)
+	}
+}
+
 // TestMergeTakesNoEarlierMergeOfTheSameReference: main's history holds an
 // earlier merge citing g/po-1#1, as a previous run's issue with the same
 // number left it. The issue now numbered 1, its branch at main's tip with no

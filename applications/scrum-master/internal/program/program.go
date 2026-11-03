@@ -603,7 +603,7 @@ func init() {
 			} else if err != nil {
 				return refusedJSON(ctx, r, err)
 			}
-			audit := "no docs/ change, so no audit ran"
+			audit := r.AuditReason + ", so no audit ran"
 			if r.Audit {
 				audit = "audit " + r.AuditCommand + " passed"
 			}
