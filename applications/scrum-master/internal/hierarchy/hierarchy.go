@@ -118,6 +118,9 @@ type Doc struct {
 	Title        string
 	Status       string
 	Owner        string
+	// Issue and IssueURL are an epic's mirror in the tracker, project#iid and
+	// where it is read (srd045 R2.7).
+	Issue, IssueURL string
 	// Reviewer and Authors are the frontmatter's people block: who signs off on
 	// the document (srd013 R11.1) and who wrote it.
 	Reviewer string
@@ -275,6 +278,8 @@ func Parse(path string, data []byte) (*Doc, error) {
 		d.ContextError = err.Error()
 	}
 	d.Owner = corpus.TreeString(context, "owner")
+	d.Issue = corpus.TreeString(context, "issue")
+	d.IssueURL = corpus.TreeString(context, "issue_url")
 	d.Horizon = corpus.TreeString(context, "horizon")
 	d.Parent = corpus.TreeString(context, "parent")
 	for _, k := range LinkKeys {

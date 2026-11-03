@@ -157,7 +157,7 @@ Each row states its effect on the assignee, one of none, set, or clear.
 <!-- req: R9.1 -->
 ### R9.1
 
-Pop assigns only the person who runs it. A person may assign an issue to someone else with scrum-master issue assign (srd013 R10.1), and the issue's state stays until that person pops it. No agent and no script assigns anyone on its own.
+Pop assigns only the person who runs it. A person may assign an issue to someone else with scrum-master issue assign (srd013 R10.1), and the issue's state stays until that person pops it. No agent and no script assigns anyone on its own; the people on an epic being its mirror's assignees (srd045 R2.7) gives them no work, as a type::tracking issue is never popped.
 
 <!-- req: R9.2 -->
 ### R9.2

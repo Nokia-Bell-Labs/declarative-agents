@@ -222,6 +222,9 @@ func Claim(t tracker.Tracker, project, issueProject string, iid int, p Policy, d
 	if i.State == "closed" {
 		return r, i, fmt.Errorf("%s#%d is closed", issueProject, iid)
 	}
+	if i.HasLabel("type::tracking") {
+		return r, i, fmt.Errorf("%s#%d is a tracking issue, which lists or mirrors work and is never popped; pop the issues that do the work", issueProject, iid)
+	}
 	me, err := tracker.UserIn(t, issueProject)
 	if err != nil {
 		return r, i, err

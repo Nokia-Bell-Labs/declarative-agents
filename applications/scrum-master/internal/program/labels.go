@@ -37,7 +37,7 @@ func DefaultLabels() []tracker.Label {
 		{Name: "plane::management", Color: "#5843ad", Description: "Changes intent - road-map release, system or subsystem SRD, objective document, sprint"},
 		{Name: "plane::control", Color: "#8e44ad", Description: "Changes a rule - policy files, label schema, state machine"},
 		{Name: "plane::data", Color: "#1f75cb", Description: "Work"},
-		{Name: "type::tracking", Color: "#6699cc", Description: "Task list of member issues; never popped"},
+		{Name: "type::tracking", Color: "#6699cc", Description: "Task list of member issues, or an open epic's mirror; never popped"},
 		{Name: "type::sprint", Color: "#009966", Description: "The sprint's exit checklist"},
 		{Name: "type::recurring", Color: "#00b140", Description: "Subscription to one artifact"},
 		{Name: "kind::build", Color: "#428bca", Description: "Builds or changes software"},

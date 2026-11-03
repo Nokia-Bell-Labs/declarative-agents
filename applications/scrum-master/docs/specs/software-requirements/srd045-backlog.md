@@ -99,12 +99,17 @@ Every hierarchy document may carry an architecture context item listing the ARCH
 <!-- req: R2.5 -->
 ### R2.5
 
-A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. The people skill runs them, and list, through the model-free people-allocate, people-release, and people-list profiles. Naming a person assigns no issue, files no status issue, and changes no label; an epic's owner stays its one owner in its document. The same document names who signs off on a scrum, in its reviews column (srd013 R11.4), which does hold merges to their approval (srd013 R11.2); a document names its own reviewer in its frontmatter.
+A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. The people skill runs them, and list, through the model-free people-allocate, people-release, and people-list profiles. Naming a person assigns no issue but their epic's mirror (R2.7), files no status issue, and changes no label; an epic's owner stays its one owner in its document. The same document names who signs off on a scrum, in its reviews column (srd013 R11.4), which does hold merges to their approval (srd013 R11.2); a document names its own reviewer in its frontmatter.
 
 <!-- req: R2.6 -->
 ### R2.6
 
 The vision, the architecture, the road map, an SRD, a use case, and a planning document name who wrote them in the authors key of their frontmatter, as tracker usernames, beside the reviewer who signs off (srd013 R11.1); together they are the document's people block. scrum-master backlog template fills it with the person running it, whose account an agent drafting the document runs as, so an agent is never listed; with no tracker to ask, it leaves a placeholder that names no one. scrum-master backlog author adds or removes one, in its own model-free profile no other declares. backlog check refuses a document with no authors when the latest release's tag does not hold it, and reports those it does hold with one warning, as it does every document in a program with no release. A change to authors alone needs no sign-off (srd013 R11.2). They are separate from owner, who is accountable, and decide nothing about who may approve.
+
+<!-- req: R2.7 -->
+### R2.7
+
+While an epic is open it has one issue in the tracker, so people working there can see and follow it. scrum-master backlog epic-issues reconciles a repository's epics, in a model-free profile: an agreed epic with story points left to do and no issue gets one, labelled plane::management and type::tracking, and its document records it in the issue and issue_url context items; the issue's body links the document and names the people control/people.md has on the epic; those people are its assignees where the tracking system holds several; and an epic done or retired has its issue closed. A second run changes nothing. The document stays what counts: scope and progress are not edited on the issue, it is never popped, and the site links it from the document with no tracker read. A team's stories count toward an epic only where the program's checkouts show them, so an epic whose team checkouts are missing stays open.
 
 <!-- req: R3 -->
 ## R3 - Parent and roll-up
@@ -260,7 +265,7 @@ scrum-master backlog components lists the component ids docs/ARCHITECTURE.md dec
 - A baseline or a commitment date; a forecast is regenerated from current knowledge.
 - Duration estimates; stories are estimated in relative points and dates come only from velocity.
 - Estimating or ranking a person, or assigning one an issue (D5); rank orders stories, points belong to the work, and naming a person on an epic (R2.5) records who is on it and nothing more.
-- Tracker-native epics, features, or stories; the hierarchy is documents, and the tracker holds the issues that execute stories.
+- Tracker-native epics, features, or stories; the hierarchy is documents, and the tracker holds the issues that execute stories and an open epic's mirror (R2.7), which does no work of its own.
 
 <!-- field: acceptance_criteria -->
 ## Acceptance criteria
@@ -422,3 +427,13 @@ backlog template fills authors with the caller for every kind; backlog author ad
 #### Traces
 
 - [R2.6](#r26)
+
+<!-- ac: AC14 -->
+### AC14
+
+backlog epic-issues files one issue for an agreed open epic and records it in the document, and a second run writes nothing; a change to the people reaches the assignees and the body; an epic not agreed gets none; a retired epic's issue closes; an issue an earlier run filed and did not record is found rather than filed again; --dry-run writes nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R2.7](#r27)

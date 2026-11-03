@@ -615,6 +615,12 @@ func (t *Tracker) SetAssignee(project string, iid int, username string) error {
 	return err
 }
 
+// SetAssignees makes usernames the issue's assignees: an epic's mirror (srd045 R2.7).
+func (t *Tracker) SetAssignees(project string, iid int, usernames []string) error {
+	_, err := t.API.Do("PATCH", fmt.Sprintf("repos/%s/issues/%d", project, iid), map[string]any{"assignees": append([]string{}, usernames...)})
+	return err
+}
+
 // CloseOnMerge closes the issue on the merge that delivered it, citing the
 // merge commit, as beads does (srd042 R2.3).
 func (t *Tracker) CloseOnMerge(project string, iid int, commit string) (bool, error) {

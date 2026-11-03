@@ -127,6 +127,10 @@ type Item struct {
 	// (srd045 R4.4), read from the checkouts, never the tracker, so the
 	// backlog pages draw it offline (srd048 R10).
 	Ledger []IssueRecord `json:"ledger,omitempty"`
+	// Issue and IssueURL are an epic's mirror in the tracker, as its document
+	// records them (srd045 R2.7), so a page links it with no tracker read.
+	Issue    string `json:"issue,omitempty"`
+	IssueURL string `json:"issue_url,omitempty"`
 	// Authors is who wrote the document, from its frontmatter (srd045 R2.6).
 	Authors []string `json:"authors,omitempty"`
 	// Reviewer is who signs off on the document (srd013 R11.1); ApprovedBy is

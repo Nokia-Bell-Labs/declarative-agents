@@ -1,0 +1,53 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The epic-issues machine's words (GH-2865). The run starts in a checkout of the repository holding the epics; every
+# flag is a parameter from the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-epic-issues-declarations
+tools:
+- name: backlog_epic_issues
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - epic-issues
+  - --json
+  visibility: internal
+  description: 'Give each open epic one issue mirroring it, and close it when the epic is done or retired (srd045 R2.7).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: 'A checkout of the repository holding the epics.'
+        flag: --dir
+      commit:
+        type: boolean
+        description: 'Commit the epics that record an issue on the current branch.'
+        flag: --commit
+        bool_flag: true
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The word's JSON report: for each epic, its issue, its people, and what the word did."
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: "Files, updates, and closes each epic's mirror, and writes the issue into the epic's document."
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: "A run is a reconcile: a second one changes nothing, and a person reverses the rest with the tracker."
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_epic_issues: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the program is as the word's refusal left it

@@ -249,3 +249,17 @@ func TestAssignCommandsRefuseBadUsage(t *testing.T) {
 }
 
 func branchOf(i tracker.Issue) string { return fmt.Sprintf("%d-%s", i.IID, Slug(i.Title)) }
+
+func TestClaimRefusesATrackingIssue(t *testing.T) {
+	f := fake.New()
+	i, err := f.CreateIssue("g/po-1", tracker.NewIssue{Title: "Epic: x", Labels: Labels("management", "tracking", "", "")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Claim(f, "g/po-1", "g/po-1", i.IID, Defaults(), false); err == nil || !strings.Contains(err.Error(), "tracking issue") {
+		t.Fatalf("claim = %v, want a refusal naming why", err)
+	}
+	if got, _ := f.GetIssue("g/po-1", i.IID); len(got.Assignees) != 0 {
+		t.Fatalf("a refused claim assigned %v", got.Assignees)
+	}
+}

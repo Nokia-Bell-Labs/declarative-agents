@@ -247,6 +247,16 @@ func (f *Fake) AssignIssue(project string, iid int, user tracker.User) error {
 	return nil
 }
 
+func (f *Fake) SetAssignees(project string, iid int, usernames []string) error {
+	f.Writes++
+	i, err := f.find(project, iid)
+	if err != nil {
+		return err
+	}
+	i.Assignees = append([]string(nil), usernames...)
+	return nil
+}
+
 func (f *Fake) SetAssignee(project string, iid int, username string) error {
 	f.Writes++
 	i, err := f.find(project, iid)

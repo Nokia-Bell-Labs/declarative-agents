@@ -84,6 +84,10 @@ which the `people` skill runs, the site shows it, and it assigns no one an issue
 An issue usually names a story in its `Implements` line; work with no story
 yet can name its epic instead, with `scrum-master issue link --epic`, which
 the `issue` skill lists as `issue-link`.
+An open epic has an issue in the tracker, so people there can follow it:
+`scrum-master backlog epic-issues` files it, keeps its body and assignees on the
+people named on the epic, and closes it when the epic is done or retired. The
+document stays what counts, and the issue is never popped.
 A document names who wrote it in its frontmatter's `authors`, beside its
 `reviewer`. `scrum-master backlog template` fills it with the person running it,
 `scrum-master backlog author` changes it, and a new document must name someone.

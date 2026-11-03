@@ -163,6 +163,11 @@ A project path (group/subgroup/repo) maps to a repository field on the
 issue. One tracker holds every repository's issues; a query scoped to a
 repository replaces a query scoped to a project.
 
+<!-- req: R2.5 -->
+### R2.5
+
+An issue holds one assignee, so an epic's mirror (srd045 R2.7) names its people in its body and has no assignee; the mirror files and closes as a person's issue does, through the state table.
+
 <!-- req: R3 -->
 ## R3 - The shared tracker repository
 
@@ -327,3 +332,13 @@ merge land it, and an approval of an earlier commit is refused.
 #### Traces
 
 - [R1.5](#r15)
+
+<!-- ac: AC7 -->
+### AC7
+
+An epic's mirror on beads names its people in its body with no assignee, and closes through the state table when the epic is retired.
+
+<!-- field: traces -->
+#### Traces
+
+- [R2.5](#r25)
