@@ -53,7 +53,8 @@ func ParseLinks(body string) []Link {
 
 // CheckTarget reports why a link's target is malformed: it must be an issue
 // reference PROJECT#IID, a same-repository document id, or a URL pinned to a
-// release tag (srd007 R6.1, R8.1). An Implements target names a story.
+// release tag (srd007 R6.1, R8.1). An Implements target names a story or an
+// epic (R6.5).
 func CheckTarget(l Link) error {
 	t := l.Target
 	switch {
@@ -63,25 +64,44 @@ func CheckTarget(l Link) error {
 		if err := CheckPinned(t); err != nil {
 			return err
 		}
-		if l.Kind == Implements {
-			r, _ := Parse(t)
-			if !strings.HasPrefix(path.Base(r.Path), "st") || path.Dir(r.Path) != "docs/specs/stories" {
-				return fmt.Errorf("Implements names %s, not a story", t)
-			}
+		if l.Kind == Implements && ImplementsKind(t) == "" {
+			return fmt.Errorf("Implements names %s, not a story or an epic", t)
 		}
 		return nil
 	case docID.MatchString(t):
-		if l.Kind == Implements && !strings.HasPrefix(t, "st") {
-			return fmt.Errorf("Implements names %s, not a story", t)
+		if l.Kind == Implements && ImplementsKind(t) == "" {
+			return fmt.Errorf("Implements names %s, not a story or an epic", t)
 		}
 		return nil
 	case issueRef.MatchString(t) && l.Kind != Implements:
 		return nil
 	}
 	if l.Kind == Implements {
-		return fmt.Errorf("Implements target %q is not a story id or a pinned story URL", t)
+		return fmt.Errorf("Implements target %q is not a story or epic id, or a pinned URL to one", t)
 	}
 	return fmt.Errorf("%s target %q is not PROJECT#IID, a document id, or a pinned URL", l.Kind, t)
+}
+
+// ImplementsKind is what an Implements target names, by same-repository id or
+// pinned URL: a story, an epic, or, empty, nothing an issue can implement.
+func ImplementsKind(target string) string {
+	id, dir := target, ""
+	if strings.Contains(target, "://") {
+		r, err := Parse(target)
+		if err != nil {
+			return ""
+		}
+		id, dir = path.Base(r.Path), path.Dir(r.Path)
+	} else if !docID.MatchString(target) {
+		return ""
+	}
+	switch {
+	case strings.HasPrefix(id, "st") && (dir == "" || dir == "docs/specs/stories"):
+		return "story"
+	case strings.HasPrefix(id, "ep") && (dir == "" || dir == "docs/specs/epics"):
+		return "epic"
+	}
+	return ""
 }
 
 // Edge is one blocking link: Waiting cannot proceed until On is done.

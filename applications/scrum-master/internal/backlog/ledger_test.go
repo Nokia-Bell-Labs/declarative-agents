@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -190,5 +191,46 @@ func TestRecordWritesTheStoriesRecord(t *testing.T) {
 	}
 	if b, _ := os.ReadFile(p); !bytes.Contains(b, []byte(`closed: "2026-11-04"`)) {
 		t.Errorf("the close did not reach the record:\n%s", b)
+	}
+}
+
+// An epic's own record: in the system repository the sweep reads every
+// repository the registry names, so an issue pinned to the epic from a team's
+// repository lands beside one naming it bare, and a second run changes
+// nothing (srd045 R4.4, AC12).
+func TestRecordWritesTheEpicsRecord(t *testing.T) {
+	system, _, _ := recordProgram(t)
+	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "hierarchy", "valid", "docs", "specs", "epics", "ep001-agent-evaluation.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := filepath.Join(system, "docs", "specs", "epics", "ep001-agent-evaluation.md")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := fake.New()
+	f.Issues["g/system"] = []*tracker.Issue{{Project: "g/system", IID: 1, Title: "Bare", State: "opened", Description: "Implements: ep001-agent-evaluation", CreatedAt: "2026-10-28T08:00:00Z"}}
+	f.Issues["g/code-1"] = []*tracker.Issue{
+		{Project: "g/code-1", IID: 2, Title: "Pinned", State: "closed", Description: "Implements: https://gitlab.example.com/g/system/-/blob/v1.0.0/docs/specs/epics/ep001-agent-evaluation.md", Author: "bo", CreatedAt: "2026-10-28T08:00:00Z", ClosedAt: "2026-10-29T08:00:00Z"},
+		{Project: "g/code-1", IID: 3, Title: "Another's", State: "opened", Description: "Implements: ep001-agent-evaluation"},
+	}
+	r, err := Record(f, system, "", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(r.Projects, "g/code-1") || len(r.Stories) != 1 || r.Stories[0].Action != "recorded" {
+		t.Fatalf("record = %+v", r)
+	}
+	got, _ := os.ReadFile(p)
+	entries, err := LedgerOf(got)
+	if err != nil || len(entries) != 2 || entries[0].Ref != "g/code-1#2" || entries[1].Ref != "g/system#1" {
+		t.Fatalf("entries = %+v, %v; a bare id in another repository is that repository's\n%s", entries, err, got)
+	}
+	again, err := Record(f, system, "ep001-agent-evaluation", false, false)
+	if err != nil || again.Stories[0].Action != "unchanged" {
+		t.Fatalf("a second record should change nothing: %+v, %v", again.Stories, err)
 	}
 }

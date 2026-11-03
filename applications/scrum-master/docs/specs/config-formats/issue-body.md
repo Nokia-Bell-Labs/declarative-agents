@@ -76,7 +76,7 @@ line
 <!-- field: description -->
 #### Description
 
-"Implements: STORY" on its own line in a description, naming the story the issue executes by same-repository id or pinned URL (srd007 R6.5). tasks writes it on every issue it creates from a story. At most one.
+"Implements: STORY" or "Implements: EPIC" on its own line in a description, naming the story the issue executes, or the epic it serves when no story holds it yet, by same-repository id or pinned URL (srd007 R6.5). tasks writes it on every issue it creates from a story, and scrum-master issue link writes it on a filed issue (R6.6). At most one.
 
 <!-- schema_entry: sprint_backlog_section -->
 ### sprint_backlog_section

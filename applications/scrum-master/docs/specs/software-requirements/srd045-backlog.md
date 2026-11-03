@@ -89,7 +89,7 @@ Themes and initiatives live in the system repository. An epic lives there when i
 <!-- req: R2.3 -->
 ### R2.3
 
-No hierarchy document is a unit of work (D4). A story is executed by issues that name it in an Implements line (srd007 R6.5), and those issues and their tasks are the tracker's work.
+No hierarchy document is a unit of work (D4). A story is executed by issues that name it in an Implements line (srd007 R6.5), an epic may be served directly by issues naming it the same way, and those issues and their tasks are the tracker's work.
 
 <!-- req: R2.4 -->
 ### R2.4
@@ -145,7 +145,7 @@ tasks turns a story selected onto a Sprint Goal into the issues that execute it,
 <!-- req: R4.4 -->
 ### R4.4
 
-A story carries the record of the issues that implement it in its issues field, tree form: one entry per issue keyed project#iid, with its url and title, who works on it (its assignees; an open issue nobody has picked up records nobody, and a closed one with no assignee records its author, who worked it, GH-2855), the dates it opened and closed, and its state, so who did the work and how long it took is read from the planning corpus whatever tracking system held the issue, and the site draws it from the checkouts without asking the tracker (srd048 R10). scrum-master backlog record, run from any of the team's repositories, finds the scrum repository through the registry — the record lands in its stories, from the issues of the team's scrum repository and the code repositories its subsystem SRD declares — writing the documents in place, idempotently, and reporting each file it changed; with --commit it commits them on the current branch with its record, and a dry run writes nothing. The implement skill runs it as it finishes, so the record follows every close (srd036 R3.4); reconcile files the drift when it lags (srd043 R8.4). An absent issues field is a story no issue has implemented yet, never an error (GH-2844).
+A story, or an epic that issues name directly (srd007 R6.5), carries the record of the issues that implement it in its issues field, tree form: one entry per issue keyed project#iid, with its url and title, who works on it (its assignees; an open issue nobody has picked up records nobody, and a closed one with no assignee records its author, who worked it, GH-2855), the dates it opened and closed, and its state, so who did the work and how long it took is read from the planning corpus whatever tracking system held the issue, and the site draws it from the checkouts without asking the tracker (srd048 R10). scrum-master backlog record, run from any of the team's repositories, finds the scrum repository through the registry — the record lands in its stories and epics, from the issues of the team's scrum repository and the code repositories its subsystem SRD declares; run in the system repository, whose epics span teams, it reads every repository the registry names — writing the documents in place, idempotently, and reporting each file it changed; with --commit it commits them on the current branch with its record, and a dry run writes nothing. The implement skill runs it as it finishes, so the record follows every close (srd036 R3.4); reconcile files the drift when it lags (srd043 R8.4). An absent issues field is a story no issue has implemented yet, never an error (GH-2844).
 
 <!-- req: R5 -->
 ## R5 - Product Backlog and Sprint Planning
@@ -396,3 +396,14 @@ scrum-master people allocate names a person on a scrum or epic in control/people
 #### Traces
 
 - [R2.5](#r25)
+
+<!-- ac: AC12 -->
+### AC12
+
+With an open issue naming an epic in an Implements line, bare in the epic's repository, and a closed one pinned by URL from a team's repository, scrum-master backlog record run in the system repository writes the epic's issues field with both, a second run changes nothing, and the epic's points are those of its done stories, unchanged by the issues.
+
+<!-- field: traces -->
+#### Traces
+
+- [R4.4](#r44)
+- [R2.3](#r23)

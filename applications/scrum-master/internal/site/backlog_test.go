@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -103,5 +104,75 @@ func TestBacklogPages(t *testing.T) {
 		if !strings.Contains(html, want) {
 			t.Errorf("the embedded page lacks %q", want)
 		}
+	}
+}
+
+// An issue naming an epic directly has no story: the facts carry the epic's
+// record from its document, the backlog links the epic alone, the epic's page
+// lists the issue, and its points stay its stories' (srd048 R10.1, AC12).
+func TestAnEpicsOwnIssues(t *testing.T) {
+	in, system := statusProgram(t)
+	p := filepath.Join(system, "docs", "specs", "epics", "ep001-agent-evaluation.md")
+	doc, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := LoadSources(system, in.Tracker, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	points := func(f timeline.Facts) (int, int, timeline.Item) {
+		for _, it := range f.Items {
+			if it.ID == "ep001-agent-evaluation" {
+				return it.Points, it.PointsDone, it
+			}
+		}
+		t.Fatal("the epic is not among the items")
+		return 0, 0, timeline.Item{}
+	}
+	before, err := Facts(system, "", s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantPoints, wantDone, _ := points(before)
+	entry := backlog.LedgerEntry{Ref: "g/po-1#9", Title: "No story yet", Who: []string{"ana"}, Opened: "2026-10-28", State: "open"}
+	if err := os.WriteFile(p, backlog.WriteLedger(doc, []backlog.LedgerEntry{entry}), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f, err := Facts(system, "", s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, done, epic := points(f)
+	if got != wantPoints || done != wantDone {
+		t.Fatalf("points = %d of %d, want %d of %d: an issue adds none", done, got, wantDone, wantPoints)
+	}
+	if len(epic.Ledger) != 1 || epic.Ledger[0].Ref != entry.Ref {
+		t.Fatalf("the epic's record = %+v", epic.Ledger)
+	}
+	f.Items = append(f.Items, timeline.Item{ID: entry.Ref, Kind: timeline.KindIssue, Title: entry.Title, Parent: epic.ID})
+	nodes, _ := hierarchyNodes(f)
+	if n := nodes[epic.ID]; n == nil || !slices.Contains(n.Issues, entry.Ref) {
+		t.Fatalf("the epic's node = %+v", n)
+	}
+	b, _ := json.Marshal(f)
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, Dir, "timeline"), 0o755)
+	if err := os.WriteFile(filepath.Join(dir, Dir, "timeline", "facts.json"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages, err := BacklogPages(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row string
+	for _, line := range strings.Split(string(pages[Dir+"/"+BacklogDir+"/index.md"]), "\n") {
+		if strings.Contains(line, entry.Ref) {
+			row = line
+		}
+	}
+	if !strings.Contains(row, "| none |") || !strings.Contains(row, "../hierarchy/"+epic.ID+".md") {
+		t.Fatalf("the backlog's row = %q", row)
 	}
 }

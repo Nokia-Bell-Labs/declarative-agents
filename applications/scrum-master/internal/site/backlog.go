@@ -55,7 +55,7 @@ type backlogRow struct {
 // facts the timeline word wrote into the reports checkout dir (srd048
 // R10): the folder's index with an open and a closed table, the forge's
 // view, and the embedded page that filters the same rows by repository,
-// state, and who. Every fact comes from the stories' issues records, read
+// state, and who. Every fact comes from the stories' and epics' issues records, read
 // from the checkouts; the word asks the tracker nothing.
 func BacklogPages(dir string) (map[string][]byte, error) {
 	b, err := os.ReadFile(filepath.Join(dir, Dir, "timeline", "facts.json"))
@@ -122,7 +122,11 @@ func backlogRows(f timeline.Facts) []backlogRow {
 			repo, _, _ := strings.Cut(e.Ref, "#")
 			row := backlogRow{Ref: e.Ref, URL: e.URL, Title: e.Title, Repository: repo, Who: e.Who,
 				Opened: e.Opened, Closed: e.Closed, State: e.State,
-				Story: it.ID, StoryTitle: it.Title, Epic: epicID, EpicTitle: epicTitle}
+				Epic: epicID, EpicTitle: epicTitle}
+			// An issue naming the epic directly has no story to link.
+			if it.Kind != "epic" {
+				row.Story, row.StoryTitle = it.ID, it.Title
+			}
 			switch {
 			case e.Closed != "":
 				row.Days = daysBetween(e.Opened, e.Closed)
@@ -167,14 +171,17 @@ func daysBetween(from, to string) string {
 func backlogIndex(rows []backlogRow) string {
 	var b strings.Builder
 	b.WriteString(generated("backlog", "the timeline facts") + "# Backlog\n\n")
-	b.WriteString("Every issue the stories record (srd045 R4.4), across the program's repositories, open and closed, read from the checkouts, never the tracker. The board's columns are the record: to do is open with nobody on it, in progress is open with someone, done is closed; it filters by repository, state, and who, and the tables are the forge's view of the same record.\n\n")
+	b.WriteString("Every issue the stories and epics record (srd045 R4.4), across the program's repositories, open and closed, read from the checkouts, never the tracker. The board's columns are the record: to do is open with nobody on it, in progress is open with someone, done is closed; it filters by repository, state, and who, and the tables are the forge's view of the same record.\n\n")
 	b.WriteString("<iframe class=\"timeline\" src=\"backlog/backlog.html?embed=1\" title=\"The backlog board, filterable\"></iframe>\n")
 	cell := func(r backlogRow) (issue, story, epic string) {
 		issue = r.Ref
 		if r.URL != "" {
 			issue = fmt.Sprintf("[%s](%s)", r.Ref, r.URL)
 		}
-		story = fmt.Sprintf("[%s](../hierarchy/%s.md)", r.StoryTitle, r.Story)
+		story = "none"
+		if r.Story != "" {
+			story = fmt.Sprintf("[%s](../hierarchy/%s.md)", r.StoryTitle, r.Story)
+		}
 		if r.Epic != "" {
 			epic = fmt.Sprintf("[%s](../hierarchy/%s.md)", r.EpicTitle, r.Epic)
 		}

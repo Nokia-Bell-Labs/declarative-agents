@@ -218,7 +218,7 @@ The navigator (R8.2) lists the architecture under its own heading: each subsyste
 <!-- req: R10.1 -->
 ### R10.1
 
-The timeline facts carry each story's issues record as its document holds it (srd045 R4.4), read by the timeline word from the checkouts beside the reports checkout, never from the tracking system, so the backlog draws offline wherever the site generates — CI mines no tracker; a record that does not parse is a note on the facts, never skipped silently (GH-2845).
+The timeline facts carry each story's and epic's issues record as its document holds it (srd045 R4.4), read by the timeline word from the checkouts beside the reports checkout, never from the tracking system, so the backlog draws offline wherever the site generates — CI mines no tracker; a record that does not parse is a note on the facts, never skipped silently (GH-2845).
 
 <!-- req: R10.2 -->
 ### R10.2
@@ -372,3 +372,13 @@ On a fixture program whose control/people.md names one person on a scrum and a t
 #### Traces
 
 - [R8.8](#r88)
+
+<!-- ac: AC12 -->
+### AC12
+
+On a fixture program whose epic carries an issues record of its own, the facts carry the epic's record; the backlog lists the issue with the epic linked and no story, and the epic's page lists an issue whose Implements line names it.
+
+<!-- field: traces -->
+#### Traces
+
+- [R10.1](#r101)

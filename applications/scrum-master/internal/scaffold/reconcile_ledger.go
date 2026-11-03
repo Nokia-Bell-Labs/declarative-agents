@@ -14,7 +14,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
-// ledgerFindings checks each story's issues record in the scrum
+// ledgerFindings checks each story's and epic's issues record in the scrum
 // repository's checkout against the tracking system (srd043 R8.4): an
 // implementing issue with no entry, an entry whose issue the tracking
 // system does not show, and an entry whose state or closed date lags are
@@ -23,11 +23,10 @@ import (
 // unjudged, with a note.
 func ledgerFindings(t tracker.Tracker, dir string, sub program.Subsystem, scrum string) ([]string, []string) {
 	want, swept, notes := backlog.TrackerLedgers(t, sub.Repositories(), scrum)
-	paths, err := filepath.Glob(filepath.Join(dir, "docs", "specs", "stories", "st[0-9]*.md"))
+	paths, err := backlog.LedgerDocuments(dir)
 	if err != nil {
 		return nil, notes
 	}
-	sort.Strings(paths)
 	var findings []string
 	remedy := "; scrum-master backlog record writes it"
 	for _, p := range paths {

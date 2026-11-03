@@ -70,7 +70,7 @@ type Issue struct {
 	DependsOn []string
 }
 
-// IssueRecord is one entry of a story's issues record (srd045 R4.4), as
+// IssueRecord is one entry of a story's or epic's issues record (srd045 R4.4), as
 // the facts carry it: who worked on the issue and when it opened and
 // closed, read from the story document.
 type IssueRecord struct {
@@ -121,7 +121,7 @@ type Item struct {
 	// depends_on and blocked_by links, an issue's Depends-on and
 	// Blocked-by lines (GH-135).
 	DependsOn []string `json:"depends_on,omitempty"`
-	// Ledger is a story's issues record as its document carries it
+	// Ledger is a story's or epic's issues record as its document carries it
 	// (srd045 R4.4), read from the checkouts, never the tracker, so the
 	// backlog pages draw it offline (srd048 R10).
 	Ledger []IssueRecord `json:"ledger,omitempty"`

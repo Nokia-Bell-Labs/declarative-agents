@@ -128,10 +128,10 @@ func TestLintFlagsMalformedLinks(t *testing.T) {
 		"Duplicates: g/po-1#1",
 		"Duplicates: g/po-1#2",
 		"Implements: st001-score-trajectories",
-		"Implements: ep001-agent-evaluation",
+		"Implements: ft001-grader",
 	}, "\n")
 	got := strings.Join(Lint(objective(bad), Defaults()), "\n")
-	for _, want := range []string{`Depends-on target "somewhere"`, `branch "main"`, "has 2 Duplicates lines", "has 2 Implements lines", "Implements names ep001-agent-evaluation, not a story"} {
+	for _, want := range []string{`Depends-on target "somewhere"`, `branch "main"`, "has 2 Duplicates lines", "has 2 Implements lines", "Implements names ft001-grader, not a story or an epic"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in:\n%s", want, got)
 		}

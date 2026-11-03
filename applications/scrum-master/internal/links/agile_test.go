@@ -38,11 +38,27 @@ func TestAgileLinkLines(t *testing.T) {
 		{RelatesTo, "not a target"},
 		{DependsOn, "https://gitlab.example.com/program/po-1/-/blob/main/docs/x.md#R1"},
 		{Implements, "program/po-1#3"},
-		{Implements, "ep001-agent-evaluation"},
-		{Implements, "https://gitlab.example.com/program/po-1/-/blob/v1.0.0/docs/specs/epics/ep001-a.md#R1"},
+		{Implements, "ft001-grader"},
+		{Implements, "in001-reliable-agents"},
+		{Implements, "https://gitlab.example.com/program/po-1/-/blob/v1.0.0/docs/specs/features/ft001-a.md#R1"},
+		{Implements, "https://gitlab.example.com/program/po-1/-/blob/v1.0.0/docs/specs/stories/ep001-a.md#R1"},
 	} {
 		if CheckTarget(bad) == nil {
 			t.Errorf("%s %q accepted", bad.Kind, bad.Target)
+		}
+	}
+	// An issue may name an epic directly, by id or pinned URL (R6.5).
+	for target, kind := range map[string]string{
+		"st001-score":            "story",
+		"ep001-agent-evaluation": "epic",
+		"https://gitlab.example.com/program/po-1/-/blob/v1.0.0/docs/specs/epics/ep001-a.md#R1":   "epic",
+		"https://gitlab.example.com/program/po-1/-/blob/v1.0.0/docs/specs/stories/st001-a.md#R1": "story",
+	} {
+		if err := CheckTarget(Link{Implements, target}); err != nil {
+			t.Errorf("Implements %q: %v", target, err)
+		}
+		if got := ImplementsKind(target); got != kind {
+			t.Errorf("ImplementsKind(%q) = %q, want %q", target, got, kind)
 		}
 	}
 }

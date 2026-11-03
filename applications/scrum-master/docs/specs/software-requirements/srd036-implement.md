@@ -96,7 +96,7 @@ As a skill, is at most 50 lines and has no model step; the work in the worktree 
 <!-- req: R5.1 -->
 ### R5.1
 
-scrum-master issue list --implements lists the open issues whose Implements line names a story, or with --epic every story under an epic in the hierarchy, in the stories' rank order and then by IID, and lists apart an issue a Blocked-by line holds behind an open issue.
+scrum-master issue list --implements lists the open issues whose Implements line names a story, or with --epic the epic itself and every story under it in the hierarchy, in the stories' rank order and then by IID with the issues naming the epic directly after them, and lists apart an issue a Blocked-by line holds behind an open issue.
 
 <!-- req: R5.2 -->
 ### R5.2
