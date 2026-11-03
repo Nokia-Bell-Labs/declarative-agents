@@ -62,6 +62,10 @@ func TemplateFor(kind, dir string) (string, error) {
 	return t, nil
 }
 
+// AuthorPlaceholder holds a template's authors line until someone fills it; a
+// document still naming it names no one.
+const AuthorPlaceholder = "your-tracker-username"
+
 // templateKinds are the hierarchy levels, then the documents beside them.
 func templateKinds() []string { return append(kinds(), "vision", "architecture") }
 
@@ -80,6 +84,12 @@ func init() {
 			t, err := TemplateFor(kind, dir)
 			if err != nil {
 				return err
+			}
+			// The person asking wrote it; an agent drafting it runs as them.
+			if tr, err := ctx.Tracker(); err == nil {
+				if me, err := tr.CurrentUser(); err == nil && me.Username != "" {
+					t = strings.Replace(t, "authors: "+AuthorPlaceholder, "authors: "+me.Username, 1)
+				}
 			}
 			return ctx.Emit(struct {
 				Kind     string `json:"kind"`

@@ -228,6 +228,7 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	if n.Kind == "epic" {
 		b.WriteString(peopleLine(n.Page, n.People))
 	}
+	b.WriteString(authorsLine(n.Page, n.Item))
 	b.WriteString(reviewerLine(n.Page, n.Item))
 	if tm, ok := inits[n.ID]; ok {
 		b.WriteString(initiativeRepo(tm))

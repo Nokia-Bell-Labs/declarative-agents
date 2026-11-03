@@ -100,7 +100,7 @@ func TestArchitectureCoverageAndDrift(t *testing.T) {
 	if r, err = backlog.Check(dir); err != nil {
 		t.Fatal(err)
 	}
-	if got := architectureFindings(r.Findings); len(got) != 3 || len(r.Warnings) != 0 {
+	if got := architectureFindings(r.Findings); len(got) != 3 || len(architectureFindings(r.Warnings)) != 0 {
 		t.Fatalf("under refuse: findings %v, warnings %v", got, r.Warnings)
 	}
 }

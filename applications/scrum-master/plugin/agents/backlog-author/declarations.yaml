@@ -1,0 +1,69 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The backlog-author machine's words (GH-2874). The run starts in a checkout of the repository holding the
+# document; every flag is a parameter from the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-backlog-author-declarations
+tools:
+- name: backlog_author
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - author
+  - --json
+  visibility: internal
+  description: 'Add or remove a document''s author, in its frontmatter (srd045 R2.6).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      document:
+        type: string
+        description: 'The document, by id or path.'
+        flag: --document
+      person:
+        type: string
+        description: 'The author''s tracker username.'
+        flag: --person
+      remove:
+        type: boolean
+        description: 'Take them off instead.'
+        flag: --remove
+        bool_flag: true
+      dir:
+        type: string
+        description: 'A checkout of the repository holding the document.'
+        flag: --dir
+      commit:
+        type: boolean
+        description: 'Commit the changed document on the current branch.'
+        flag: --commit
+        bool_flag: true
+    required:
+    - document
+    - person
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The author word's JSON report: the document, who it names now, and what it did."
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: the document
+    description: "Writes the authors into the document's frontmatter and, with commit, commits it."
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: "The word's write is a person's to reverse, by running it the other way."
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_author: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the program is as the word's refusal left it

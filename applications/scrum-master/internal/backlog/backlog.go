@@ -165,6 +165,11 @@ func Check(dir string) (Report, error) {
 		findings = []hierarchy.Finding{}
 	}
 	findings = append(findings, bootstrapFinding(dir, len(docs))...)
+	missing, olderDocs := authorChecks(dir, baselineTag(dir))
+	findings = append(findings, missing...)
+	if olderDocs != nil {
+		warnings = append(warnings, *olderDocs)
+	}
 	top, unfilled, err := corpusFiles(dir)
 	if err != nil {
 		return Report{}, err

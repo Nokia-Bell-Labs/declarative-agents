@@ -199,6 +199,11 @@ The site shows who is on what, as the system checkout's control/people.md (confi
 
 The site shows who signs off (srd013 R11.1), from committed data and never the tracker: each document's frontmatter, control/people.md, the policy's default_reviewer, and each issues record. The timeline facts carry each document's reviewer and, where it has one, who approved the latest merge that changed it, from that merge's Approved-by trailers, passing over a merge that changed only the issues record or the people block. Planning document pages, the corpus copy of a signed document, and a scrum's page show the reviewer, and a document whose latest change no one approved reads as not signed off, so a document older than the trailer does too. A person's page lists what they review and the open issues in the issues records that wait on their sign-off. Everyone named has a page, and a name that resolves to nothing is a note in the facts.
 
+<!-- req: R8.10 -->
+### R8.10
+
+The site shows who wrote a document (srd045 R2.6), from its frontmatter and never the tracker. The timeline facts carry each planning document's authors, a placeholder naming no one; its page and the corpus copy of a signed document list them; a person's page lists what they wrote; and everyone named has a page.
+
 <!-- req: R9 -->
 ## R9 - Architecture pages
 
@@ -397,3 +402,13 @@ On a fixture program, a document's reviewer follows its parents to its epic, the
 #### Traces
 
 - [R8.9](#r89)
+
+<!-- ac: AC14 -->
+### AC14
+
+On a fixture program, an epic naming two authors shows them on its page with links, each author's page lists it, a corpus copy of a signed document lists them, and a template's placeholder names no one.
+
+<!-- field: traces -->
+#### Traces
+
+- [R8.10](#r810)
