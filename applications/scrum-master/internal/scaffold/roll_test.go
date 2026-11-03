@@ -139,6 +139,12 @@ func (r *reviewerFake) OpenReview(project, branch, base, title, body string) (st
 }
 
 func (r *reviewerFake) Approve(string, string, string) (bool, error) { return false, nil }
+func (r *reviewerFake) Approvals(string, string, string) ([]string, map[string]string, error) {
+	return nil, nil, nil
+}
+
+func (r *reviewerFake) RequestReview(string, string, []string) error { return nil }
+
 func (r *reviewerFake) Approval(string, string, string, []string) (string, string, error) {
 	return "", "", nil
 }

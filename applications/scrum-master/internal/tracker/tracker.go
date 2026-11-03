@@ -203,6 +203,11 @@ type Reviewer interface {
 	// Approval names who approved the review of branch at tip, other than
 	// excluded, and the commit an earlier approval named, if any.
 	Approval(project, branch, tip string, excluded []string) (by, stale string, err error)
+	// Approvals names everyone whose approval of the review of branch stands
+	// at tip, and, for anyone whose stands at an earlier commit, that commit.
+	Approvals(project, branch, tip string) (at []string, stale map[string]string, err error)
+	// RequestReview asks usernames to review branch, on the host's review.
+	RequestReview(project, branch string, usernames []string) error
 	// Merge merges the review of branch at tip with message, and returns
 	// the merge commit.
 	Merge(project, branch, tip, message string) (string, error)

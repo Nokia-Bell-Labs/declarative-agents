@@ -301,6 +301,13 @@ func (c labClient) route(method string, seg []string, q url.Values, in map[strin
 			"web_url": fmt.Sprintf("https://gitlab.com/%s/-/merge_requests/%d", name, n)}
 		pr.mrs[n] = m
 		return m, nil
+	case rest[0] == "merge_requests" && len(rest) == 2 && method == "PUT":
+		m := pr.mrs[num(1)]
+		if m == nil {
+			return nil, apiError{404, "Not Found"}
+		}
+		m["reviewer_ids"] = in["reviewer_ids"]
+		return m, nil
 	case rest[0] == "merge_requests" && len(rest) == 2 && method == "GET":
 		m := pr.mrs[num(1)]
 		if m == nil {

@@ -369,6 +369,7 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		f.Notes = append(f.Notes, ledgerNotes...)
 		f.People, notes = peopleFacts(dir, f)
 		f.Notes = append(f.Notes, notes...)
+		f.Notes = append(f.Notes, reviewFacts(dir, docs, &f)...)
 	}
 	return f, nil
 }
@@ -401,7 +402,7 @@ func documentLedgers(docs []*hierarchy.Doc, f *timeline.Facts) []string {
 			continue
 		}
 		for _, e := range entries {
-			it.Ledger = append(it.Ledger, timeline.IssueRecord{Ref: e.Ref, URL: e.URL, Title: e.Title, Who: e.Who, Opened: e.Opened, Closed: e.Closed, State: e.State})
+			it.Ledger = append(it.Ledger, timeline.IssueRecord{Ref: e.Ref, URL: e.URL, Title: e.Title, Who: e.Who, Reviewer: e.Reviewer, Opened: e.Opened, Closed: e.Closed, State: e.State})
 		}
 	}
 	return notes

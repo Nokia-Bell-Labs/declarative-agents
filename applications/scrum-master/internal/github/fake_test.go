@@ -243,6 +243,13 @@ func (c client) route(method string, seg []string, q url.Values, in map[string]a
 			"author": c.login, "html_url": fmt.Sprintf("https://github.com/%s/pull/%d", name, n)}
 		r.pulls[n] = p
 		return p, nil
+	case rest[0] == "pulls" && len(rest) == 3 && rest[2] == "requested_reviewers" && method == "POST":
+		p := r.pulls[num(1)]
+		if p == nil {
+			return nil, notFound()
+		}
+		p["requested_reviewers"] = in["reviewers"]
+		return p, nil
 	case rest[0] == "pulls" && len(rest) == 3 && rest[2] == "reviews":
 		n := num(1)
 		p := r.pulls[n]

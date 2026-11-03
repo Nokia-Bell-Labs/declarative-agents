@@ -1,10 +1,11 @@
 // Copyright (c) 2026 Nokia
 // SPDX-License-Identifier: BSD-3-Clause
 
-// Package people is who works on which scrum and epic: the system
-// repository's control/people.md (config format people). It names people and
-// assigns nothing: no issue, status report, or label follows from it (srd045
-// R2.5).
+// Package people is who works on which scrum and epic, and who signs off on
+// which scrum: the system repository's control/people.md (config format
+// people). A document names its own reviewer, in its frontmatter. Being on something assigns nothing: no issue, status report,
+// or label follows from it (srd045 R2.5). Reviewing something holds its merges
+// to that person's approval (srd013 R11.2).
 package people
 
 import (
@@ -52,6 +53,8 @@ type Person struct {
 	Username string `yaml:"username" json:"username"`
 	Scrums   Names  `yaml:"scrums,omitempty" json:"scrums,omitempty"`
 	Epics    Names  `yaml:"epics,omitempty" json:"epics,omitempty"`
+	// Reviews is the scrums this person signs off on, named as Scrums are.
+	Reviews Names `yaml:"reviews,omitempty" json:"reviews,omitempty"`
 }
 
 // Config is control/people.md.
@@ -67,6 +70,7 @@ func Parse(b []byte) (Config, error) {
 		return c, err
 	}
 	seen := map[string]bool{}
+	reviewer := map[string]string{}
 	for _, p := range c.People {
 		if p.Username == "" || strings.ContainsAny(p.Username, `/\`) {
 			return c, fmt.Errorf("%s: %q is not a username", ControlFile, p.Username)
@@ -75,8 +79,29 @@ func Parse(b []byte) (Config, error) {
 			return c, fmt.Errorf("%s: %s is listed twice", ControlFile, p.Username)
 		}
 		seen[p.Username] = true
+		for _, n := range p.Reviews {
+			if other, ok := reviewer[n]; ok {
+				return c, fmt.Errorf("%s: %s has two reviewers, %s and %s", ControlFile, n, other, p.Username)
+			}
+			reviewer[n] = p.Username
+		}
 	}
 	return c, nil
+}
+
+// ReviewerOf is who signs off on the scrum name, if anyone.
+func (c Config) ReviewerOf(name string) string {
+	for _, p := range c.People {
+		if slices.Contains(p.Reviews, name) {
+			return p.Username
+		}
+	}
+	return ""
+}
+
+// HasReviewers reports whether the document names any reviewer.
+func (c Config) HasReviewers() bool {
+	return slices.ContainsFunc(c.People, func(p Person) bool { return len(p.Reviews) > 0 })
 }
 
 // Load reads the people document from the system checkout dir; a program
@@ -97,12 +122,15 @@ func Document(c Config) ([]byte, error) {
 	return corpus.FormatConfig("people", "People", c)
 }
 
-// Change is one person's allocation or release, in the names given.
+// Change is one person's allocation or release, or their naming as reviewer
+// or removal, in the names given. Force moves a scrum another person reviews.
 type Change struct {
 	Username string
 	Scrums   []string
 	Epics    []string
+	Reviews  []string
 	Release  bool
+	Force    bool
 }
 
 // Result is what a change did.
@@ -116,9 +144,23 @@ type Result struct {
 
 // Apply makes the change in c: people and their names stay sorted, so a
 // document reads the same however it was built, and a person left on nothing
-// leaves the document.
+// leaves the document. A name this person now reviews leaves whoever held it,
+// a scrum having one reviewer.
 func Apply(c Config, ch Change) (Config, Person) {
 	out := Config{People: slices.Clone(c.People)}
+	if !ch.Release && len(ch.Reviews) > 0 {
+		for i := len(out.People) - 1; i >= 0; i-- {
+			other := out.People[i]
+			if other.Username == ch.Username {
+				continue
+			}
+			other.Reviews = changed(other.Reviews, ch.Reviews, true)
+			out.People[i] = other
+			if len(other.Scrums)+len(other.Epics)+len(other.Reviews) == 0 {
+				out.People = slices.Delete(out.People, i, i+1)
+			}
+		}
+	}
 	i := slices.IndexFunc(out.People, func(p Person) bool { return p.Username == ch.Username })
 	var p Person
 	if i >= 0 {
@@ -127,7 +169,8 @@ func Apply(c Config, ch Change) (Config, Person) {
 	}
 	p.Username = ch.Username
 	p.Scrums, p.Epics = changed(p.Scrums, ch.Scrums, ch.Release), changed(p.Epics, ch.Epics, ch.Release)
-	if len(p.Scrums)+len(p.Epics) > 0 {
+	p.Reviews = changed(p.Reviews, ch.Reviews, ch.Release)
+	if len(p.Scrums)+len(p.Epics)+len(p.Reviews) > 0 {
 		out.People = append(out.People, p)
 	}
 	slices.SortFunc(out.People, func(a, b Person) int { return strings.Compare(a.Username, b.Username) })
@@ -153,9 +196,22 @@ func Run(dir string, ch Change, commit, dryRun bool) (Result, error) {
 	if ch.Release {
 		r.Action = "released"
 	}
+	if len(ch.Reviews) > 0 {
+		r.Action = "named reviewer"
+		if ch.Release {
+			r.Action = "removed as reviewer"
+		}
+	}
 	c, err := Load(dir)
 	if err != nil {
 		return r, err
+	}
+	if !ch.Release && !ch.Force {
+		for _, n := range ch.Reviews {
+			if other := c.ReviewerOf(n); other != "" && other != ch.Username {
+				return r, fmt.Errorf("%s reviews %s; --force moves it to %s", other, n, ch.Username)
+			}
+		}
 	}
 	next, p := Apply(c, ch)
 	r.Person = p

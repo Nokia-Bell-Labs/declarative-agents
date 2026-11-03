@@ -752,6 +752,51 @@ func (t *Tracker) Approval(project, branch, tip string, excluded []string) (stri
 	return "", stale, nil
 }
 
+// Approvals reads the pull request's reviews as Approval does, for everyone.
+func (t *Tracker) Approvals(project, branch, tip string) ([]string, map[string]string, error) {
+	p, err := t.pull(project, branch)
+	if err != nil {
+		return nil, nil, err
+	}
+	rs, err := t.reviews(project, p.Number)
+	if err != nil {
+		return nil, nil, err
+	}
+	latest := map[string]ghReview{}
+	var order []string
+	for _, r := range rs {
+		if r.State == "COMMENTED" || r.State == "PENDING" {
+			continue
+		}
+		if _, seen := latest[r.User.Login]; !seen {
+			order = append(order, r.User.Login)
+		}
+		latest[r.User.Login] = r
+	}
+	var at []string
+	stale := map[string]string{}
+	for _, who := range order {
+		switch r := latest[who]; {
+		case r.State != "APPROVED":
+		case r.CommitID == tip:
+			at = append(at, who)
+		default:
+			stale[who] = r.CommitID
+		}
+	}
+	return at, stale, nil
+}
+
+// RequestReview asks usernames to review the pull request.
+func (t *Tracker) RequestReview(project, branch string, usernames []string) error {
+	p, err := t.pull(project, branch)
+	if err != nil {
+		return err
+	}
+	_, err = t.API.Do("POST", fmt.Sprintf("repos/%s/pulls/%d/requested_reviewers", project, p.Number), map[string]any{"reviewers": usernames})
+	return err
+}
+
 // Merge marks the draft ready and merges the pull request at tip with a
 // merge commit carrying message's first line as its title and the rest as
 // its body, so merged history reads it as scrum-master's own merges.

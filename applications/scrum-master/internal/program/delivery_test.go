@@ -24,6 +24,10 @@ func (r recording) approve(p string, iid int, branch, commit, by string) (bool, 
 	return r.local.approve(p, iid, branch, commit, by)
 }
 
+func (r recording) approvals(p string, iid int, branch, tip string) ([]string, map[string]string, error) {
+	return r.local.approvals(p, iid, branch, tip)
+}
+
 func (r recording) approval(p string, iid int, branch, tip, merger string) (string, error) {
 	*r.calls = append(*r.calls, "approval")
 	return r.local.approval(p, iid, branch, tip, merger)

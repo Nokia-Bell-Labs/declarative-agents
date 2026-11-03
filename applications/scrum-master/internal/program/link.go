@@ -47,7 +47,7 @@ func LinkIssue(t tracker.Tracker, project string, iid int, kind, target string, 
 			return r, fmt.Errorf("%s already implements %s; --force replaces it", r.Ref, l.Target)
 		}
 	}
-	if body := withImplements(i.Description, target); body != i.Description {
+	if body := withLine(i.Description, links.Implements, target); body != i.Description {
 		r.Action = "linked"
 		i.Description = body
 		if !dryRun {
@@ -96,21 +96,21 @@ func documentHeld(t tracker.Tracker, project, kind, target string) error {
 	return nil
 }
 
-// withImplements is the description with one Implements line, naming target:
-// the first one rewritten in place and any other dropped, else a new line at
-// its end.
-func withImplements(description, target string) string {
-	line := links.Implements + ": " + target
+// withLine is the description with one line of key, naming value: the first
+// one rewritten in place and any other dropped, else a new line at its end;
+// an empty value drops them all.
+func withLine(description, key, value string) string {
+	line := key + ": " + value
 	var out []string
 	found := false
 	for _, l := range strings.Split(description, "\n") {
-		if !strings.HasPrefix(strings.TrimSpace(l), links.Implements+":") {
+		if !strings.HasPrefix(strings.TrimSpace(l), key+":") {
 			out = append(out, l)
-		} else if !found {
+		} else if !found && value != "" {
 			out, found = append(out, line), true
 		}
 	}
-	if found {
+	if found || value == "" {
 		return strings.Join(out, "\n")
 	}
 	if strings.TrimSpace(description) == "" {

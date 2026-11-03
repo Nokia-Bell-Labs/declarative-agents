@@ -658,6 +658,73 @@ func (t *Tracker) Approval(project, branch, tip string, excluded []string) (stri
 	return "", stale, nil
 }
 
+// Approvals reads the merge request's approval notes as Approval does, for
+// everyone.
+func (t *Tracker) Approvals(project, branch, tip string) ([]string, map[string]string, error) {
+	m, err := t.mr(project, branch)
+	if err != nil {
+		return nil, nil, err
+	}
+	var a struct {
+		ApprovedBy []struct {
+			User glUser `json:"user"`
+		} `json:"approved_by"`
+	}
+	if err := t.get(fmt.Sprintf("projects/%s/merge_requests/%d/approvals", id(project), m.IID), &a); err != nil {
+		return nil, nil, err
+	}
+	approvers := map[string]bool{}
+	for _, x := range a.ApprovedBy {
+		approvers[x.User.Username] = true
+	}
+	notes, err := t.mrNotes(project, m.IID)
+	if err != nil {
+		return nil, nil, err
+	}
+	var at []string
+	stale := map[string]string{}
+	for _, n := range notes {
+		who := n.Author.Username
+		found := strings.Index(n.Body, approvalPrefix)
+		if found < 0 {
+			continue
+		}
+		commit, _, _ := strings.Cut(n.Body[found+len(approvalPrefix):], " ")
+		switch {
+		case commit == tip && approvers[who]:
+			if !slices.Contains(at, who) {
+				at = append(at, who)
+			}
+			delete(stale, who)
+		case !slices.Contains(at, who):
+			stale[who] = commit
+		}
+	}
+	return at, stale, nil
+}
+
+// RequestReview asks usernames to review the merge request, which holds them
+// as its reviewers.
+func (t *Tracker) RequestReview(project, branch string, usernames []string) error {
+	m, err := t.mr(project, branch)
+	if err != nil {
+		return err
+	}
+	uids := []int{}
+	for _, u := range usernames {
+		var us []glUser
+		if err := t.get("users?username="+url.QueryEscape(u), &us); err != nil {
+			return err
+		}
+		if len(us) == 0 {
+			return fmt.Errorf("no GitLab user %s: %w", u, tracker.ErrNotFound)
+		}
+		uids = append(uids, us[0].ID)
+	}
+	_, err = t.API.Do("PUT", fmt.Sprintf("projects/%s/merge_requests/%d", id(project), m.IID), map[string]any{"reviewer_ids": uids})
+	return err
+}
+
 // Merge marks the draft ready and merges the merge request at tip with
 // message as its merge commit's message.
 func (t *Tracker) Merge(project, branch, tip, message string) (string, error) {

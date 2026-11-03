@@ -16,8 +16,10 @@ import (
 	"sort"
 	"strings"
 
+	"bytes"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/goals"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/hierarchy"
 )
 
 // The ways a requirement or criterion changes between two corpus tags.
@@ -253,6 +255,40 @@ func sortItems(ids []string) []string {
 // mergedBy is the trailer scrum-master's merge writes, naming the tracker
 // user who merged (srd013).
 var mergedBy = regexp.MustCompile(`(?m)^Merged-by: (\S+)$`)
+
+var approvedBy = regexp.MustCompile(`(?m)^Approved-by: (\S+)$`)
+
+// signoffOf is who signed off on the document at file, from local git alone:
+// the Approved-by trailers of the latest merge that changed it, and that merge.
+// A merge that changed only its issues record or people block is passed over,
+// read through textconv as the document is everywhere. A document
+// no merge changed, or whose latest change no one approved, has no one.
+func signoffOf(file string) ([]string, string) {
+	dir, base := filepath.Dir(file), "./"+filepath.Base(file)
+	out, err := exec.Command("git", "-C", dir, "log", "--first-parent", "--merges", "--format=%H%x1f%b%x1e", "--", base).Output()
+	if err != nil {
+		return nil, ""
+	}
+	show := func(rev string) []byte {
+		b, _ := exec.Command("git", "-C", dir, "cat-file", "--textconv", rev+":"+base).Output()
+		return hierarchy.AgreedText(b)
+	}
+	for _, rec := range strings.Split(string(out), "\x1e") {
+		commit, body, ok := strings.Cut(strings.TrimSpace(rec), "\x1f")
+		if !ok {
+			continue
+		}
+		if bytes.Equal(show(commit+"^1"), show(commit)) {
+			continue
+		}
+		var who []string
+		for _, m := range approvedBy.FindAllStringSubmatch(body, -1) {
+			who = append(who, m[1])
+		}
+		return who, commit[:min(12, len(commit))]
+	}
+	return nil, ""
+}
 
 // mergesTouching lists, from local git alone, the merges on the first-parent
 // history between two tags that changed path: each one's commit, subject,

@@ -216,7 +216,7 @@ document_types:
     markdown:
       frontmatter:
         required: [id, title]
-        allowed: [id, title]
+        allowed: [id, title, authors, reviewer]
       nodes:
         document_field:
           tag: field
@@ -347,7 +347,7 @@ document_types:
     markdown:
       frontmatter:
         required: [id, title]
-        allowed: [id, title]
+        allowed: [id, title, authors, reviewer]
       nodes:
         document_field:
           tag: field
@@ -1083,7 +1083,7 @@ document_types:
     markdown:
       frontmatter:
         required: [id, title]
-        allowed: [id, title]
+        allowed: [id, title, authors, reviewer]
       nodes:
         document_field:
           tag: field
@@ -1510,7 +1510,7 @@ document_types:
     markdown:
       frontmatter:
         required: [id, title]
-        allowed: [id, title, status, retired_in, replaced_by, depends_on, derived_from]
+        allowed: [id, title, status, retired_in, replaced_by, depends_on, derived_from, authors, reviewer]
         id_matches_filename: true
       nodes:
         document_field:
@@ -1926,7 +1926,7 @@ document_types:
     markdown:
       frontmatter:
         required: [id, title]
-        allowed: [id, title, status, priority, retired_in, replaced_by, test_suite]
+        allowed: [id, title, status, priority, retired_in, replaced_by, test_suite, authors, reviewer]
         id_matches_filename: true
       nodes:
         document_field:

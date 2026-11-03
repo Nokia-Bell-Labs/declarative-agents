@@ -26,16 +26,18 @@ const ScrumsDir = "scrums"
 // Goals filed in its repositories, and the epics its documents serve.
 type scrum struct {
 	timeline.Team
-	Page    string
-	People  []string // who control/people.md names on it (srd048 R8.8)
-	names   []string // its repositories as the facts name documents (GH-2811)
-	Docs    []string // its features and stories, in kind and rank order
-	Serves  []string // a sub-program's documents this plan shows, its interior apart
-	Goals   []timeline.Item
-	Epics   []string
-	Done    int // its story points done
-	Points  int // its story points
-	Stories int
+	Page   string
+	People []string // who control/people.md names on it (srd048 R8.8)
+	// Reviewer is who control/people.md names to sign off on it (srd013 R11.1).
+	Reviewer string
+	names    []string // its repositories as the facts name documents (GH-2811)
+	Docs     []string // its features and stories, in kind and rank order
+	Serves   []string // a sub-program's documents this plan shows, its interior apart
+	Goals    []timeline.Item
+	Epics    []string
+	Done     int // its story points done
+	Points   int // its story points
+	Stories  int
 }
 
 // owns reports whether a document is one of the team's: the facts name a
@@ -71,6 +73,9 @@ func scrumsIn(f timeline.Facts, nodes map[string]*Node) []scrum {
 		for _, p := range f.People {
 			if slices.Contains(p.Scrums, t.Name) {
 				s.People = append(s.People, p.Username)
+			}
+			if slices.Contains(p.Reviews, t.Name) {
+				s.Reviewer = p.Username
 			}
 		}
 		for _, r := range t.Repositories {
@@ -270,6 +275,7 @@ func programPage(s scrum, nodes map[string]*Node, head string, arch map[string]s
 		b.WriteString("**A program of its own.** Its teams, epics, and stories are on its own site, which its control/program.md does not name yet; this page shows what this plan asked of it and what it serves the plan with.\n\n")
 	}
 	b.WriteString(peopleLine(s.Page, s.People))
+	b.WriteString(scrumReviewerLine(s.Page, s.Reviewer))
 	fmt.Fprintf(&b, "**Area:** %s.\n\n", areaLinks(s, arch))
 	if s.Points > 0 {
 		fmt.Fprintf(&b, "%d of %d story points done across what it serves this plan with.\n\n", s.Done, s.Points)
@@ -294,6 +300,7 @@ func teamPage(s scrum, nodes map[string]*Node, head string, arch map[string]stri
 	}
 	b.WriteString(strings.Join(facts, " · ") + "\n\n")
 	b.WriteString(peopleLine(s.Page, s.People))
+	b.WriteString(scrumReviewerLine(s.Page, s.Reviewer))
 	var code []string
 	for _, r := range s.Repositories {
 		if r != s.Scrum || !s.Apart {

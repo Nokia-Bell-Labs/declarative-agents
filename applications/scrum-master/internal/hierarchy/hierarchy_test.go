@@ -248,3 +248,37 @@ func TestFindingJSONKeys(t *testing.T) {
 		t.Fatalf("finding JSON %s", b)
 	}
 }
+
+func TestPathOf(t *testing.T) {
+	for id, want := range map[string]string{"st001-a": "docs/specs/stories/st001-a.md", "ep001-a": "docs/specs/epics/ep001-a.md", "srd001-a": ""} {
+		if got := PathOf(id); got != want {
+			t.Errorf("PathOf(%s) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+// TestAgreedText is what a person agreed on: a change to the issues record or
+// the people block alone leaves it the same.
+func TestAgreedText(t *testing.T) {
+	front := "---\nid: st001-a\ntitle: A\n---\n"
+	named := "---\nid: st001-a\ntitle: A\nauthors: alice\nreviewer: carol\n---\n"
+	body := "\n<!-- field: problem -->\n## Problem\n\nThe problem.\n"
+	record := "<!-- field: issues | form: \"tree\" -->\n## Issues\n\n- \"g/p#1\":\n  - state: open\n"
+	last := "<!-- field: goals -->\n## Goals\n\n- G1\n"
+	want := strings.TrimRight(front+body, "\n")
+	for name, doc := range map[string]string{"plain": front + body, "a record at the end": front + body + "\n" + record, "named": named + body} {
+		if got := string(AgreedText([]byte(doc))); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
+	}
+	mid := string(AgreedText([]byte(front + body + "\n" + record + "\n" + last)))
+	if mid != string(AgreedText([]byte(front+body+"\n"+last))) {
+		t.Errorf("a record in the middle = %q", mid)
+	}
+	if string(AgreedText([]byte(front+body))) == string(AgreedText([]byte(front+strings.Replace(body, "The problem", "Another", 1)))) {
+		t.Error("a change to the text reads as no change")
+	}
+	if !strings.Contains(string(AgreedText([]byte("no block\nreviewer: stays\n"))), "reviewer: stays") {
+		t.Error("a body line was taken for the block")
+	}
+}

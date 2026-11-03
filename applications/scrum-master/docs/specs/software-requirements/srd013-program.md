@@ -229,6 +229,44 @@ scrum-master issue list --mine lists the caller's open issues, in --project, or,
 
 The assign and unassign skills each run their one word in a model-free profile; no other profile declares either word, and a gate holds this. The assign skill confirms the issue and the person before it runs.
 
+<!-- req: R11 -->
+## R11 - Who signs off
+
+<!-- req: R11.1 -->
+### R11.1
+
+Who signs off on an issue is, most specific first: the person its Reviewer line names (config format issue-body); the reviewer the document its Implements line names carries in its frontmatter, then that document's parents' up to its epic; the reviewer control/people.md names for the scrum whose repository holds the issue; and the policy's admission.default_reviewer. Who signs off on a document is found the same way from its own frontmatter: the vision, the architecture, the road map, an SRD, a use case, or a planning document, each of which carries it beside its authors. With no name from any of these, nobody is required and R5.5 stands.
+
+<!-- req: R11.2 -->
+### R11.2
+
+A merge needs the approval of the tip by whoever signs off on its issue, and by whoever signs off on each such document the branch changes, even with admission.require_approval off, and only their approval counts for them. A document's reviewer is added to the issue's, so an issue's Reviewer line replaces the default but not a changed document's reviewer. Signing off on a document means the document is agreed; a change to its issues record (srd045 R4.4) or its people block alone changes nothing agreed and needs nobody, so a reviewer who is away can be replaced. merge reads who signs off from each document at its repository's default branch and the control files at --ref, not from the branch, except that a document the branch adds says it from the branch, and its refusal names everyone still needed and any earlier commit they approved. An inherited reviewer who wrote the work cannot approve it, so that requirement falls back to anyone but the assignee, or anyone but the merger when nobody took the issue; a Reviewer line naming them is refused, for a person to change.
+
+<!-- req: R11.3 -->
+### R11.3
+
+A merge commit carries one Approved-by trailer per approver, beside its Merged-by trailer, so the site reads who signed off from git alone (srd048 R8.9). It is the only record a sign-off adds.
+
+<!-- req: R11.4 -->
+### R11.4
+
+scrum-master issue reviewer writes an issue's Reviewer line, replacing another only with --force, and --clear drops it; it refuses a closed issue and the issue's assignee. scrum-master backlog reviewer writes a document's reviewer into its frontmatter, by id or path, replacing another only with --force, and --clear drops it. scrum-master people review names who signs off on a scrum in control/people.md, moving a scrum another person holds only with --force, and people unreview takes them off. A scrum or document has one reviewer, and a control/people.md naming two for a scrum is refused. --dry-run changes nothing, and a second identical run changes nothing.
+
+<!-- req: R11.5 -->
+### R11.5
+
+The reviewer, backlog-reviewer, people-review, and people-unreview skills each run their one word in a model-free profile; no other profile declares any of the four, and a gate holds this. An agent never names a reviewer or approves; each skill confirms with the person before it runs.
+
+<!-- req: R11.6 -->
+### R11.6
+
+On a tracking system whose host reviews branches, the person who signs off on the issue is asked on its review, when the review opens and when issue reviewer names them, unless they are its assignee or the person running the word. What stops the request is reported and fails nothing, since the merge, not the request, holds the sign-off. A tracking system without one, such as beads, shows them in the listings alone.
+
+<!-- req: R11.7 -->
+### R11.7
+
+scrum-master issue list --reviewing lists the open issues the caller signs off on and is not assigned, taken as issue list --mine takes its repositories (R10.3).
+
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -425,3 +463,73 @@ A gate fails when a profile other than assign or unassign declares its word, and
 #### Traces
 
 - [R10.4](#r104)
+
+<!-- ac: AC18 -->
+### AC18
+
+With nothing named, merge behaves as R5.5 says; with a Reviewer line, a document's own reviewer or its parents', a scrum's reviewer, or a default, the lookup finds them in that order, and a parent pinned by URL is followed to its repository.
+
+<!-- field: traces -->
+#### Traces
+
+- [R11.1](#r111)
+
+<!-- ac: AC19 -->
+### AC19
+
+With require_approval off, merge refuses without a required reviewer's approval of the tip and names who is needed and any earlier commit they approved; another person's approval does not stand in; a branch changing a document needs its reviewer as well as the issue's; a branch that renames a document's reviewer while changing it is held to the name on the default branch; a change to a document's issues record or people block alone needs nobody; a document the branch adds is held to the reviewer it names; an inherited reviewer who wrote the work falls back to anyone else, and a Reviewer line naming them is refused. This holds on beads, GitHub, and GitLab.
+
+<!-- field: traces -->
+#### Traces
+
+- [R11.2](#r112)
+
+<!-- ac: AC20 -->
+### AC20
+
+A merge commit carries Approved-by for each approver beside Merged-by.
+
+<!-- field: traces -->
+#### Traces
+
+- [R11.3](#r113)
+
+<!-- ac: AC21 -->
+### AC21
+
+issue reviewer writes the line, replaces another only with --force, drops it with --clear, and refuses a closed issue and its assignee; backlog reviewer writes a document's frontmatter, finding it by id or path, and refuses a document that carries none; people review and unreview change control/people.md, moving a held scrum only with --force; a control/people.md naming two reviewers for one scrum is refused; --dry-run and a second run change nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R11.4](#r114)
+
+<!-- ac: AC22 -->
+### AC22
+
+A gate fails when a profile other than a word's own declares issue reviewer, backlog reviewer, people review, or people unreview, and when any of the four has a model.
+
+<!-- field: traces -->
+#### Traces
+
+- [R11.5](#r115)
+
+<!-- ac: AC23 -->
+### AC23
+
+Pop and issue reviewer ask the reviewer on GitHub and GitLab; a host that refuses is a note and fails nothing, and neither the assignee nor the caller is asked.
+
+<!-- field: traces -->
+#### Traces
+
+- [R11.6](#r116)
+
+<!-- ac: AC24 -->
+### AC24
+
+issue list --reviewing lists the open issues the caller signs off on, by a Reviewer line or a document's reviewer, and leaves out those assigned to them.
+
+<!-- field: traces -->
+#### Traces
+
+- [R11.7](#r117)

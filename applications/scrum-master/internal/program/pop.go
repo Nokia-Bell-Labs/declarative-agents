@@ -76,7 +76,11 @@ type PopResult struct {
 	// Review is the URL of the pull or merge request pop opened, or found,
 	// on a tracking system whose host reviews the branch.
 	Review string `json:"review,omitempty"`
-	DryRun bool   `json:"dry_run"`
+	// Reviewer is who the review asked to sign off; ReviewNote is why it could
+	// not ask, which never fails the pop.
+	Reviewer   string `json:"reviewer,omitempty"`
+	ReviewNote string `json:"review_note,omitempty"`
+	DryRun     bool   `json:"dry_run"`
 	// Installed are the agents whose skills were installed into the worktree
 	// (srd036 R2.3); InstallError says why that failed, without undoing pop.
 	Installed    []string `json:"installed,omitempty"`
@@ -110,6 +114,9 @@ func PopIn(t tracker.Tracker, git Git, project, issueProject string, iid int, br
 	}
 	if r.Created, r.Review, err = OpenIssueBranch(t, project, issueProject, iid, r.Branch, i.Title, dryRun); err != nil {
 		return r, err
+	}
+	if r.Review != "" {
+		r.Reviewer, r.ReviewNote = requestReview(t, project, issueProject, i, r.Branch, p, dryRun)
 	}
 	r.Checkout, r.Worktree, r.Added, err = AddIssueWorktree(git, dir, r.Branch, dryRun)
 	if err != nil {

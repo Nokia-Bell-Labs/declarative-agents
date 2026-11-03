@@ -153,6 +153,7 @@ func TestInitWritesControlFiles(t *testing.T) {
 	if g := want.Gate("corpus"); len(g) != 2 || g[0].Command != ProgramAudit || g[1].Kind != "peer-read" || want.AuditCommand != ProgramAudit {
 		t.Fatalf("init's corpus gate = %+v, audit %q; want scrum-master backlog check and a peer read", g, want.AuditCommand)
 	}
+	want.Control, want.Ref = "g/system", "main"
 	policy, err := program.LoadPolicy(f, "g/system", "main")
 	if err != nil || !reflect.DeepEqual(policy, want) {
 		t.Fatalf("control/policy.md reads back as %+v, %v; want %+v", policy, err, want)

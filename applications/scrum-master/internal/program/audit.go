@@ -73,6 +73,8 @@ type MergeGate struct {
 	Dir             string
 	Run             AuditRunner
 	RequireApproval bool
+	// Policy is where the merge reads who must sign off (srd013 R11.2).
+	Policy Policy
 }
 
 // checkCloses parses each --closes reference, project#iid, and refuses one

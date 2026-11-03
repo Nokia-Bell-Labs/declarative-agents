@@ -24,6 +24,9 @@ type delivery interface {
 	// assignees or, for an issue nobody took, other than merger. Without
 	// one, the error names what is missing.
 	approval(issueProject string, iid int, branch, tip, merger string) (string, error)
+	// approvals names everyone whose approval of branch stands at tip, and,
+	// for anyone whose stands at an earlier commit, that commit.
+	approvals(issueProject string, iid int, branch, tip string) ([]string, map[string]string, error)
 	// merge merges branch into base in the main checkout at main with
 	// message, publishes it, and returns the merge commit.
 	merge(main, base, branch, message string) (string, error)
@@ -92,6 +95,27 @@ func (d localDelivery) approval(issueProject string, iid int, branch, tip, merge
 		branch, short(tip), strings.Join(excluded, ", "))
 }
 
+func (d localDelivery) approvals(issueProject string, iid int, _, tip string) ([]string, map[string]string, error) {
+	notes, err := d.t.ListNotes(issueProject, iid)
+	if err != nil {
+		return nil, nil, err
+	}
+	var at []string
+	stale := map[string]string{}
+	for _, n := range notes {
+		switch found := strings.Index(n.Body, approvalPrefix); {
+		case strings.Contains(n.Body, approvalMarker(tip)):
+			if !slices.Contains(at, n.Author) {
+				at = append(at, n.Author)
+			}
+			delete(stale, n.Author)
+		case found >= 0 && !slices.Contains(at, n.Author):
+			stale[n.Author], _, _ = strings.Cut(n.Body[found+len(approvalPrefix):], " ")
+		}
+	}
+	return at, stale, nil
+}
+
 func (d localDelivery) merge(main, base, branch, message string) (string, error) {
 	run := func(args ...string) (string, error) {
 		out, err := d.git.Run(main, args...)
@@ -146,6 +170,10 @@ func (d reviewDelivery) approval(issueProject string, iid int, branch, tip, merg
 	}
 	return "", fmt.Errorf("no approval of %s at %s from someone other than %s; ask a reviewer to approve it with the approve skill (srd013 R5.5)",
 		branch, short(tip), strings.Join(excluded, ", "))
+}
+
+func (d reviewDelivery) approvals(_ string, _ int, branch, tip string) ([]string, map[string]string, error) {
+	return d.rv.Approvals(d.project, branch, tip)
 }
 
 func (d reviewDelivery) merge(main, base, branch, message string) (string, error) {

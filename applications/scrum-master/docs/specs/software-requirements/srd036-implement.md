@@ -60,7 +60,7 @@ The worktree carries the skills of every agent installed in the checkout pop ran
 <!-- req: R3.1 -->
 ### R3.1
 
-When the work is committed and pushed, runs scrum-master issue merge (srd013 R5), which runs the corpus gate for a docs/ change, merges the branch, and closes the issue. When the program's policy requires approval, the skill first asks a reviewer to approve the tip with scrum-master issue approve, and asks again when merge refuses an approval of an earlier commit.
+When the work is committed and pushed, runs scrum-master issue merge (srd013 R5), which runs the corpus gate for a docs/ change, merges the branch, and closes the issue. When the program's policy requires approval or someone is named to sign off (srd013 R11), the skill first asks a reviewer to approve the tip with scrum-master issue approve, and asks again when merge refuses an approval of an earlier commit or names who is still needed.
 
 <!-- req: R3.2 -->
 ### R3.2
