@@ -4,6 +4,7 @@ package backlog
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,9 +12,48 @@ import (
 	"strings"
 	"testing"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
+
+// The field the record writes is one the SRD declaration allows, since the spec
+// tool reads hierarchy documents with it; otherwise every recorded story and
+// epic fails its repository's corpus gate (srd045 R4.4, GH-2887). The test
+// needs the monorepo's constitution, which a build out of tree does not carry.
+func TestLedgerFieldIsDeclared(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "agent-core", "docs", "constitutions", "design.yaml"))
+	if errors.Is(err, os.ErrNotExist) {
+		t.Skip("no agent-core beside this module")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var design struct {
+		DocumentTypes struct {
+			SRD struct {
+				Markdown struct {
+					Nodes struct {
+						DocumentField struct {
+							Fields []string `yaml:"fields"`
+						} `yaml:"document_field"`
+					} `yaml:"nodes"`
+				} `yaml:"markdown"`
+			} `yaml:"srd"`
+		} `yaml:"document_types"`
+	}
+	if err := yaml.Unmarshal(data, &design); err != nil {
+		t.Fatal(err)
+	}
+	doc := string(WriteLedger([]byte("---\nid: st001-x\ntitle: X\n---\n"), []LedgerEntry{{Ref: "g/a#1", URL: "https://x/1", Title: "T", State: "open"}}))
+	if !strings.Contains(doc, ledgerMarker) {
+		t.Fatalf("the ledger wrote no %s:\n%s", ledgerMarker, doc)
+	}
+	if !slices.Contains(design.DocumentTypes.SRD.Markdown.Nodes.DocumentField.Fields, "issues") {
+		t.Fatalf("the SRD declaration does not allow the issues field: %v", design.DocumentTypes.SRD.Markdown.Nodes.DocumentField.Fields)
+	}
+}
 
 // A story's issues record round-trips (srd045 R4.4): writing appends the
 // field to a story without one, reading gives the entries back in ref

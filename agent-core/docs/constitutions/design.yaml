@@ -1564,6 +1564,7 @@ document_types:
           - test_suite_traces
           - assumptions
           - needs_clarification
+          - issues
         requirement_group:
           tag: req
           level: 2
