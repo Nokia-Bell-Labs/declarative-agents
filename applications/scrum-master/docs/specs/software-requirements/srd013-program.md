@@ -240,7 +240,7 @@ Who signs off on an issue is, most specific first: the person its Reviewer line 
 <!-- req: R11.2 -->
 ### R11.2
 
-A merge needs the approval of the tip by whoever signs off on its issue, and by whoever signs off on each such document the branch changes, even with admission.require_approval off, and only their approval counts for them. A document's reviewer is added to the issue's, so an issue's Reviewer line replaces the default but not a changed document's reviewer. Signing off on a document means the document is agreed; a change to its issues record (srd045 R4.4), its issue items (srd045 R2.7), or its people block alone changes nothing agreed and needs nobody, so a reviewer who is away can be replaced. merge reads who signs off from each document at its repository's default branch and the control files at --ref, not from the branch, except that a document the branch adds says it from the branch, and its refusal names everyone still needed and any earlier commit they approved. An inherited reviewer who wrote the work cannot approve it, so that requirement falls back to anyone but the assignee, or anyone but the merger when nobody took the issue; a Reviewer line naming them is refused, for a person to change.
+A merge needs the approval of the tip by whoever signs off on its issue, and by whoever signs off on each such document the branch changes, even with admission.require_approval off, and only their approval counts for them. A document's reviewer is added to the issue's, so an issue's Reviewer line replaces the default but not a changed document's reviewer. Signing off on a document means the document is agreed; a change to its issues record (srd045 R4.4), its issue items (srd045 R2.7), or its people block alone changes nothing agreed and needs nobody, so a reviewer who is away can be replaced. merge reads who signs off from each document at its repository's default branch and the control files at --ref, not from the branch, except that a document the branch adds says it from the branch, and its refusal names everyone still needed and any earlier commit they approved. A reviewer who runs the merge has signed off by doing it, the merge being of that tip, so a person can review their own work and a repository of one is never locked out. A reviewer who wrote the work and does not run the merge cannot approve it, as a host refuses an author's approval, so that requirement falls back to anyone but the assignee, or anyone but the merger when nobody took the issue. With admission.require_approval on, a merge also needs another person's approval as R5.5 says, so naming yourself does not get round it.
 
 <!-- req: R11.3 -->
 ### R11.3
@@ -250,7 +250,7 @@ A merge commit carries one Approved-by trailer per approver, beside its Merged-b
 <!-- req: R11.4 -->
 ### R11.4
 
-scrum-master issue reviewer writes an issue's Reviewer line, replacing another only with --force, and --clear drops it; it refuses a closed issue and the issue's assignee. scrum-master backlog reviewer writes a document's reviewer into its frontmatter, by id or path, replacing another only with --force, and --clear drops it. scrum-master people review names who signs off on a scrum in control/people.md, moving a scrum another person holds only with --force, and people unreview takes them off. A scrum or document has one reviewer, and a control/people.md naming two for a scrum is refused. --dry-run changes nothing, and a second identical run changes nothing.
+scrum-master issue reviewer writes an issue's Reviewer line, replacing another only with --force, and --clear drops it; it refuses a closed issue, and may name the issue's assignee. scrum-master backlog reviewer writes a document's reviewer into its frontmatter, by id or path, replacing another only with --force, and --clear drops it. scrum-master people review names who signs off on a scrum in control/people.md, moving a scrum another person holds only with --force, and people unreview takes them off. A scrum or document has one reviewer, and a control/people.md naming two for a scrum is refused. --dry-run changes nothing, and a second identical run changes nothing.
 
 <!-- req: R11.5 -->
 ### R11.5
@@ -477,7 +477,7 @@ With nothing named, merge behaves as R5.5 says; with a Reviewer line, a document
 <!-- ac: AC19 -->
 ### AC19
 
-With require_approval off, merge refuses without a required reviewer's approval of the tip and names who is needed and any earlier commit they approved; another person's approval does not stand in; a branch changing a document needs its reviewer as well as the issue's; a branch that renames a document's reviewer while changing it is held to the name on the default branch; a change to a document's issues record or people block alone needs nobody; a document the branch adds is held to the reviewer it names; an inherited reviewer who wrote the work falls back to anyone else, and a Reviewer line naming them is refused. This holds on beads, GitHub, and GitLab.
+With require_approval off, merge refuses without a required reviewer's approval of the tip and names who is needed and any earlier commit they approved; another person's approval does not stand in; a branch changing a document needs its reviewer as well as the issue's; a branch that renames a document's reviewer while changing it is held to the name on the default branch; a change to a document's issues record or people block alone needs nobody; a document the branch adds is held to the reviewer it names; a reviewer running the merge signs off by doing it, recorded as Approved-by, so one person named by a Reviewer line or the default delivers their own work with no other account; someone else merging a reviewer's own work needs another person's approval; with require_approval on, naming yourself is still refused. This holds on beads, GitHub, and GitLab.
 
 <!-- field: traces -->
 #### Traces
@@ -497,7 +497,7 @@ A merge commit carries Approved-by for each approver beside Merged-by.
 <!-- ac: AC21 -->
 ### AC21
 
-issue reviewer writes the line, replaces another only with --force, drops it with --clear, and refuses a closed issue and its assignee; backlog reviewer writes a document's frontmatter, finding it by id or path, and refuses a document that carries none; people review and unreview change control/people.md, moving a held scrum only with --force; a control/people.md naming two reviewers for one scrum is refused; --dry-run and a second run change nothing.
+issue reviewer writes the line, replaces another only with --force, drops it with --clear, refuses a closed issue, and may name its assignee; backlog reviewer writes a document's frontmatter, finding it by id or path, and refuses a document that carries none; people review and unreview change control/people.md, moving a held scrum only with --force; a control/people.md naming two reviewers for one scrum is refused; --dry-run and a second run change nothing.
 
 <!-- field: traces -->
 #### Traces

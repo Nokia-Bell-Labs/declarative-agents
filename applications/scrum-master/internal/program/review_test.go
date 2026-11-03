@@ -196,20 +196,24 @@ func TestSignedOff(t *testing.T) {
 		at       []string
 		stale    map[string]string
 		excluded []string
+		merger   string
 		want     []string
 		refused  []string
 	}{
-		{name: "their approval", required: []Signoff{own}, at: []string{"lee"}, excluded: []string{"ann"}, want: []string{"lee"}},
-		{name: "only theirs counts", required: []Signoff{own}, at: []string{"bob"}, excluded: []string{"ann"}, refused: []string{"lee", "has not approved"}},
-		{name: "an earlier commit", required: []Signoff{own}, stale: map[string]string{"lee": "bbbbbbbbbbbbbbbbb"}, excluded: []string{"ann"}, refused: []string{"lee", "bbbbbbbbbbbb"}},
-		{name: "everyone needed is named", required: []Signoff{own, def}, excluded: []string{"ann"}, refused: []string{"lee", "dee"}},
-		{name: "one of two", required: []Signoff{own, def}, at: []string{"lee"}, excluded: []string{"ann"}, refused: []string{"dee"}},
-		{name: "an inherited reviewer who wrote it falls back", required: []Signoff{def}, at: []string{"bob"}, excluded: []string{"dee"}, want: []string{"bob"}},
-		{name: "the fallback still needs someone", required: []Signoff{def}, at: []string{"dee"}, excluded: []string{"dee"}, refused: []string{"someone other than dee"}},
-		{name: "an issue's own line naming the author is refused", required: []Signoff{own}, at: []string{"bob"}, excluded: []string{"lee"}, refused: []string{"wrote the work"}},
+		{name: "their approval", required: []Signoff{own}, at: []string{"lee"}, excluded: []string{"ann"}, merger: "ann", want: []string{"lee"}},
+		{name: "only theirs counts", required: []Signoff{own}, at: []string{"bob"}, excluded: []string{"ann"}, merger: "ann", refused: []string{"lee", "has not approved"}},
+		{name: "an earlier commit", required: []Signoff{own}, stale: map[string]string{"lee": "bbbbbbbbbbbbbbbbb"}, excluded: []string{"ann"}, merger: "ann", refused: []string{"lee", "bbbbbbbbbbbb"}},
+		{name: "everyone needed is named", required: []Signoff{own, def}, excluded: []string{"ann"}, merger: "ann", refused: []string{"lee", "dee"}},
+		{name: "one of two", required: []Signoff{own, def}, at: []string{"lee"}, excluded: []string{"ann"}, merger: "ann", refused: []string{"dee"}},
+		{name: "a repository of one: the default wrote it and merges it", required: []Signoff{def}, excluded: []string{"dee"}, merger: "dee", want: []string{"dee"}},
+		{name: "a repository of one: the line names the author, who merges", required: []Signoff{own}, excluded: []string{"lee"}, merger: "lee", want: []string{"lee"}},
+		{name: "a reviewer who did not write it merges with no approval", required: []Signoff{own}, excluded: []string{"ann"}, merger: "lee", want: []string{"lee"}},
+		{name: "running the merge signs off only for yourself", required: []Signoff{own, def}, excluded: []string{"lee"}, merger: "lee", refused: []string{"dee"}},
+		{name: "someone else merging a reviewer's own work needs another's approval", required: []Signoff{def}, at: []string{"bob"}, excluded: []string{"dee"}, merger: "cal", want: []string{"bob"}},
+		{name: "and is refused without it", required: []Signoff{def}, at: []string{"dee"}, excluded: []string{"dee"}, merger: "cal", refused: []string{"someone other than dee"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := signedOff(approvalsStub{at: c.at, stale: c.stale}, c.required, c.excluded, "g/p", 1, "1-x", tip)
+			got, err := signedOff(approvalsStub{at: c.at, stale: c.stale}, c.required, c.excluded, c.merger, "g/p", 1, "1-x", tip)
 			if len(c.refused) > 0 {
 				if err == nil {
 					t.Fatalf("signedOff = %v, want a refusal", got)
@@ -225,6 +229,44 @@ func TestSignedOff(t *testing.T) {
 				t.Fatalf("signedOff = %v, %v; want %v", got, err, c.want)
 			}
 		})
+	}
+}
+
+// TestARepositoryOfOneIsNotLockedOut: one person, named every way, delivers their
+// own work with no other account, and the merge commit says they signed off. With
+// require_approval on, naming yourself does not get round it.
+func TestARepositoryOfOneIsNotLockedOut(t *testing.T) {
+	alice, checkout := newBeadsTracker(t, "alice")
+	deliver := func(title, extra string, gate MergeGate) (MergeResult, error) {
+		t.Helper()
+		work, _ := alice.CreateIssue("g/po-1", tracker.NewIssue{Title: title, Milestone: "m", Description: goodBody + extra,
+			Labels: []string{"plane::data", "kind::build", "component::po-1"}})
+		p, err := Pop(alice, ExecGit{}, "g/po-1", work.IID, checkout, Defaults(), false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		beadstest.Git(t, p.Worktree, "commit", "-q", "--allow-empty", "-m", title)
+		beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
+		return Merge(alice, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false)
+	}
+	for name, c := range map[string]struct {
+		extra string
+		gate  MergeGate
+	}{
+		"their own line": {extra: "\nReviewer: alice\n"},
+		"the default":    {gate: MergeGate{Policy: Policy{DefaultReviewer: "alice"}}},
+	} {
+		m, err := deliver(name, c.extra, c.gate)
+		if err != nil || !m.Merged || m.ApprovedBy != "alice" {
+			t.Fatalf("%s: merge = %+v, %v", name, m, err)
+		}
+		if body := beadstest.Git(t, checkout, "log", "-1", "--format=%B", "main"); !strings.Contains(body, "Approved-by: alice") {
+			t.Fatalf("%s: merge commit = %q", name, body)
+		}
+	}
+	gate := MergeGate{RequireApproval: true}
+	if _, err := deliver("Round the policy", "\nReviewer: alice\n", gate); err == nil || !strings.Contains(err.Error(), "approval") {
+		t.Fatalf("naming yourself under require_approval = %v, want a refusal", err)
 	}
 }
 
@@ -267,46 +309,30 @@ func TestMergeHoldsTheNamedReviewer(t *testing.T) {
 	}
 }
 
-// TestMergeHoldsADefaultAndFallsBack: a default holds every merge, and a default
-// reviewer who wrote the work falls back to anyone else.
-func TestMergeHoldsADefaultAndFallsBack(t *testing.T) {
+// TestMergeHoldsADefault: a default holds a merge someone else runs until they
+// approve it.
+func TestMergeHoldsADefault(t *testing.T) {
 	alice, checkout := newBeadsTracker(t, "alice")
-	bob := reviewer(t, alice, checkout, "bob")
-	deliver := func(title, def string) (func() (MergeResult, error), int) {
-		t.Helper()
-		work, _ := alice.CreateIssue("g/po-1", tracker.NewIssue{Title: title, Milestone: "m", Description: goodBody,
-			Labels: []string{"plane::data", "kind::build", "component::po-1"}})
-		p, err := Pop(alice, ExecGit{}, "g/po-1", work.IID, checkout, Defaults(), false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		beadstest.Git(t, p.Worktree, "commit", "-q", "--allow-empty", "-m", title)
-		beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
-		return func() (MergeResult, error) {
-			gate := MergeGate{Policy: Policy{DefaultReviewer: def}}
-			return Merge(alice, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false)
-		}, work.IID
+	work, _ := alice.CreateIssue("g/po-1", tracker.NewIssue{Title: "Held by the default", Milestone: "m", Description: goodBody,
+		Labels: []string{"plane::data", "kind::build", "component::po-1"}})
+	p, err := Pop(alice, ExecGit{}, "g/po-1", work.IID, checkout, Defaults(), false)
+	if err != nil {
+		t.Fatal(err)
 	}
-	merge, iid := deliver("Held by the default", "dan")
+	beadstest.Git(t, p.Worktree, "commit", "-q", "--allow-empty", "-m", "Held")
+	beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
+	merge := func() (MergeResult, error) {
+		gate := MergeGate{Policy: Policy{DefaultReviewer: "dan"}}
+		return Merge(alice, ExecGit{}, "g/po-1", "g/po-1", work.IID, p.Branch, p.Worktree, gate, nil, false)
+	}
 	if _, err := merge(); err == nil || !strings.Contains(err.Error(), "dan") {
 		t.Fatalf("merge under a default = %v, want a refusal naming dan", err)
 	}
-	if _, err := Approve(reviewer(t, alice, checkout, "dan"), ExecGit{}, "g/po-1", "g/po-1", iid, "", checkout); err != nil {
+	if _, err := Approve(reviewer(t, alice, checkout, "dan"), ExecGit{}, "g/po-1", "g/po-1", work.IID, "", checkout); err != nil {
 		t.Fatal(err)
 	}
 	if m, err := merge(); err != nil || m.ApprovedBy != "dan" {
 		t.Fatalf("merge on dan's approval = %+v, %v", m, err)
-	}
-
-	merge, iid = deliver("The default wrote it", "alice")
-	if _, err := merge(); err == nil || !strings.Contains(err.Error(), "someone other than alice") {
-		t.Fatalf("merge of the default's own work = %v, want it to need anyone else", err)
-	}
-	if _, err := Approve(bob, ExecGit{}, "g/po-1", "g/po-1", iid, "", checkout); err != nil {
-		t.Fatal(err)
-	}
-	if m, err := merge(); err != nil || m.ApprovedBy != "bob" {
-		t.Fatalf("merge on bob's approval = %+v, %v", m, err)
 	}
 }
 
@@ -457,8 +483,8 @@ func TestNameReviewer(t *testing.T) {
 	if err := f.SetAssignee(p, i.IID, "erin"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = NameReviewer(f, p, p, i.IID, "erin", true, Policy{}, false); err == nil || !strings.Contains(err.Error(), "erin") {
-		t.Fatalf("naming the assignee = %v, want a refusal", err)
+	if _, err = NameReviewer(f, p, p, i.IID, "erin", true, Policy{}, false); err != nil {
+		t.Fatalf("naming the assignee, who signs off by merging = %v", err)
 	}
 	if r, err = NameReviewer(f, p, p, i.IID, "", false, Policy{}, false); err != nil || r.Action != "dropped" {
 		t.Fatalf("clear = %+v, %v", r, err)
