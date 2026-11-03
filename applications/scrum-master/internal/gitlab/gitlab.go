@@ -55,9 +55,15 @@ func (CLI) Do(method, path string, body any) ([]byte, error) {
 			return nil, err
 		}
 		f.Close()
-		args = append(args, "--input", f.Name())
+		args = withBody(args, f.Name())
 	}
 	return glab(args...)
+}
+
+// withBody is args sending the file as a JSON body. The header is explicit, as
+// GitLab refuses a body with none and an older glab may send it without one.
+func withBody(args []string, file string) []string {
+	return append(args, "--input", file, "--header", "Content-Type: application/json")
 }
 
 func (CLI) Run(args ...string) ([]byte, error) { return glab(args...) }

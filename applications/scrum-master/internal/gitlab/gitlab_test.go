@@ -255,3 +255,13 @@ func TestSignOffThroughMergeRequests(t *testing.T) {
 		t.Fatalf("merge on carol's approval = %+v, %v", m, err)
 	}
 }
+
+// TestABodySetsItsContentType: GitLab refuses a body with no Content-Type, so it does
+// not depend on what the installed glab sends.
+func TestABodySetsItsContentType(t *testing.T) {
+	got := withBody([]string{"api", "--method", "PUT", "p"}, "body.json")
+	want := []string{"api", "--method", "PUT", "p", "--input", "body.json", "--header", "Content-Type: application/json"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("args = %v, want %v", got, want)
+	}
+}
