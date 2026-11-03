@@ -248,3 +248,32 @@ func TestFindingJSONKeys(t *testing.T) {
 		t.Fatalf("finding JSON %s", b)
 	}
 }
+
+func TestPathOf(t *testing.T) {
+	for id, want := range map[string]string{"st001-a": "docs/specs/stories/st001-a.md", "ep001-a": "docs/specs/epics/ep001-a.md", "srd001-a": ""} {
+		if got := PathOf(id); got != want {
+			t.Errorf("PathOf(%s) = %q, want %q", id, got, want)
+		}
+	}
+}
+
+// TestWithoutIssues is what a person agreed on: a change to the issues record
+// alone leaves it the same, wherever the record sits.
+func TestWithoutIssues(t *testing.T) {
+	body := "---\nid: st001-a\n---\n\n<!-- field: problem -->\n## Problem\n\nThe problem.\n"
+	record := "<!-- field: issues | form: \"tree\" -->\n## Issues\n\n- \"g/p#1\":\n  - state: open\n"
+	last := "<!-- field: goals -->\n## Goals\n\n- G1\n"
+	want := strings.TrimRight(body, "\n")
+	for name, doc := range map[string]string{"none": body, "at the end": body + "\n" + record} {
+		if got := string(WithoutIssues([]byte(doc))); got != want {
+			t.Errorf("%s = %q, want %q", name, got, want)
+		}
+	}
+	mid := string(WithoutIssues([]byte(body + "\n" + record + "\n" + last)))
+	if mid != string(WithoutIssues([]byte(body+"\n"+last))) {
+		t.Errorf("a record in the middle = %q", mid)
+	}
+	if string(WithoutIssues([]byte(body))) == string(WithoutIssues([]byte(strings.Replace(body, "The problem", "Another", 1)))) {
+		t.Error("a change to the text reads as no change")
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -193,5 +194,58 @@ func TestDeliveryThroughMergeRequests(t *testing.T) {
 	}
 	if got, _ := alice.GetIssue(fleet, moved.IID); got.State != "closed" {
 		t.Fatalf("issue %s after the default-policy merge", got.State)
+	}
+}
+
+// TestSignOffThroughMergeRequests is a named reviewer on GitLab (srd013 R11): pop
+// asks them on the merge request, another person's approval does not stand in
+// with require_approval off, and the merge commit records theirs.
+func TestSignOffThroughMergeRequests(t *testing.T) {
+	root := t.TempDir()
+	checkout := beadstest.CodeRepository(t, root, "fleet", "alice")
+	l := newLab()
+	l.origins[fleet] = filepath.Join(root, "fleet.git")
+	alice, bob, carol := New(checkout, l.as("alice")), New(checkout, l.as("bob")), New(checkout, l.as("carol"))
+	if _, err := alice.EnsureMilestone("acme/delivery", tracker.Milestone{Title: "m", StartDate: "2026-01-01", DueDate: "2099-01-01"}); err != nil {
+		t.Fatal(err)
+	}
+	work, err := alice.CreateIssue(fleet, tracker.NewIssue{Title: "Add grader notes", Description: workBody + "\nReviewer: carol\n", Milestone: "m",
+		Labels: []string{"plane::data", "kind::build", "component::fleet"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := program.Pop(alice, program.ExecGit{}, fleet, work.IID, checkout, program.Defaults(), false)
+	if err != nil || p.Reviewer != "carol" || p.ReviewNote != "" {
+		t.Fatalf("pop = %+v, %v; want carol asked", p, err)
+	}
+	if got := l.project(fleet).mrs[1]["reviewer_ids"]; !reflect.DeepEqual(got, []any{float64(l.users["carol"])}) {
+		t.Fatalf("reviewer ids = %v", got)
+	}
+	if err := os.WriteFile(filepath.Join(p.Worktree, "GRADER.md"), []byte("# Notes\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	beadstest.Git(t, p.Worktree, "add", "-A")
+	beadstest.Git(t, p.Worktree, "commit", "-q", "-m", "Add grader notes")
+	beadstest.Git(t, p.Worktree, "push", "-q", "-u", "origin", "HEAD")
+	tip := beadstest.Git(t, p.Worktree, "rev-parse", "HEAD")
+	merge := func() (program.MergeResult, error) {
+		return program.Merge(alice, program.ExecGit{}, fleet, fleet, work.IID, p.Branch, p.Worktree, program.MergeGate{Command: "true", Dir: p.Worktree}, nil, false)
+	}
+	if _, err := bob.Approve(fleet, p.Branch, tip); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := merge(); err == nil || !strings.Contains(err.Error(), "carol") {
+		t.Fatalf("merge on bob's approval = %v, want a refusal naming carol", err)
+	}
+	at, stale, err := alice.Approvals(fleet, p.Branch, "not-the-tip")
+	if err != nil || len(at) != 0 || stale["bob"] != tip {
+		t.Fatalf("approvals at another commit = %v, %v, %v", at, stale, err)
+	}
+	if _, err := carol.Approve(fleet, p.Branch, tip); err != nil {
+		t.Fatal(err)
+	}
+	m, err := merge()
+	if err != nil || !m.Merged || m.ApprovedBy != "carol" {
+		t.Fatalf("merge on carol's approval = %+v, %v", m, err)
 	}
 }

@@ -2427,6 +2427,45 @@ applications/scrum-master/plugin/agents/issue-link/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-reviewer -->
+#### scrum-master-reviewer
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/reviewer/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-people-review -->
+#### scrum-master-people-review
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/people-review/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-people-unreview -->
+#### scrum-master-people-unreview
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/people-unreview/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- scrum_master_entry: scrum-master-comment -->
 #### scrum-master-comment
 

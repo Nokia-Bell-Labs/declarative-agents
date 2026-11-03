@@ -1,0 +1,70 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reviewer machine's words (GH-2869). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue; the person and the optional flags
+# are parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-reviewer-declarations
+tools:
+- name: issue_reviewer
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - reviewer
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: 'Name who signs off on the issue, whose approval its merge then needs (srd013 R11.4).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      person:
+        type: string
+        description: 'The tracker username who signs off; give this or clear.'
+        flag: --person
+      clear:
+        type: boolean
+        description: 'Drop the issue''s Reviewer line instead of naming someone.'
+        flag: --clear
+        bool_flag: true
+      force:
+        type: boolean
+        description: 'Replace the reviewer the issue already names.'
+        flag: --force
+        bool_flag: true
+      issue_project:
+        type: string
+        description: 'The project holding the issue, when SCRUM_MASTER_PROJECT holds only its branch.'
+        flag: --issue-project
+      control:
+        type: string
+        description: 'Program repository holding control/ files, when not the one beside the checkout.'
+        flag: --control
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The reviewer word's JSON report: the issue, who it names now and before, what it did, and whether the host's review asked them."
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: "Writes the Reviewer line on the issue and asks them on the issue's review if it has one."
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: "The word's write is a person's to reverse, by naming another with force or clearing the line."
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_reviewer: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the program is as the word's refusal left it

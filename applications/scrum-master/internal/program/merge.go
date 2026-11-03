@@ -26,10 +26,12 @@ type MergeResult struct {
 	AuditCommand string `json:"audit_command"`
 	// AuditReason says why the audit ran or did not: "docs/ changed" or
 	// "no docs/ change" (srd013 R5.3).
-	AuditReason string   `json:"audit_reason"`
-	ApprovedBy  string   `json:"approved_by,omitempty"`
-	Merged      bool     `json:"merged"` // merge made the merge commit now
-	Closed      []string `json:"closed,omitempty"`
+	AuditReason string `json:"audit_reason"`
+	// ApprovedBy is whoever's approval the merge carries, comma-joined, and
+	// each is an Approved-by trailer on the merge commit (srd013 R11.3).
+	ApprovedBy string   `json:"approved_by,omitempty"`
+	Merged     bool     `json:"merged"` // merge made the merge commit now
+	Closed     []string `json:"closed,omitempty"`
 	// AlreadyClosed are --closes issues another merge closed first.
 	AlreadyClosed []string `json:"already_closed,omitempty"`
 	// Reported are the Sprint Goals the merge closed as reported complete,
@@ -53,6 +55,10 @@ type MergeResult struct {
 	// the issue's worktree and its branch, here and on origin (GH-2796).
 	Cleanup *Cleanup `json:"cleanup,omitempty"`
 }
+
+// ApprovedByTrailer names, on a merge commit, one person whose approval of the
+// merged commit it carries (srd013 R11.3).
+const ApprovedByTrailer = "Approved-by:"
 
 // MergedByTrailer names, on a merge commit, the tracker user who ran the
 // merge, whatever git identity made the commit: reports attribute merges by
@@ -185,6 +191,10 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 		if err != nil {
 			return r, err
 		}
+		reviews, err := LoadReviews(t, gate.Policy)
+		if err != nil {
+			return r, err
+		}
 		for _, p := range strings.Split(paths, "\n") {
 			if p == "docs" || strings.HasPrefix(p, "docs/") {
 				r.Audit = true
@@ -217,17 +227,37 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 			return r, err
 		}
 		d := deliveryFor(t, git, project)
-		by, err := d.approval(issueProject, iid, branch, tip, me.Username)
-		if err != nil && gate.RequireApproval {
+		required, err := reviews.Required(project, issueProject, i, changedDocuments(inMain, upstream, branch, strings.Split(paths, "\n")))
+		if err != nil {
 			return r, err
 		}
-		if err == nil {
-			r.ApprovedBy = by
+		var approvers []string
+		if len(required) > 0 {
+			excluded := i.Assignees
+			if len(excluded) == 0 {
+				excluded = []string{me.Username}
+			}
+			if approvers, err = signedOff(d, required, excluded, issueProject, iid, branch, tip); err != nil {
+				return r, err
+			}
+		} else {
+			by, err := d.approval(issueProject, iid, branch, tip, me.Username)
+			if err != nil && gate.RequireApproval {
+				return r, err
+			}
+			if err == nil && by != "" {
+				approvers = []string{by}
+			}
 		}
+		r.ApprovedBy = strings.Join(approvers, ", ")
 		if dryRun {
 			return r, nil
 		}
-		if r.Commit, err = d.merge(main, base, branch, fmt.Sprintf("Merge %s (%s)\n\n%s %s", branch, cite, MergedByTrailer, me.Username)); err != nil {
+		message := fmt.Sprintf("Merge %s (%s)\n\n%s %s", branch, cite, MergedByTrailer, me.Username)
+		for _, a := range approvers {
+			message += fmt.Sprintf("\n%s %s", ApprovedByTrailer, a)
+		}
+		if r.Commit, err = d.merge(main, base, branch, message); err != nil {
 			return r, err
 		}
 		r.Merged = true

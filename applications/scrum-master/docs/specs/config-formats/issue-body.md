@@ -65,6 +65,19 @@ line
 
 "Blocked-by: TARGET", "Blocks: TARGET", "Depends-on: TARGET", "Relates-to: TARGET", and "Duplicates: TARGET", each on its own line in a description (srd007 R6). TARGET is PROJECT#IID, a same-repository document id, or a pinned URL. Blocks and Blocked-by are the two ends of one link; Blocked-by makes an issue waiting, Depends-on and Relates-to never do. At most one Duplicates line.
 
+<!-- schema_entry: reviewer_line -->
+### reviewer_line
+
+<!-- field: type -->
+#### Type
+
+line
+
+<!-- field: description -->
+#### Description
+
+"Reviewer: USERNAME" on its own line in a description, naming who signs off on the issue; its merge then needs their approval of the tip (srd013 R11). scrum-master issue reviewer writes it, and a person may edit it.
+
 <!-- schema_entry: implements_line -->
 ### implements_line
 

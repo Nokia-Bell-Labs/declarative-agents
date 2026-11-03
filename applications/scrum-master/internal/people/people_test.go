@@ -172,3 +172,77 @@ func TestCommands(t *testing.T) {
 		t.Fatalf("list = %q, %v", out, err)
 	}
 }
+
+func TestReviews(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Run(dir, Change{Username: "alice", Reviews: []string{"platform", "ep1"}}, false, false); err != nil {
+		t.Fatal(err)
+	}
+	c, err := Load(dir)
+	if err != nil || c.ReviewerOf("ep1") != "alice" || c.ReviewerOf("ep2") != "" || !c.HasReviewers() {
+		t.Fatalf("after review = %+v, %v", c, err)
+	}
+	if _, err := Run(dir, Change{Username: "bob", Reviews: []string{"ep1"}}, false, false); err == nil || !strings.Contains(err.Error(), "--force") {
+		t.Fatalf("taking a name without force = %v", err)
+	}
+	if r, err := Run(dir, Change{Username: "alice", Reviews: []string{"ep1"}}, false, false); err != nil || r.Action != "unchanged" {
+		t.Fatalf("second run = %+v, %v", r, err)
+	}
+	if _, err := Run(dir, Change{Username: "bob", Reviews: []string{"ep1"}, Force: true}, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ = Load(dir); c.ReviewerOf("ep1") != "bob" || c.ReviewerOf("platform") != "alice" {
+		t.Fatalf("after moving = %+v", c)
+	}
+	// Reviewing keeps a person in the document, and a move drops one left on nothing.
+	if _, err := Run(dir, Change{Username: "bob", Reviews: []string{"platform"}, Force: true}, false, false); err != nil {
+		t.Fatal(err)
+	}
+	if c, _ = Load(dir); len(c.People) != 1 || c.People[0].Username != "bob" {
+		t.Fatalf("alice on nothing should have left: %+v", c)
+	}
+	if r, err := Run(dir, Change{Username: "bob", Reviews: []string{"ep1", "platform"}, Release: true}, false, false); err != nil || r.Action != "removed as reviewer" {
+		t.Fatalf("unreview = %+v, %v", r, err)
+	}
+	if c, _ = Load(dir); len(c.People) != 0 {
+		t.Fatalf("after unreview = %+v", c)
+	}
+}
+
+func TestParseRefusesTwoReviewers(t *testing.T) {
+	doc := "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | reviews |\n| --- | --- |\n| a | ep1 |\n| b | ep1, ep2 |\n"
+	if _, err := Parse([]byte(doc)); err == nil || !strings.Contains(err.Error(), "two reviewers") {
+		t.Fatalf("Parse = %v", err)
+	}
+}
+
+func TestReviewCommands(t *testing.T) {
+	root := t.TempDir()
+	system := filepath.Join(root, "system")
+	if err := os.MkdirAll(filepath.Join(system, "control"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(system, "control", "trackers.md"), []byte("---\nid: trackers\ntitle: Tracking systems\n---\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run := func(args ...string) (string, error) {
+		var out bytes.Buffer
+		err := cli.Default.Run(append([]string{"people"}, args...), &out, nil)
+		return out.String(), err
+	}
+	for _, args := range [][]string{{"review", "--dir", system}, {"review", "--dir", system, "--person", "alice"}, {"unreview", "--dir", system, "--person", "../a", "--document", "e"}} {
+		if _, err := run(args...); !errors.Is(err, cli.ErrUsage) {
+			t.Errorf("%v: err = %v, want usage", args, err)
+		}
+	}
+	if out, err := run("review", "--dir", system, "--person", "alice", "--document", "srd045-x", "--scrum", "platform"); err != nil || !strings.Contains(out, "named reviewer") {
+		t.Fatalf("review = %q, %v", out, err)
+	}
+	out, err := run("list", "--dir", system)
+	if err != nil || !strings.Contains(out, "alice: scrums none; epics none; reviews platform, srd045-x") {
+		t.Fatalf("list = %q, %v", out, err)
+	}
+	if out, err := run("unreview", "--dir", system, "--person", "alice", "--document", "srd045-x"); err != nil || !strings.Contains(out, "removed as reviewer") {
+		t.Fatalf("unreview = %q, %v", out, err)
+	}
+}

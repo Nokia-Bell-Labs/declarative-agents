@@ -9,8 +9,10 @@
 package hierarchy
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -43,6 +45,36 @@ var Levels = []Level{
 	{Epic, "docs/specs/epics", "ep"},
 	{Feature, "docs/specs/features", "ft"},
 	{Story, "docs/specs/stories", "st"},
+}
+
+// PathOf is where a document of this id lives in its repository, empty for an
+// id of no hierarchy kind.
+func PathOf(id string) string {
+	kind, ok := KindOf(id)
+	if !ok {
+		return ""
+	}
+	for _, l := range Levels {
+		if l.Kind == kind {
+			return l.Dir + "/" + id + ".md"
+		}
+	}
+	return ""
+}
+
+// WithoutIssues is the document without its issues field, the record scrum-master
+// backlog record keeps of the tracker (srd045 R4.4): what a person agreed on.
+func WithoutIssues(doc []byte) []byte {
+	start := bytes.Index(doc, []byte("<!-- field: issues"))
+	if start < 0 {
+		return bytes.TrimRight(doc, "\n")
+	}
+	head := bytes.TrimRight(doc[:start], "\n")
+	next := bytes.Index(doc[start+1:], []byte("\n<!-- "))
+	if next < 0 {
+		return head
+	}
+	return append(append(slices.Clone(head), '\n', '\n'), bytes.TrimRight(doc[start+1+next+1:], "\n")...)
 }
 
 // ObjectiveDir holds objective documents, read as initiatives (srd034 R1.1).

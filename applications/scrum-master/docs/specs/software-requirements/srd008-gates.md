@@ -53,7 +53,7 @@ Retired in 01.2 (design.md D12).
 <!-- req: R1.4 -->
 ### R1.4
 
-The reviewer looks for what passes the checks and is still wrong: scaling, security, drift from the architecture, a shortcut the acceptance criteria did not forbid. The reviewer reads the branch against the issue's Acceptance Criteria, and approves its tip with scrum-master issue approve. Whether a merge waits for that approval is the program's choice: with the policy's admission.require_approval set, scrum-master issue merge refuses without it; by default it merges without one and records the approval when one was given (srd013 R5.5, R5.6).
+The reviewer looks for what passes the checks and is still wrong: scaling, security, drift from the architecture, a shortcut the acceptance criteria did not forbid. The reviewer reads the branch against the issue's Acceptance Criteria, and approves its tip with scrum-master issue approve. A program may name who that reviewer is for an issue, a document, or a scrum, or by default (srd013 R11.1), and then their approval is required. Whether a merge waits for that approval is the program's choice: with the policy's admission.require_approval set, scrum-master issue merge refuses without it; by default it merges without one and records the approval when one was given (srd013 R5.5, R5.6).
 
 <!-- req: R2 -->
 ## R2 - Release gate
@@ -267,7 +267,7 @@ Gate definitions exist only in policy and environment SRDs, a gate change goes t
 <!-- ac: AC7 -->
 ### AC7
 
-Under a policy with require_approval, scrum-master merges no change without another person's approval of the exact commit it merges; under the default policy it merges without one and reports the approver when the tip carries an approval (srd013 R5.5).
+Under a policy with require_approval, scrum-master merges no change without another person's approval of the exact commit it merges; under the default policy it merges without one and reports the approver when the tip carries an approval (srd013 R5.5). A named reviewer's approval is required whatever the policy says (srd013 R11.2).
 
 <!-- field: traces -->
 #### Traces

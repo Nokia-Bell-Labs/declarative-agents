@@ -22,46 +22,57 @@ func TestSkillFilesStayWithinLineLimit(t *testing.T) {
 	}
 }
 
-// TestOnlyItsOwnProfileAssigns holds people assign, agents never (srd041 R9.1):
-// a profile may call issue assign or unassign only if it is that word's own
-// model-free profile.
-func TestOnlyItsOwnProfileAssigns(t *testing.T) {
+// peopleOnlyWords are the words only a person runs (srd041 R9.1, srd013 R11.5),
+// each with the one profile that may declare it.
+var peopleOnlyWords = map[string]string{
+	"issue assign":    "assign",
+	"issue unassign":  "unassign",
+	"issue reviewer":  "reviewer",
+	"people review":   "people-review",
+	"people unreview": "people-unreview",
+}
+
+// TestOnlyItsOwnProfileRunsAPersonsWord holds that people assign and name who
+// signs off, and agents never do: a profile may declare such a word only if it is
+// that word's own model-free profile.
+func TestOnlyItsOwnProfileRunsAPersonsWord(t *testing.T) {
 	root := filepath.Join("..", "plugin", "agents")
-	for _, finding := range assigningProfiles(t, root) {
+	for _, finding := range strayPersonsWords(t, root) {
 		t.Error(finding)
 	}
-	for _, own := range []string{"assign", "unassign"} {
+	for _, own := range peopleOnlyWords {
 		if _, err := os.Stat(filepath.Join(root, own, "declarations.yaml")); err != nil {
 			t.Error(err)
 		}
 		if _, err := os.Stat(filepath.Join(root, own, "llm")); err == nil {
-			t.Errorf("%s has a model; only people assign", own)
+			t.Errorf("%s has a model; only people run it", own)
 		}
 	}
 }
 
-func TestAssigningProfileIsReported(t *testing.T) {
+func TestStrayPersonsWordIsReported(t *testing.T) {
 	dir := t.TempDir()
-	write := func(profile, word string) {
+	write := func(profile, group, word string) {
 		os.MkdirAll(filepath.Join(dir, profile), 0o755)
-		body := "tools:\n- name: w\n  args:\n  - issue\n  - " + word + "\n  - --json\n"
+		body := "tools:\n- name: w\n  args:\n  - " + group + "\n  - " + word + "\n  - --json\n"
 		if err := os.WriteFile(filepath.Join(dir, profile, "declarations.yaml"), []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
-	write("assign", "assign")
-	write("unassign", "unassign")
-	write("comment", "comment")
-	write("implement", "assign")
-	got := assigningProfiles(t, dir)
-	if len(got) != 1 || !strings.Contains(got[0], "implement") {
+	write("assign", "issue", "assign")
+	write("people-review", "people", "review")
+	write("comment", "issue", "comment")
+	write("implement", "issue", "assign")
+	write("plan", "people", "review")
+	got := strayPersonsWords(t, dir)
+	if len(got) != 2 || !strings.Contains(got[0], "implement") || !strings.Contains(got[1], "plan") {
 		t.Fatalf("findings = %q", got)
 	}
 }
 
-// assigningProfiles names the profiles under dir, other than the word's own,
-// that declare scrum-master issue assign or unassign.
-func assigningProfiles(t *testing.T, dir string) []string {
+// strayPersonsWords names the profiles under dir, other than the word's own,
+// that declare a word only a person runs.
+func strayPersonsWords(t *testing.T, dir string) []string {
 	t.Helper()
 	files, err := filepath.Glob(filepath.Join(dir, "*", "declarations.yaml"))
 	if err != nil {
@@ -83,11 +94,12 @@ func assigningProfiles(t *testing.T, dir string) []string {
 		}
 		profile := filepath.Base(filepath.Dir(file))
 		for _, tool := range doc.Tools {
-			if len(tool.Args) < 2 || tool.Args[0] != "issue" || (tool.Args[1] != "assign" && tool.Args[1] != "unassign") {
+			if len(tool.Args) < 2 {
 				continue
 			}
-			if tool.Args[1] != profile {
-				findings = append(findings, fmt.Sprintf("%s declares issue %s; only people assign, through its own profile", file, tool.Args[1]))
+			word := tool.Args[0] + " " + tool.Args[1]
+			if own, ok := peopleOnlyWords[word]; ok && own != profile {
+				findings = append(findings, fmt.Sprintf("%s declares %s; only a person runs it, through its own profile", file, word))
 			}
 		}
 	}

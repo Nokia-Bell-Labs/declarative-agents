@@ -225,6 +225,9 @@ func PolicyDocument(p program.Policy) string {
 	fmt.Fprintf(&b, "<!-- field: require_milestone -->\n### Require milestone\n\n%t\n\n", p.RequireMilestone)
 	fmt.Fprintf(&b, "<!-- field: require_acceptance_criteria -->\n### Require acceptance criteria\n\n%t\n\n", len(p.RequireAC) > 0)
 	fmt.Fprintf(&b, "<!-- field: require_approval -->\n### Require approval\n\n%t\n\n", p.RequireApproval)
+	if p.DefaultReviewer != "" {
+		fmt.Fprintf(&b, "<!-- field: default_reviewer -->\n### Default reviewer\n\n%s\n\n", p.DefaultReviewer)
+	}
 	fmt.Fprintf(&b, "<!-- field: audit_command -->\n### Audit command\n\n%s\n\n", p.AuditCommand)
 	b.WriteString("<!-- field: rules -->\n### Rules\n\n")
 	admissionRules := p.AdmissionRules

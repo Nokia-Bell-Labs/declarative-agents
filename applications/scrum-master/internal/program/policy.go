@@ -37,7 +37,13 @@ type Policy struct {
 	// RequireApproval makes scrum-master issue merge refuse a branch without another
 	// person's approval of its tip (srd013 R5.5); off, merge records an
 	// approval when one exists and merges without one.
-	RequireApproval  bool
+	RequireApproval bool
+	// DefaultReviewer signs off on what no one is named to review (srd013
+	// R11.1). Naming one holds every merge in the program to their approval.
+	DefaultReviewer string
+	// Control and Ref are where these rules, and control/people.md beside
+	// them, were read from; empty Control is the defaults.
+	Control, Ref     string
 	ManagementFilers []string // usernames; empty or ["leads"]: not checked
 	TriageLabel      string
 	// AuditCommand is the corpus gate scrum-master issue merge runs, in the worktree, on a
@@ -160,6 +166,16 @@ const (
 	ArchitectureRefuse = "refuse"
 )
 
+// DefaultReviewerIn is the default_reviewer of the policy document data. The
+// site reads the policy from the checkout this way, opening no tracker.
+func DefaultReviewerIn(data []byte) (string, error) {
+	var f policyFile
+	if err := corpus.DecodeConfig(data, &f); err != nil {
+		return "", err
+	}
+	return f.Admission.DefaultReviewer, nil
+}
+
 // ArchitectureChecksIn is the architecture_checks of the policy document
 // data, the default when it names none. The corpus gate reads the policy
 // from disk this way, since it opens no tracker (srd045 R8.3).
@@ -220,6 +236,7 @@ type policyFile struct {
 		RequireMilestone          *bool    `yaml:"require_milestone"`
 		RequireAcceptanceCriteria *bool    `yaml:"require_acceptance_criteria"`
 		RequireApproval           *bool    `yaml:"require_approval"`
+		DefaultReviewer           string   `yaml:"default_reviewer"`
 		ManagementFilers          any      `yaml:"management_filers"`
 		AuditCommand              string   `yaml:"audit_command"`
 		Rules                     []string `yaml:"rules"`
@@ -246,11 +263,13 @@ func LoadPolicy(t tracker.Tracker, project, ref string) (Policy, error) {
 	if project == "" {
 		return p, nil
 	}
+	p.Control, p.Ref = project, ref
 	if b, err := t.GetFile(project, PolicyFile, ref); err == nil {
 		var f policyFile
 		if err := corpus.DecodeConfig(b, &f); err != nil {
 			return p, fmt.Errorf("%s %s: %w", project, PolicyFile, err)
 		}
+		p.DefaultReviewer = f.Admission.DefaultReviewer
 		if f.Admission.RequireMilestone != nil {
 			p.RequireMilestone = *f.Admission.RequireMilestone
 		}

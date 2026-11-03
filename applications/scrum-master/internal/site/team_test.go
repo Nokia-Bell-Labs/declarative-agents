@@ -467,3 +467,190 @@ func TestPeoplePages(t *testing.T) {
 		t.Errorf("the navigator:\n%s", sidebar)
 	}
 }
+
+// TestSignOffOnTheSite: a document's reviewer comes by srd013 R11.1's order from
+// committed data, the pages show them, and a person's page lists what waits on
+// them, with everyone named getting a page to link to.
+func TestSignOffOnTheSite(t *testing.T) {
+	in, system, f := scrumProgram(t)
+	s, err := LoadSources(system, f, in.Sources.Today)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	generate := func() timeline.Facts {
+		t.Helper()
+		facts, err := Facts(system, "", s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		j, _ := json.Marshal(facts)
+		os.MkdirAll(filepath.Join(in.Reports, Dir, "timeline"), 0o755)
+		if err := os.WriteFile(filepath.Join(in.Reports, Dir, "timeline", "facts.json"), j, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return facts
+	}
+	facts := generate()
+	var epic string
+	for _, it := range facts.Items {
+		if it.Reviewer != "" {
+			t.Fatalf("%s has a reviewer with nobody named: %+v", it.ID, it)
+		}
+		if it.Kind == "epic" && epic == "" {
+			epic = it.ID
+		}
+	}
+	if epic == "" || len(facts.Teams) == 0 {
+		t.Fatalf("the fixture holds no epic or scrum: %+v", facts)
+	}
+	scrum := facts.Teams[0].Name
+	doc := "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | reviews |\n| --- | --- |\n" +
+		"| alice | " + epic + ", ep999-gone |\n| sam | " + scrum + " |\n"
+	if err := os.WriteFile(filepath.Join(system, "control", "people.md"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	policy := "---\nid: policy\ntitle: Policy\n---\n\n<!-- field: admission -->\n## Admission\n\n<!-- field: default_reviewer -->\n### Default reviewer\n\ndee\n"
+	if err := os.WriteFile(filepath.Join(system, "control", "policy.md"), []byte(policy), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	facts = generate()
+	item := func(id string) timeline.Item {
+		i := slices.IndexFunc(facts.Items, func(it timeline.Item) bool { return it.ID == id })
+		if i < 0 {
+			t.Fatalf("no item %s", id)
+		}
+		return facts.Items[i]
+	}
+	if got := item(epic).Reviewer; got != "alice" {
+		t.Errorf("the epic's reviewer = %q", got)
+	}
+	teamStory := scrum + "/st001-score-trajectories"
+	if got := item(teamStory).Reviewer; got != "alice" {
+		t.Errorf("a team's story under the epic = %q, want the epic's reviewer", got)
+	}
+	if !slices.ContainsFunc(facts.Notes, func(n string) bool { return strings.Contains(n, "ep999-gone") }) {
+		t.Errorf("no note names ep999-gone: %v", facts.Notes)
+	}
+	if !slices.ContainsFunc(facts.People, func(p timeline.Person) bool { return p.Username == "dee" }) {
+		t.Errorf("the default has no row: %+v", facts.People)
+	}
+
+	hierarchy, _, _, _, err := HierarchyPages(in.Reports, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := string(hierarchy[Dir+"/"+HierarchyDir+"/"+epic+".md"]); !strings.Contains(page, "**Reviewer:** [alice](") || !strings.Contains(page, "Not signed off") {
+		t.Errorf("the epic's page:\n%s", page)
+	}
+	scrums, err := ScrumPages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := string(scrums[Dir+"/"+ScrumsDir+"/"+scrum+".md"]); !strings.Contains(page, "**Reviewer:** [sam](") {
+		t.Errorf("the scrum's page:\n%s", page)
+	}
+	pages, err := PeoplePages(in.Reports)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page := string(pages[Dir+"/"+PeopleDir+"/alice.md"]); !strings.Contains(page, "**Reviews:** [") || strings.Contains(page, "ep999-gone") {
+		t.Errorf("alice's page:\n%s", page)
+	}
+	if _, ok := pages[Dir+"/"+PeopleDir+"/dee.md"]; !ok {
+		t.Errorf("the default reviewer has no page to link to: %v", pages)
+	}
+
+	// With the epic unnamed, a team's document falls to its scrum and the
+	// system's own to the default.
+	doc = "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | reviews |\n| --- | --- |\n| sam | " + scrum + " |\n"
+	if err := os.WriteFile(filepath.Join(system, "control", "people.md"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	facts = generate()
+	if got := item(teamStory).Reviewer; got != "sam" {
+		t.Errorf("a team's story with no reviewer above it = %q, want its scrum's", got)
+	}
+	if got := item(epic).Reviewer; got != "dee" {
+		t.Errorf("the system's epic = %q, want the default", got)
+	}
+}
+
+func TestWaitingOn(t *testing.T) {
+	f := timeline.Facts{Items: []timeline.Item{{ID: "st1", Reviewer: "alice", Ledger: []timeline.IssueRecord{
+		{Ref: "g/p#1", Title: "by the document", State: "open"},
+		{Ref: "g/p#2", Title: "closed", State: "closed"},
+		{Ref: "g/p#3", Title: "her own work", State: "open", Who: []string{"alice"}},
+		{Ref: "g/p#4", Title: "another's line", State: "open", Reviewer: "bob"},
+	}}, {ID: "st2", Ledger: []timeline.IssueRecord{
+		{Ref: "g/p#5", Title: "by the line", State: "open", Reviewer: "alice", URL: "https://example.com/5"},
+	}}}}
+	got := waitingOn("alice", f)
+	want := []string{"g/p#1: by the document", "[g/p#5](https://example.com/5): by the line"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("waitingOn = %q, want %q", got, want)
+	}
+}
+
+// TestSignoffOf reads the latest merge that changed a document, passing over one
+// that changed only its issues record, and shows it on an SRD's corpus copy.
+func TestSignoffOf(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	git("config", "user.email", "t@example.com")
+	git("config", "user.name", "t")
+	rel := "docs/specs/software-requirements/srd045-x.md"
+	file := filepath.Join(dir, filepath.FromSlash(rel))
+	os.MkdirAll(filepath.Dir(file), 0o755)
+	merge := func(content, branch, message string) {
+		t.Helper()
+		git("checkout", "-q", "-b", branch)
+		if err := os.WriteFile(file, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		git("add", "-A")
+		git("commit", "-q", "-m", branch)
+		git("checkout", "-q", "main")
+		git("merge", "-q", "--no-ff", branch, "-m", message)
+	}
+	if err := os.WriteFile(file, []byte("# one\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "-A")
+	git("commit", "-q", "-m", "start")
+	if who, at := signoffOf(file); len(who) != 0 || at != "" {
+		t.Fatalf("no merge yet = %v, %q", who, at)
+	}
+	merge("# two\n", "agreed", "Merge agreed\n\nMerged-by: ann\nApproved-by: carol\nApproved-by: dan")
+	who, at := signoffOf(file)
+	if !slices.Equal(who, []string{"carol", "dan"}) || at == "" {
+		t.Fatalf("signed off = %v, %q", who, at)
+	}
+	merge("# two\n\n<!-- field: issues | form: \"tree\" -->\n## Issues\n\n- \"g/p#1\":\n  - state: open\n", "record", "Merge record\n\nMerged-by: ann")
+	if again, _ := signoffOf(file); !slices.Equal(again, []string{"carol", "dan"}) {
+		t.Fatalf("after a change to the record alone = %v", again)
+	}
+
+	os.MkdirAll(filepath.Join(dir, "control"), 0o755)
+	doc := "---\nid: people\ntitle: People\n---\n\n<!-- field: people -->\n## People\n\n| username | reviews |\n| --- | --- |\n| carol | srd045-x |\n"
+	if err := os.WriteFile(filepath.Join(dir, "control", "people.md"), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if s := signoffSection(dir, rel, file); !strings.Contains(s, "**Reviewer:** carol") || !strings.Contains(s, "Signed off by carol, dan") {
+		t.Fatalf("section = %q", s)
+	}
+	if s := signoffSection(dir, "docs/VISION.md", file); s != "" {
+		t.Fatalf("a document that is no SRD = %q", s)
+	}
+
+	merge("# three\n", "unapproved", "Merge unapproved\n\nMerged-by: ann")
+	if s := signoffSection(dir, rel, file); !strings.Contains(s, "Not signed off") {
+		t.Fatalf("section after an unapproved change = %q", s)
+	}
+}

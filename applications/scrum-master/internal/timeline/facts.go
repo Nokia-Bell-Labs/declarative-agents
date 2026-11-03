@@ -74,13 +74,15 @@ type Issue struct {
 // the facts carry it: who worked on the issue and when it opened and
 // closed, read from the story document.
 type IssueRecord struct {
-	Ref    string   `json:"ref"`
-	URL    string   `json:"url,omitempty"`
-	Title  string   `json:"title,omitempty"`
-	Who    []string `json:"who,omitempty"`
-	Opened string   `json:"opened,omitempty"`
-	Closed string   `json:"closed,omitempty"`
-	State  string   `json:"state,omitempty"`
+	Ref   string   `json:"ref"`
+	URL   string   `json:"url,omitempty"`
+	Title string   `json:"title,omitempty"`
+	Who   []string `json:"who,omitempty"`
+	// Reviewer is who the issue's own Reviewer line names.
+	Reviewer string `json:"reviewer,omitempty"`
+	Opened   string `json:"opened,omitempty"`
+	Closed   string `json:"closed,omitempty"`
+	State    string `json:"state,omitempty"`
 }
 
 // Item is one row of the timeline.
@@ -125,6 +127,13 @@ type Item struct {
 	// (srd045 R4.4), read from the checkouts, never the tracker, so the
 	// backlog pages draw it offline (srd048 R10).
 	Ledger []IssueRecord `json:"ledger,omitempty"`
+	// Reviewer is who signs off on the document (srd013 R11.1); ApprovedBy is
+	// whose approval the latest merge that changed it carries, the trailers of
+	// that merge, and ApprovedAt that merge, read from the checkouts. A reviewer
+	// with no ApprovedBy has not signed off.
+	Reviewer   string   `json:"reviewer,omitempty"`
+	ApprovedBy []string `json:"approved_by,omitempty"`
+	ApprovedAt string   `json:"approved_at,omitempty"`
 	// Due is an initiative's requirement groups, each with the day it
 	// falls due, in group order: what the initiative promises (GH-136).
 	Due []Due `json:"due,omitempty"`
@@ -233,6 +242,10 @@ type Person struct {
 	Username string   `json:"username"`
 	Scrums   []string `json:"scrums,omitempty"`
 	Epics    []string `json:"epics,omitempty"`
+	// Reviews is the scrums and documents control/people.md names them to sign
+	// off on. A person only the policy's default, an issue's line, or a merge's
+	// trailer names has a row with none, so their page exists to link to.
+	Reviews []string `json:"reviews,omitempty"`
 }
 
 // Team is one scrum: the subsystem it owns, its Product Owner, the

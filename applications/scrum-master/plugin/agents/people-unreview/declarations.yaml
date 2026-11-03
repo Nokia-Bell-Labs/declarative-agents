@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The people-unreview machine's words (GH-2869). the run starts in the system repository's checkout, or one beside it; every flag is a
+# parameter from the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-people-unreview-declarations
+tools:
+- name: people_unreview
+  type: exec
+  binary: scrum-master
+  args:
+  - people
+  - unreview
+  - --json
+  visibility: internal
+  description: 'Take a person off signing off on a scrum or document in control/people.md (srd013 R11.4).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      person:
+        type: string
+        description: 'The person''s tracker username.'
+        flag: --person
+      document:
+        type: array
+        items:
+          type: string
+        description: 'The stories, features, epics, or SRDs to stop signing off on, each as the site names it.'
+        flag: --document
+      scrum:
+        type: array
+        items:
+          type: string
+        description: 'The scrums to stop signing off on, each as the site names it.'
+        flag: --scrum
+      dir:
+        type: string
+        description: 'The system repository''s checkout, or a checkout beside it.'
+        flag: --dir
+      commit:
+        type: boolean
+        description: 'Commit the changed document on the current branch.'
+        flag: --commit
+        bool_flag: true
+    required:
+    - person
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The unreview word's JSON report: the document, the person as it now names them, and what it did."
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: control/people.md
+    description: "Writes control/people.md and, with commit, commits it."
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: "The word's write is a person's to reverse with people-review."
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'people_unreview: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the program is as the word's refusal left it

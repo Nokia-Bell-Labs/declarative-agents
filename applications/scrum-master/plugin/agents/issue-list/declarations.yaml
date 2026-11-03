@@ -19,7 +19,7 @@ tools:
     properties:
       project:
         type: string
-        description: Project path; with mine, empty is every repository of the program.
+        description: Project path; with mine or reviewing, empty is every repository of the program.
         flag: --project
       implements:
         type: string
@@ -38,9 +38,14 @@ tools:
         description: The open issues assigned to the caller, instead of a story's or an epic's.
         flag: --mine
         bool_flag: true
+      reviewing:
+        type: boolean
+        description: The open issues the caller signs off on, instead of a story's or an epic's.
+        flag: --reviewing
+        bool_flag: true
       control:
         type: string
-        description: With mine and no project, the system repository; empty is the one beside dir.
+        description: With mine or reviewing and no project, the system repository; empty is the one beside dir.
         flag: --control
   signature:
     emits:

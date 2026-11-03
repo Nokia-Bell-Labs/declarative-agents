@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/corpus"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
@@ -17,13 +18,16 @@ import (
 // so the record reads from the planning corpus whatever tracking system
 // held the issue.
 type LedgerEntry struct {
-	Ref    string   `json:"ref"`
-	URL    string   `json:"url,omitempty"`
-	Title  string   `json:"title,omitempty"`
-	Who    []string `json:"who,omitempty"`
-	Opened string   `json:"opened,omitempty"`
-	Closed string   `json:"closed,omitempty"`
-	State  string   `json:"state,omitempty"`
+	Ref   string   `json:"ref"`
+	URL   string   `json:"url,omitempty"`
+	Title string   `json:"title,omitempty"`
+	Who   []string `json:"who,omitempty"`
+	// Reviewer is who the issue's own Reviewer line names; who else signs off
+	// follows from the planning documents, so the record need not carry it.
+	Reviewer string `json:"reviewer,omitempty"`
+	Opened   string `json:"opened,omitempty"`
+	Closed   string `json:"closed,omitempty"`
+	State    string `json:"state,omitempty"`
 }
 
 // LedgerOf reads a story document's issues record, in ref order. A
@@ -57,6 +61,8 @@ func LedgerOf(doc []byte) ([]LedgerEntry, error) {
 							e.Who = append(e.Who, w)
 						}
 					}
+				case "reviewer":
+					e.Reviewer = s
 				case "opened":
 					e.Opened = s
 				case "closed":
@@ -89,13 +95,14 @@ func EntryFor(project string, i tracker.Issue) LedgerEntry {
 		who = []string{i.Author}
 	}
 	return LedgerEntry{
-		Ref:    fmt.Sprintf("%s#%d", project, i.IID),
-		URL:    i.WebURL,
-		Title:  i.Title,
-		Who:    who,
-		Opened: day(i.CreatedAt),
-		Closed: day(i.ClosedAt),
-		State:  state,
+		Ref:      fmt.Sprintf("%s#%d", project, i.IID),
+		URL:      i.WebURL,
+		Title:    i.Title,
+		Who:      who,
+		Reviewer: program.ReviewerLine(i.Description),
+		Opened:   day(i.CreatedAt),
+		Closed:   day(i.ClosedAt),
+		State:    state,
 	}
 }
 
@@ -130,6 +137,9 @@ func WriteLedger(doc []byte, entries []LedgerEntry) []byte {
 			}
 			if len(e.Who) > 0 {
 				fmt.Fprintf(&b, "  - who: %s\n", strings.Join(e.Who, ", "))
+			}
+			if e.Reviewer != "" {
+				fmt.Fprintf(&b, "  - reviewer: %s\n", e.Reviewer)
 			}
 			if e.Opened != "" {
 				fmt.Fprintf(&b, "  - opened: %q\n", e.Opened)

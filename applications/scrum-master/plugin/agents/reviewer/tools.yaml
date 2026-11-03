@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the reviewer machine: no model anywhere (GH-2869). No other
+# profile lists this word (magefiles/skills_gate_test.go).
+tools:
+  - issue_reviewer

@@ -90,7 +90,7 @@ func init() {
 
 	var listArgs struct {
 		project, dir, story, epic, control, ref string
-		mine                                    bool
+		mine, reviewing                         bool
 	}
 	cli.Default.Register(&cli.Command{
 		Group: "issue", Name: "list", Summary: "the open issues implementing a story, or an epic and every story under it, in the order implement works them; or, with --mine, the caller's",
@@ -99,18 +99,19 @@ func init() {
 			fs.StringVar(&listArgs.story, "implements", "", "the story the issues implement, by id")
 			fs.StringVar(&listArgs.epic, "epic", "", "this epic and every story under it, by id, read from --dir's hierarchy")
 			fs.BoolVar(&listArgs.mine, "mine", false, "the open issues assigned to the caller")
+			fs.BoolVar(&listArgs.reviewing, "reviewing", false, "the open issues the caller signs off on")
 			fs.StringVar(&listArgs.dir, "dir", ".", "the checkout holding the epic and stories, for --epic, or beside the system repository, for --mine")
 			fs.StringVar(&listArgs.control, "control", "", "with --mine and no --project, the system repository; empty is the one beside --dir")
 			fs.StringVar(&listArgs.ref, "ref", "main", "ref of the system repository's subsystem SRDs, for --mine")
 		},
 		Run: func(ctx *cli.Context) error {
-			if listArgs.mine {
-				if listArgs.story != "" || listArgs.epic != "" {
-					return fmt.Errorf("%w: list takes --mine or one of --implements or --epic, not both", cli.ErrUsage)
+			if listArgs.mine || listArgs.reviewing {
+				if listArgs.story != "" || listArgs.epic != "" || (listArgs.mine && listArgs.reviewing) {
+					return fmt.Errorf("%w: list takes one of --mine, --reviewing, --implements, or --epic", cli.ErrUsage)
 				}
 				system := ControlFor(listArgs.control, listArgs.dir, "")
 				if listArgs.project == "" && system == "" {
-					return fmt.Errorf("%w: list --mine needs --project or --control, or a system repository's checkout beside --dir", cli.ErrUsage)
+					return fmt.Errorf("%w: list --mine or --reviewing needs --project or --control, or a system repository's checkout beside --dir", cli.ErrUsage)
 				}
 				t, err := ctx.Tracker()
 				if err != nil {
@@ -122,8 +123,21 @@ func init() {
 						return err
 					}
 				}
-				r, err := ListAssigned(t, projects)
-				if err != nil {
+				var r ListResult
+				if listArgs.reviewing {
+					p, err := LoadPolicy(t, ControlFor(listArgs.control, listArgs.dir, listArgs.project), listArgs.ref)
+					if err != nil {
+						return err
+					}
+					reviews, err := LoadReviews(t, p)
+					if err != nil {
+						return err
+					}
+					r, err = ListReviewing(t, reviews, projects)
+					if err != nil {
+						return err
+					}
+				} else if r, err = ListAssigned(t, projects); err != nil {
 					return err
 				}
 				var b strings.Builder
@@ -134,7 +148,11 @@ func init() {
 					fmt.Fprintf(&b, "%s  %-12s blocked by %s  %s\n", i.Ref, orNone(i.Story), strings.Join(i.BlockedBy, ", "), i.Title)
 				}
 				if len(r.Issues)+len(r.Blocked) == 0 {
-					fmt.Fprintf(&b, "no open issue is assigned to you in %s\n", strings.Join(projects, ", "))
+					what := "is assigned to you"
+					if listArgs.reviewing {
+						what = "waits on your sign-off"
+					}
+					fmt.Fprintf(&b, "no open issue %s in %s\n", what, strings.Join(projects, ", "))
 				}
 				return ctx.Emit(r, b.String())
 			}
@@ -310,14 +328,27 @@ func init() {
 			if err != nil {
 				return err
 			}
+			requested, note := "", ""
+			if review != "" {
+				p, err := LoadPolicy(t, ControlFor("", ".", obArgs.project), "main")
+				if err != nil {
+					note = err.Error()
+				} else {
+					requested, note = requestReview(t, obArgs.project, issueProject, i, obArgs.branch, p, ctx.DryRun)
+				}
+			}
 			r := struct {
 				Project string `json:"project"`
 				IID     int    `json:"iid"`
 				Branch  string `json:"branch"`
 				Created bool   `json:"branch_created"`
 				Review  string `json:"review,omitempty"`
-				DryRun  bool   `json:"dry_run"`
-			}{obArgs.project, obArgs.iid, obArgs.branch, created, review, ctx.DryRun}
+				// Reviewer is who the review asked to sign off; ReviewNote is
+				// why it could not ask, which never fails the word.
+				Reviewer   string `json:"reviewer,omitempty"`
+				ReviewNote string `json:"review_note,omitempty"`
+				DryRun     bool   `json:"dry_run"`
+			}{obArgs.project, obArgs.iid, obArgs.branch, created, review, requested, note, ctx.DryRun}
 			human := fmt.Sprintf("branch %s opened on %s", r.Branch, r.Project)
 			if !created {
 				human = fmt.Sprintf("branch %s already on %s", r.Branch, r.Project)
@@ -552,7 +583,7 @@ func init() {
 			if err != nil {
 				return refuse(err)
 			}
-			gate := MergeGate{Command: AuditFor(p, mergeArgs.dir), Dir: mergeArgs.dir, RequireApproval: p.RequireApproval}
+			gate := MergeGate{Command: AuditFor(p, mergeArgs.dir), Dir: mergeArgs.dir, RequireApproval: p.RequireApproval, Policy: p}
 			if mergeArgs.audit != "" {
 				gate.Command = mergeArgs.audit
 			}
@@ -657,7 +688,7 @@ func init() {
 			if err != nil {
 				return refuse(err)
 			}
-			gate := MergeGate{Command: AuditFor(p, mbArgs.dir), Dir: mbArgs.dir, RequireApproval: p.RequireApproval}
+			gate := MergeGate{Command: AuditFor(p, mbArgs.dir), Dir: mbArgs.dir, RequireApproval: p.RequireApproval, Policy: p}
 			if mbArgs.audit != "" {
 				gate.Command = mbArgs.audit
 			}
