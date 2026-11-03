@@ -26,8 +26,9 @@ states:
   meaning: Initial state before the first word.
 - name: Word
   meaning: |
-    The backlog list word: scrum-master backlog list reads the hierarchy's
-    documents.
+    The backlog list word: scrum-master backlog list pulls a clean checkout,
+    reads the hierarchy's documents, and shows each story's and epic's issues
+    from the tracker; what it could not do is a note, not a refusal.
 - name: Done
   run_status: succeeded
   meaning: |

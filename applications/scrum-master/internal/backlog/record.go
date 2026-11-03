@@ -87,36 +87,12 @@ func record(t tracker.Tracker, dir, story string, commit, push, dryRun bool) (Re
 	if err != nil {
 		return r, err
 	}
-	own := program.ProjectPath(checkout.Origin(root))
-	if own == "" {
-		return r, fmt.Errorf("%s has no origin naming its project, so its issues cannot be found", root)
+	root, own, projects, notes, err := ledgerScope(root)
+	if err != nil {
+		return r, err
 	}
-	r.Scrum = own
-	r.Projects = []string{own}
-	if repositories := registryRepositories(root); len(repositories) > 0 {
-		for _, p := range repositories {
-			if !slices.Contains(r.Projects, p) {
-				r.Projects = append(r.Projects, p)
-			}
-		}
-	} else if sub, note := subsystemOf(root, own); note != "" {
-		r.Notes = append(r.Notes, note)
-	} else {
-		r.Projects = sub.Repositories()
-		if !slices.Contains(r.Projects, own) {
-			r.Projects = append([]string{own}, r.Projects...)
-		}
-		// Run from a code repository, the record lands in the team's
-		// scrum repository, found as a checkout beside this one; its
-		// stories are the record's (srd045 R4.4).
-		if scrum := sub.ScrumRepository(); scrum != "" && scrum != own {
-			dir, ok := checkout.Locate(root, scrum)
-			if !ok {
-				return r, fmt.Errorf("the stories live in %s, which has no checkout beside %s; scrum-master checkouts lays it down", scrum, root)
-			}
-			root, own, r.Scrum = dir, scrum, scrum
-		}
-	}
+	r.Scrum, r.Projects = own, projects
+	r.Notes = append(r.Notes, notes...)
 	branch := ""
 	if push {
 		root = checkout.MainCheckout(root)
@@ -126,8 +102,8 @@ func record(t tracker.Tracker, dir, story string, commit, push, dryRun bool) (Re
 			return r, nil
 		}
 	}
-	entries, swept, notes := TrackerLedgers(t, r.Projects, own)
-	r.Notes = append(r.Notes, notes...)
+	entries, swept, sweepNotes := TrackerLedgers(t, r.Projects, own)
+	r.Notes = append(r.Notes, sweepNotes...)
 	paths, err := LedgerDocuments(root)
 	if err != nil {
 		return r, err
@@ -147,15 +123,7 @@ func record(t tracker.Tracker, dir, story string, commit, push, dryRun bool) (Re
 			r.Notes = append(r.Notes, fmt.Sprintf("%s: its issues field does not parse, so it is left as written: %v", id, err))
 			continue
 		}
-		want := entries[id]
-		// An entry whose issue lives in a project the sweep did not read
-		// is kept as written: the sweep cannot judge it.
-		for _, e := range held {
-			project, _, _ := strings.Cut(e.Ref, "#")
-			if !swept[project] {
-				want = append(want, e)
-			}
-		}
+		want := withUnswept(entries[id], held, swept)
 		next := WriteLedger(doc, want)
 		rel, _ := filepath.Rel(root, p)
 		entry := RecordedStory{Story: id, Path: filepath.ToSlash(rel), Action: "unchanged"}
@@ -299,6 +267,58 @@ func RecordProgram(t tracker.Tracker, dir string, dryRun bool) ([]RecordResult, 
 	return out, notes, nil
 }
 
+// ledgerScope is where the issues of the checkout at root are recorded: the
+// checkout holding the stories and epics, its project, and the projects whose
+// issues implement them.
+func ledgerScope(root string) (scrumRoot, own string, projects, notes []string, err error) {
+	own = program.ProjectPath(checkout.Origin(root))
+	if own == "" {
+		return "", "", nil, nil, fmt.Errorf("%s has no origin naming its project, so its issues cannot be found", root)
+	}
+	projects = []string{own}
+	if repositories := registryRepositories(root); len(repositories) > 0 {
+		for _, p := range repositories {
+			if !slices.Contains(projects, p) {
+				projects = append(projects, p)
+			}
+		}
+		return root, own, projects, nil, nil
+	}
+	sub, note := subsystemOf(root, own)
+	if note != "" {
+		return root, own, projects, []string{note}, nil
+	}
+	projects = sub.Repositories()
+	if !slices.Contains(projects, own) {
+		projects = append([]string{own}, projects...)
+	}
+	// Run from a code repository, the record lands in the team's scrum
+	// repository, found as a checkout beside this one; its stories are the
+	// record's (srd045 R4.4).
+	if scrum := sub.ScrumRepository(); scrum != "" && scrum != own {
+		dir, ok := checkout.Locate(root, scrum)
+		if !ok {
+			return "", "", nil, nil, fmt.Errorf("the stories live in %s, which has no checkout beside %s; scrum-master checkouts lays it down", scrum, root)
+		}
+		return dir, scrum, projects, nil, nil
+	}
+	return root, own, projects, nil, nil
+}
+
+// withUnswept is what the sweep says a document's record holds, plus each entry
+// whose issue lives in a project the sweep did not read, kept as written: the
+// sweep cannot judge it.
+func withUnswept(read, held []LedgerEntry, swept map[string]bool) []LedgerEntry {
+	want := read
+	for _, e := range held {
+		project, _, _ := strings.Cut(e.Ref, "#")
+		if !swept[project] {
+			want = append(want, e)
+		}
+	}
+	return want
+}
+
 // TrackerLedgers reads from the tracking system the issues record each of
 // the scrum repository's stories and epics should hold (srd045 R4.4): over
 // projects, every issue that is no Sprint Goal whose Implements line resolves
@@ -312,7 +332,7 @@ func TrackerLedgers(t tracker.Tracker, projects []string, scrum string) (map[str
 	for _, p := range projects {
 		issues, err := t.ListIssues(p, tracker.IssueQuery{State: "all"})
 		if err != nil {
-			notes = append(notes, fmt.Sprintf("%s is not read, so its issues are not recorded: %v", p, err))
+			notes = append(notes, fmt.Sprintf("%s is not read, so its issues stay as the documents record them: %v", p, err))
 			continue
 		}
 		swept[p] = true

@@ -62,19 +62,19 @@ tools:
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
   output:
-    description: scrum-master backlog list's JSON report of the hierarchy.
+    description: scrum-master backlog list's JSON report of the hierarchy, each story and epic with its issues.
     schema:
       type: string
   side_effects:
-  - kind: filesystem_read
-    target: hierarchy_documents
-    description: Reads the hierarchy documents; writes nothing.
+  - kind: external_api_call
+    target: tracker
+    description: Fast-forwards a clean checkout on its default branch and reads the tracker's issues; writes no document.
   reversibility:
-    classification: reversible
+    classification: irreversible
     requires_confirmation: false
   undo:
     strategy: noop
-    description: Reading the hierarchy changes nothing.
+    description: The pull is a fast-forward and the rest only reads.
   errors:
   - signal: CommandError
     condition: the word cannot start — this agent does not serve the scrum-master words

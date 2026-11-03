@@ -155,7 +155,7 @@ tools:
   - list
   - --json
   visibility: external
-  description: List the hierarchy documents, one kind or all, with points and rank (srd045).
+  description: Pull the checkout, then list the hierarchy documents, one kind or all, with points, rank, and each story's and epic's issues from the tracker (srd045 R8.1).
   category: boundary
   parameters:
     type: object
@@ -177,7 +177,7 @@ tools:
   side_effects:
   - kind: external_api_call
     target: tracker
-    description: Reads the hierarchy documents; writes nothing.
+    description: Fast-forwards a clean checkout on its default branch and reads the tracker's issues; writes no document.
   reversibility:
     classification: irreversible
     requires_confirmation: false
