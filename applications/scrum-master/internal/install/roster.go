@@ -37,15 +37,18 @@ type group struct {
 }
 
 var groups = []group{
-	{"issue", "File, list, lint, comment on, close, clean up after, admit, approve, and recur the program's issues, and keep its labels, each with the model-free profile that runs one scrum-master word.",
+	{"issue", "File, list, lint, link, comment on, close, clean up after, admit, approve, and recur the program's issues, and keep its labels, each with the model-free profile that runs one scrum-master word.",
 		"Use these for one issue operation; to work an issue from pop to merge, use the pop and merge skills, and implement for the whole loop.",
-		[]string{"issue-file", "issue-list", "issue-lint", "comment", "close", "clean-up", "recur", "admit", "approve", "labels"}},
+		[]string{"issue-file", "issue-list", "issue-lint", "issue-link", "comment", "close", "clean-up", "recur", "admit", "approve", "labels"}},
 	{"backlog", "List and check the planning hierarchy, print a document's template or the components ARCHITECTURE declares, route a guide, render the architecture status, and record each story's issues, each with the model-free profile that runs one scrum-master word.",
 		"Use these to read or check the backlog; to write a document, use the draft skill, and design for the architecture.",
 		[]string{"backlog-list", "backlog-check", "backlog-template", "backlog-components", "backlog-guide", "backlog-record", "architecture-status"}},
 	{"reports", "File the week's status and rollup issues, lay down a reports repository, and collect, aggregate, validate, or read back weekly reports, each with the model-free profile that runs one scrum-master word.",
 		"Use these for one reporting operation; to write your weekly report, use status-report, and status-rollup for a team's or the program's rollup.",
 		[]string{"status-issues", "reports-init", "reports-collect", "aggregate", "reports-validate", "reports-previous", "reports-path", "status"}},
+	{"people", "Name who is on which scrum and epic in control/people.md, take them off, or list them, each with the model-free profile that runs one scrum-master word.",
+		"Use these to change or read who the site shows on a scrum or epic; naming a person assigns them no issue.",
+		[]string{"people-allocate", "people-release", "people-list"}},
 	{"tracker", "Export, migrate, or sync the program's tracker, each with the model-free profile that runs one scrum-master word.",
 		"Use these when moving a program between tracking systems or keeping a bd tracker in step.",
 		[]string{"tracker-export", "tracker-migrate", "tracker-sync"}},

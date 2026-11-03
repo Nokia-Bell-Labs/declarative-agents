@@ -2349,6 +2349,58 @@ applications/scrum-master/plugin/agents/approve/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-people-allocate -->
+#### scrum-master-people-allocate
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/people-allocate/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-people-release -->
+#### scrum-master-people-release
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/people-release/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-people-list -->
+#### scrum-master-people-list
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/people-list/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
+<!-- scrum_master_entry: scrum-master-issue-link -->
+#### scrum-master-issue-link
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/issue-link/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- scrum_master_entry: scrum-master-comment -->
 #### scrum-master-comment
 

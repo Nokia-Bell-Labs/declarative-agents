@@ -99,7 +99,7 @@ Every hierarchy document may carry an architecture context item listing the ARCH
 <!-- req: R2.5 -->
 ### R2.5
 
-A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. Naming a person assigns no issue, files no status issue, and changes no label; an epic's owner stays its one owner in its document.
+A person is named on an epic or a scrum in the system repository's control/people.md (config format people), which scrum-master people allocate and release write and the technical program manager owns, so one change moves people across every repository holding the program's epics. The people skill runs them, and list, through the model-free people-allocate, people-release, and people-list profiles. Naming a person assigns no issue, files no status issue, and changes no label; an epic's owner stays its one owner in its document.
 
 <!-- req: R3 -->
 ## R3 - Parent and roll-up
@@ -390,7 +390,7 @@ With a closed issue and an open one implementing a story through Implements line
 <!-- ac: AC11 -->
 ### AC11
 
-scrum-master people allocate names a person on a scrum or epic in control/people.md, and release takes them off; a second identical run changes nothing, a dry run writes nothing, and a person on nothing leaves the document. Neither assigns an issue, files a status issue, nor changes a label.
+scrum-master people allocate names a person on a scrum or epic in control/people.md, and release takes them off; a second identical run changes nothing, a dry run writes nothing, and a person on nothing leaves the document. Neither assigns an issue, files a status issue, nor changes a label. Each of people allocate, release, and list runs in a model-free profile of its own, which the installed people skill lists.
 
 <!-- field: traces -->
 #### Traces
