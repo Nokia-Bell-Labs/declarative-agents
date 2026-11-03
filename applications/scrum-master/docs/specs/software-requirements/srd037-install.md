@@ -77,7 +77,7 @@ Every profile ships and is vendored, so CI and a coding agent with no model run 
 <!-- req: R2.1 -->
 ### R2.1
 
---agent names cursor, claude, or copilot, repeatable, or all, or detect, the agents the repository already uses as init's --agent detect finds them (srd043 R1.4), refused when it uses none (GH-2719). --dir is the repository to install into, by default the root of the git repository holding the working directory.
+--agent names cursor, claude, or copilot, repeatable, or all, or detect, the agents the repository already uses as init's --agent detect finds them (srd043 R1.4), refused when it uses none (GH-2719). With --if-any, detect reports a repository that uses none and writes nothing, for the upgrade profile (srd043 R5.1, GH-2889). --dir is the repository to install into, by default the root of the git repository holding the working directory.
 
 <!-- req: R2.2 -->
 ### R2.2

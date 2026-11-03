@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
@@ -40,7 +41,7 @@ func init() {
 		agents             []string
 		dir                string
 		list, check, force bool
-		profiles           bool
+		profiles, ifAny    bool
 	)
 	cli.Default.Register(&cli.Command{
 		Group:   "install",
@@ -55,6 +56,7 @@ func init() {
 			fs.BoolVar(&list, "list", false, "name the embedded skills and write nothing")
 			fs.BoolVar(&check, "check", false, "report installed files that differ from the binary; write nothing")
 			fs.BoolVar(&force, "force", false, "replace files a person edited")
+			fs.BoolVar(&ifAny, "if-any", false, "with --agent detect, report a repository that uses no agent instead of refusing it")
 			fs.BoolVar(&profiles, "profiles", false, "vendor the release's profiles and agent-core declarations into "+VendorDir+", which the skills run (GH-29)")
 		},
 		Run: func(ctx *cli.Context) error {
@@ -79,6 +81,10 @@ func init() {
 				if dir, err = gitRoot(); err != nil {
 					return err
 				}
+			}
+			if ifAny && slices.Equal(agents, []string{Detect}) && len(DetectAgents(dir)) == 0 {
+				none := Result{Path: dir, Action: "none", Reason: "the repository uses no agent scrum-master knows; no skills written"}
+				return ctx.Emit([]Result{none}, none.Reason)
 			}
 			targets, err := ResolveAgents(agents, dir)
 			if err != nil {

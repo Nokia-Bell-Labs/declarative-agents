@@ -83,9 +83,10 @@ tools:
   - install
   - --agent
   - detect
+  - --if-any
   - --json
   visibility: internal
-  description: Rewrite the skills of the agents the repository uses at the release, and remove the ones it no longer ships (srd037 R2).
+  description: Rewrite the skills of the agents the repository uses at the release, reporting a repository that uses none, and remove the ones it no longer ships (srd037 R2).
   category: boundary
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
@@ -109,6 +110,6 @@ tools:
     message_shape: 'skills: <error>'
     state_after_failure: nothing written by a process that did not start
   - signal: ToolFailed
-    condition: the repository uses no agent scrum-master knows, or a write fails
+    condition: a write fails
     message_shape: <the word's reason, as printed>
     state_after_failure: the profiles are vendored and the repository repaired; no skill was written

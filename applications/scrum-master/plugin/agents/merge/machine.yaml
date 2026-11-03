@@ -54,7 +54,7 @@ states:
   meaning: |
     Every gate, no effect: the issue and each closes open, the branch with
     commits of its own, the sprint-end summary format, the corpus audit when
-    docs/ changed, and, under require_approval, another person's approval of
+    docs/ changed beyond the format pin, and, under require_approval, another person's approval of
     the tip (srd013 R5.3, R5.5). scrum-master issue merge --dry-run runs them all and
     writes nothing. On a branch already merged it passes only while the
     issue is open, so a re-run finishes a partial delivery and a delivered

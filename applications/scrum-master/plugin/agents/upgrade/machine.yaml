@@ -25,8 +25,8 @@ lifecycle: |-
      release into .scrum-master
   2. Vendor → Repair (ToolDone): scrum-master doctor repairs the repository at it
   3. Vendor → NotVendored (ToolFailed): the word's reason ends the run
-  4. Repair → Skills (ToolDone): scrum-master install --agent detect refreshes the
-     skills
+  4. Repair → Skills (ToolDone): scrum-master install --agent detect --if-any
+     refreshes the skills, reporting a repository that uses no agent
   5. Repair → Refused (ToolFailed)
   6. Skills → Done (ToolDone); Skills → SkillsNotInstalled (ToolFailed)
 initial_state: Idle
@@ -79,9 +79,8 @@ states:
   run_status: failed
   meaning: |
     Terminal. The profiles are vendored and the repository repaired, but
-    the skills did not install — most often because the repository uses
-    no agent scrum-master knows; the reason is reported, and scrum-master install
-    with --agent names the agents.
+    a skill could not be written; the reason is reported, and scrum-master
+    install re-runs it.
 - name: Failed
   run_status: failed
   meaning: Terminal. An infrastructure error outside the words' refusals.
