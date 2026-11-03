@@ -272,12 +272,13 @@ func changedDocuments(inMain func(...string) (string, error), upstream, branch s
 	return out
 }
 
-// signedOff is who of required approved branch at tip, or an error naming
-// everyone still needed. Only a required person's approval counts for them.
-// An inherited reviewer who wrote the work cannot approve it, so that
-// requirement falls back to anyone but excluded; an issue's own line naming
-// them is refused, for a person to change.
-func signedOff(d delivery, required []Signoff, excluded []string, issueProject string, iid int, branch, tip string) ([]string, error) {
+// signedOff is who of required signed off on branch at tip, or an error naming
+// everyone still needed. A reviewer running the merge signs off by doing it, the
+// merge being of that tip, so a person can review their own work and a repository
+// of one is never locked out. Otherwise only a required person's approval counts
+// for them, and for a reviewer who wrote the work, whose approval a host refuses,
+// someone else merging needs anyone but excluded.
+func signedOff(d delivery, required []Signoff, excluded []string, merger, issueProject string, iid int, branch, tip string) ([]string, error) {
 	at, stale, err := d.approvals(issueProject, iid, branch, tip)
 	if err != nil {
 		return nil, err
@@ -287,8 +288,8 @@ func signedOff(d delivery, required []Signoff, excluded []string, issueProject s
 	anyone := false
 	for _, s := range required {
 		switch old, wasStale := stale[s.Person]; {
-		case slices.Contains(excluded, s.Person) && s.Own:
-			missing = append(missing, fmt.Sprintf("%s, %s, wrote the work; name someone else with scrum-master issue reviewer", s.Person, s.Why))
+		case s.Person == merger:
+			approvers = append(approvers, s.Person)
 		case slices.Contains(excluded, s.Person):
 			anyone = true
 		case slices.Contains(at, s.Person):
@@ -361,9 +362,10 @@ type ReviewerResult struct {
 }
 
 // NameReviewer writes the issue's Reviewer line, or, with an empty person, drops
-// it (srd013 R11.4). It refuses a closed issue, the issue's assignee, and an issue
-// already naming someone else unless force says to replace them. Where the issue's
-// branch has a review on the host, it asks them too.
+// it (srd013 R11.4). It refuses a closed issue, and an issue already naming someone
+// else unless force says to replace them. The assignee may be named, signing off by
+// running the merge. Where the issue's branch has a review on the host, it asks
+// them too, unless they wrote the work or are running this.
 func NameReviewer(t tracker.Tracker, project, issueProject string, iid int, person string, force bool, p Policy, dryRun bool) (ReviewerResult, error) {
 	r := ReviewerResult{Ref: fmt.Sprintf("%s#%d", issueProject, iid), Reviewer: person, Action: "unchanged", DryRun: dryRun}
 	i, err := t.GetIssue(issueProject, iid)
@@ -372,9 +374,6 @@ func NameReviewer(t tracker.Tracker, project, issueProject string, iid int, pers
 	}
 	if i.State == "closed" {
 		return r, fmt.Errorf("%s is closed", r.Ref)
-	}
-	if slices.Contains(i.Assignees, person) {
-		return r, fmt.Errorf("%s is assigned %s, who cannot sign off on their own work", r.Ref, person)
 	}
 	r.Previous = ReviewerLine(i.Description)
 	if r.Previous != "" && r.Previous != person && person != "" && !force {

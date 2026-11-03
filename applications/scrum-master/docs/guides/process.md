@@ -99,7 +99,8 @@ use case, epic, or story, carries them in its frontmatter, written with
 names who signs off on the rest. The most specific name wins, and a change to a document also needs that document's
 reviewer. A named reviewer blocks the merge: only their approval of the exact
 commit counts, even with `require_approval` off, and signing off on a document
-means it is agreed. Changing the reviewer is the way out when someone is away.
+means it is agreed. A reviewer who runs the merge has signed off by doing it, so
+you can review your own work and a one-person repository isn't locked out. Changing the reviewer is the way out when someone is away.
 `scrum-master issue list --reviewing` shows what waits on you, and only a person
 names a reviewer or approves.
 

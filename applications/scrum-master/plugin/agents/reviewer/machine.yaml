@@ -36,9 +36,8 @@ states:
 - name: Refused
   run_status: failed
   meaning: |
-    Terminal. The word refused — the issue is closed, the person is its
-    assignee, or it names someone else without force — and its reason is the
-    run's last output.
+    Terminal. The word refused — the issue is closed, or it names someone else
+    without force — and its reason is the run's last output.
 - name: Failed
   run_status: failed
   meaning: Terminal. An infrastructure error outside the words' refusals.

@@ -237,8 +237,19 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 			if len(excluded) == 0 {
 				excluded = []string{me.Username}
 			}
-			if approvers, err = signedOff(d, required, excluded, issueProject, iid, branch, tip); err != nil {
+			if approvers, err = signedOff(d, required, excluded, me.Username, issueProject, iid, branch, tip); err != nil {
 				return r, err
+			}
+			// Naming yourself does not get round a policy that wants another
+			// person's approval (srd013 R5.5).
+			if gate.RequireApproval {
+				by, err := d.approval(issueProject, iid, branch, tip, me.Username)
+				if err != nil {
+					return r, err
+				}
+				if !slices.Contains(approvers, by) {
+					approvers = append(approvers, by)
+				}
 			}
 		} else {
 			by, err := d.approval(issueProject, iid, branch, tip, me.Username)
