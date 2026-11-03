@@ -743,3 +743,15 @@ func TestAuthorsOnTheSite(t *testing.T) {
 		t.Errorf("a document that carries none = %q", s)
 	}
 }
+
+func TestMirrorLine(t *testing.T) {
+	for it, want := range map[*timeline.Item]string{
+		{}:               "",
+		{Issue: "g/p#1"}: "`g/p#1`",
+		{Issue: "g/p#1", IssueURL: "https://example.com/1"}: "[g/p#1](https://example.com/1)",
+	} {
+		if got := mirrorLine(*it); !strings.Contains(got, want) || (want == "" && got != "") {
+			t.Errorf("mirrorLine(%+v) = %q, want %q", *it, got, want)
+		}
+	}
+}

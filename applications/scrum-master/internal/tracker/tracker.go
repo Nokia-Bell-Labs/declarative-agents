@@ -163,6 +163,13 @@ type Reader interface {
 	LastRead() (Read, bool)
 }
 
+// MultiAssigner is a tracker that holds several assignees on an issue, as a
+// forge does. Beads holds one, so an epic's mirror names its people in its body
+// there (srd042 R2.5).
+type MultiAssigner interface {
+	SetAssignees(project string, iid int, usernames []string) error
+}
+
 // WorkState is a tracker that records whether work on an assigned issue has
 // started, as beads does in the srd041 taken state. On a forge nothing does:
 // the issue's branch is what shows it.

@@ -204,6 +204,11 @@ The site shows who signs off (srd013 R11.1), from committed data and never the t
 
 The site shows who wrote a document (srd045 R2.6), from its frontmatter and never the tracker. The timeline facts carry each planning document's authors, a placeholder naming no one; its page and the corpus copy of a signed document list them; a person's page lists what they wrote; and everyone named has a page.
 
+<!-- req: R8.11 -->
+### R8.11
+
+An epic's page links its issue in the tracker (srd045 R2.7), as the document records it, with no tracker read.
+
 <!-- req: R9 -->
 ## R9 - Architecture pages
 
@@ -412,3 +417,13 @@ On a fixture program, an epic naming two authors shows them on its page with lin
 #### Traces
 
 - [R8.10](#r810)
+
+<!-- ac: AC15 -->
+### AC15
+
+An epic's page links its issue from the facts, by its URL where the document records one.
+
+<!-- field: traces -->
+#### Traces
+
+- [R8.11](#r811)

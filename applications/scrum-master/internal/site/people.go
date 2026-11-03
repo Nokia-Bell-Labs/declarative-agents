@@ -80,8 +80,10 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 	}
 	own, paths := map[string]string{}, map[string]string{}
 	authors := map[string][]string{}
+	mirrors := map[string][2]string{}
 	for _, d := range docs {
 		own[d.ID], paths[d.ID] = d.Reviewer, d.Path
+		mirrors[d.ID] = [2]string{d.Issue, d.IssueURL}
 		authors[d.ID] = slices.DeleteFunc(d.Authors, func(n string) bool { return n == backlog.AuthorPlaceholder })
 	}
 	items := map[string]*timeline.Item{}
@@ -119,6 +121,7 @@ func reviewFacts(system string, docs []*hierarchy.Doc, f *timeline.Facts) (notes
 	for i := range f.Items {
 		it := &f.Items[i]
 		it.Authors = authors[it.ID]
+		it.Issue, it.IssueURL = mirrors[it.ID][0], mirrors[it.ID][1]
 		for _, who := range it.Authors {
 			named[who] = true
 			wrote[who] = append(wrote[who], it.ID)
@@ -185,6 +188,18 @@ func cutLast(s, sep string) (string, string, bool) {
 		return s[:i], s[i+len(sep):], true
 	}
 	return s, "", false
+}
+
+// mirrorLine is an epic's issue in the tracker, as its document records it;
+// nothing where it has none.
+func mirrorLine(it timeline.Item) string {
+	switch {
+	case it.Issue == "":
+		return ""
+	case it.IssueURL != "":
+		return fmt.Sprintf("**Issue:** [%s](%s).\n\n", it.Issue, it.IssueURL)
+	}
+	return "**Issue:** `" + it.Issue + "`.\n\n"
 }
 
 // authorsLine is who wrote the document, on the page at from; nothing where it

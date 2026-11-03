@@ -57,6 +57,9 @@ func validateDoc(d *Doc, byID map[string]*Doc) []Finding {
 	v.require("title", d.Title)
 	v.require("problem", d.Problem)
 	v.require("owner", d.Owner)
+	if d.Issue != "" && d.Kind != Epic {
+		v.add("issue", "only an epic has a mirror in the tracker (srd045 R2.7)")
+	}
 	switch {
 	case !idPattern.MatchString(d.ID):
 		v.add("id", "%q is not a hierarchy id (thNNN, inNNN, epNNN, ftNNN, stNNN, or objNNN, then -short-name)", d.ID)

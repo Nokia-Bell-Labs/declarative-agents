@@ -163,7 +163,7 @@ none
 
 | name | color | description |
 | --- | --- | --- |
-| tracking | #6699cc | Task list of member issues; never popped |
+| tracking | #6699cc | Task list of member issues, or an open epic's mirror; never popped |
 | sprint | #009966 | The sprint's exit checklist |
 | recurring | #00b140 | Subscription to one artifact |
 

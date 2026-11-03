@@ -2492,6 +2492,19 @@ applications/scrum-master/plugin/agents/backlog-author/profile.yaml
 
 workflow_machine
 
+<!-- scrum_master_entry: scrum-master-epic-issues -->
+#### scrum-master-epic-issues
+
+<!-- field: profile -->
+##### Profile
+
+applications/scrum-master/plugin/agents/epic-issues/profile.yaml
+
+<!-- field: classification -->
+##### Classification
+
+workflow_machine
+
 <!-- scrum_master_entry: scrum-master-comment -->
 #### scrum-master-comment
 

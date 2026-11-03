@@ -163,7 +163,7 @@ With --migrate and --control naming the system repository, also relabels issues 
 <!-- req: R7.1 -->
 ### R7.1
 
-Claims one issue for the caller: assigns the caller and no one else (srd041 R9.1). Refuses an issue assigned to someone else, a closed issue, and a plane::data issue that admission has not admitted (srd041 R2). An issue a person assigned the caller (R10.1) is theirs to pop like any other. With --issue-project, the issue is claimed there and the branch, which --branch may name, opens in --project: a weekly status issue's report lands in the reports repository (srd018). A plane::management or plane::control issue that admission has not admitted is popped, and pop reports the reasons it fails.
+Claims one issue for the caller: assigns the caller and no one else (srd041 R9.1). Refuses an issue assigned to someone else, a closed issue, and a plane::data issue that admission has not admitted (srd041 R2). An issue a person assigned the caller (R10.1) is theirs to pop like any other. It refuses a type::tracking issue, naming why: it lists or mirrors work and is never popped. With --issue-project, the issue is claimed there and the branch, which --branch may name, opens in --project: a weekly status issue's report lands in the reports repository (srd018). A plane::management or plane::control issue that admission has not admitted is popped, and pop reports the reasons it fails.
 
 <!-- req: R7.2 -->
 ### R7.2
