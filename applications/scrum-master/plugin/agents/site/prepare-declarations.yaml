@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The words the site machine runs before it draws (srd048 R10.4): the checkouts level
+# with origin and the issues records current. Neither stops the site.
+unit: scrum-master-site-prepare-declarations
+tools:
+- name: checkouts
+  type: exec
+  binary: scrum-master
+  args:
+  - checkouts
+  - --json
+  visibility: internal
+  description: Lay the program's repositories down and bring them level with origin, so the site reads what they hold now.
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The word's JSON: each repository and whether it was cloned, updated, kept, or failed."
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Clones and fast-forwards the program's checkouts; one holding changes or on another branch is kept.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word only clones and fast-forwards.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'checkouts: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the site goes on with the checkouts it has
+- name: backlog_record_program
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - record-program
+  - --json
+  visibility: internal
+  description: Refresh the issues record in the system repository and each team's scrum repository, and push each (srd045 R4.4).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The word's JSON: each repository's record, and notes for what could not be written."
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Reads the issues from the tracking system, and commits and pushes the planning documents whose record changed.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: A run is a reconcile; a second one changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_record_program: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the site goes on with the records the documents hold

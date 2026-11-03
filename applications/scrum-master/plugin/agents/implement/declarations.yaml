@@ -140,7 +140,7 @@ tools:
   - backlog
   - record
   - --json
-  - --commit
+  - --push
   visibility: internal
   description: Write the close into the story's issues record — who worked on each issue and when it opened and closed — in the scrum repository the registry names, committed there (srd045 R4.4).
   category: boundary

@@ -81,6 +81,10 @@ back first. `scrum-master issue list --mine` shows what is assigned to you.
 Who is on a scrum or an epic is a separate record: the technical program
 manager names them in `control/people.md` with `scrum-master people allocate`,
 which the `people` skill runs, the site shows it, and it assigns no one an issue.
+The site's backlog reads each story's issues record, which the merge, implement
+and site skills keep current and push, and the site skill brings the program's
+checkouts level first. From a clone of any one repository,
+`scrum-master checkouts` finds the program and lays the rest down.
 An issue usually names a story in its `Implements` line; work with no story
 yet can name its epic instead, with `scrum-master issue link --epic`, which
 the `issue` skill lists as `issue-link`.

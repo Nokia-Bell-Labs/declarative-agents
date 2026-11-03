@@ -79,7 +79,7 @@ states:
     each issue; the model closes nothing itself (srd013 R5.5, srd036 R3.1, R3.3).
 - name: Record
   meaning: |
-    The close reaches the story: scrum-master backlog record writes who worked on each closed issue and when into its issues record, committed in the scrum repository; a failure never blocks the finish (srd045 R4.4, srd036 R3.4).
+    The close reaches the story: scrum-master backlog record writes who worked on each closed issue and when into its issues record, committed and pushed in the scrum repository; a failure never blocks the finish (srd045 R4.4, srd036 R3.4).
 - name: Done
   run_status: succeeded
   meaning: |

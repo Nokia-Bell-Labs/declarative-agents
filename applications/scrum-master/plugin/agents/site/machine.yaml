@@ -22,7 +22,12 @@ invariants:
 - A page a person wrote or edited is kept and reported, never replaced
 - A refusal ends the run in the state that names it, with the word's reason
 lifecycle: |-
-  1. Idle → Scaffold (Seed): scrum-master site scaffold
+  0. Idle → Checkouts (Seed): scrum-master checkouts lays the program's
+     repositories down and brings them level with origin, then Checkouts →
+     RecordProgram: scrum-master backlog record-program refreshes and pushes the
+     issues records. Neither stops the site; what they could not do is in their
+     output
+  1. RecordProgram → Scaffold: scrum-master site scaffold
   2. Scaffold → Status (ToolDone): scrum-master site status
   3. Status → Timeline (ToolDone): scrum-master site timeline
   4. Timeline → Gantt (ToolDone): scrum-master site gantt
@@ -40,6 +45,14 @@ budget:
 states:
 - name: Idle
   meaning: Initial state before the first word.
+- name: Checkouts
+  meaning: |
+    The program's repositories laid down and level with origin, so the site reads
+    what they hold now. One that cannot be reached is left out, and the words say so.
+- name: RecordProgram
+  meaning: |
+    The issues records refreshed from the tracker and pushed, so the backlog is
+    current wherever the issue was closed. What could not be written is a note.
 - name: Scaffold
   meaning: |
     The scaffold word: the site's index when missing, and a page for each
@@ -114,6 +127,36 @@ signals:
 transitions:
 - state: Idle
   signal: Seed
+  next: Checkouts
+  action: checkouts
+  summary: true
+- state: Checkouts
+  signal: ToolDone
+  next: RecordProgram
+  action: backlog_record_program
+  summary: true
+- state: Checkouts
+  signal: ToolFailed
+  next: RecordProgram
+  action: backlog_record_program
+  summary: true
+- state: Checkouts
+  signal: CommandError
+  next: RecordProgram
+  action: backlog_record_program
+  summary: true
+- state: RecordProgram
+  signal: ToolDone
+  next: Scaffold
+  action: site_scaffold
+  summary: true
+- state: RecordProgram
+  signal: ToolFailed
+  next: Scaffold
+  action: site_scaffold
+  summary: true
+- state: RecordProgram
+  signal: CommandError
   next: Scaffold
   action: site_scaffold
   summary: true

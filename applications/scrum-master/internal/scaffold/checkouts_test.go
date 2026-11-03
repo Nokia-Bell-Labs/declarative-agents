@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 )
 
 // checkoutsGit runs git for the checkouts tests and fails the test on error.
@@ -205,5 +207,86 @@ func TestCheckoutsClonesBesideASideBySideSystem(t *testing.T) {
 	want := filepath.Join(base, "w", "pods", "p1", "tpm")
 	if e := byProject(t, r, "g/pods/p1/tpm"); e.Action != "cloned" || e.Path != want {
 		t.Fatalf("side-by-side clone = %+v, want cloned at %s", e, want)
+	}
+}
+
+// TestFindSystem: a clone of any of a program's repositories finds its system
+// repository: beside it, named, or through the forge, cloning it when it is absent.
+func TestFindSystem(t *testing.T) {
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(d string, args ...string) {
+		t.Helper()
+		if out, err := exec.Command("git", append([]string{"-C", d}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+	}
+	bare := func(name string, files map[string]string) string {
+		t.Helper()
+		work := filepath.Join(root, "seed-"+name)
+		for f, body := range files {
+			os.MkdirAll(filepath.Dir(filepath.Join(work, f)), 0o755)
+			if err := os.WriteFile(filepath.Join(work, f), []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run(work, "init", "-q", "-b", "main")
+		run(work, "config", "user.email", "t@example.com")
+		run(work, "config", "user.name", "t")
+		run(work, "add", "-A")
+		run(work, "commit", "-q", "-m", "start")
+		b := filepath.Join(root, name+".git")
+		if out, err := exec.Command("git", "clone", "-q", "--bare", work, b).CombinedOutput(); err != nil {
+			t.Fatalf("%s", out)
+		}
+		return b
+	}
+	sys, team, plain := bare("program", map[string]string{checkout.TrackersFile: "x"}), bare("team", map[string]string{"README.md": "x"}), bare("plain", map[string]string{"README.md": "x"})
+	cfg := filepath.Join(root, "gitconfig")
+	conf := ""
+	for n, b := range map[string]string{"program": sys, "team": team, "plain": plain} {
+		conf += "[url \"" + b + "\"]\n\tinsteadOf = https://gitlab.example.com/g/" + n + ".git\n"
+	}
+	if err := os.WriteFile(cfg, []byte(conf), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", cfg)
+	parent := filepath.Join(root, "work")
+	os.MkdirAll(parent, 0o755)
+	clone := filepath.Join(parent, "team")
+	if out, err := exec.Command("git", "clone", "-q", "https://gitlab.example.com/g/team.git", clone).CombinedOutput(); err != nil {
+		t.Fatalf("%s", out)
+	}
+	found := func(names ...string) func(string) ([]string, error) {
+		return func(string) ([]string, error) { return names, nil }
+	}
+
+	if _, _, err := FindSystem(clone, "", found(), false); err == nil || !strings.Contains(err.Error(), "--system") {
+		t.Fatalf("none found = %v", err)
+	}
+	if _, _, err := FindSystem(clone, "", found("g/a", "g/b"), false); err == nil || !strings.Contains(err.Error(), "g/a, g/b") {
+		t.Fatalf("two found = %v", err)
+	}
+	if d, e, err := FindSystem(clone, "", found("g/program"), true); err != nil || d != "" || e == nil || !strings.Contains(e.Detail, "would clone") {
+		t.Fatalf("dry run = %q, %+v, %v", d, e, err)
+	}
+	if _, err := os.Stat(filepath.Join(parent, "program")); err == nil {
+		t.Fatal("a dry run cloned")
+	}
+	if _, _, err := FindSystem(clone, "g/plain", found(), false); err == nil || !strings.Contains(err.Error(), "no system repository") {
+		t.Fatalf("a named repository that is no system = %v", err)
+	}
+	os.RemoveAll(filepath.Join(parent, "plain"))
+	d, e, err := FindSystem(clone, "", found("g/program"), false)
+	if err != nil || d != filepath.Join(parent, "program") || e == nil || e.Action != "cloned" {
+		t.Fatalf("clone = %q, %+v, %v", d, e, err)
+	}
+	if d, e, err = FindSystem(clone, "", found(), false); err != nil || e != nil || filepath.Base(d) != "program" {
+		t.Fatalf("beside it, a second run = %q, %+v, %v", d, e, err)
+	}
+	if d2, _, err := FindSystem(d, "", found(), false); err != nil || d2 != d {
+		t.Fatalf("from the system repository itself = %q, %v", d2, err)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"slices"
 	"strings"
 
@@ -267,6 +268,56 @@ func fromForge(dir, system string) ([]byte, error) {
 		return nil, fmt.Errorf("read %s from %s through %s: %w", File, system, name, err)
 	}
 	return b, nil
+}
+
+// maxGroupProjects bounds how many projects DiscoverSystem reads, each costing a
+// request, so a very large group asks for --system rather than taking minutes.
+const maxGroupProjects = 300
+
+// DiscoverSystem finds the system repository of the checkout at dir with no
+// checkout of it, through the forge its origin is on: at the nearest of its groups
+// holding any, every project whose default branch holds the trackers document.
+// More than one is for a person to choose between.
+func DiscoverSystem(dir string) ([]string, error) {
+	name := GitLab
+	if strings.Contains(checkout.Origin(dir), "github.com") {
+		name = GitHub
+	}
+	t, err := open(System{Name: name, Dir: dir})
+	if err != nil {
+		return nil, err
+	}
+	return systemsIn(t, checkout.ProjectPath(checkout.Origin(dir)))
+}
+
+func systemsIn(t any, project string) ([]string, error) {
+	lister, ok := t.(tracker.GroupLister)
+	if !ok {
+		return nil, errors.New("this forge lists no group's projects; name the system repository with --system")
+	}
+	host, ok := t.(tracker.HostFiles)
+	if !ok {
+		return nil, errors.New("this forge serves no files without a checkout; name the system repository with --system")
+	}
+	for group := path.Dir(project); group != "." && group != "/"; group = path.Dir(group) {
+		projects, err := lister.GroupProjects(group)
+		if err != nil {
+			continue // a group the person cannot read; a level up may still answer
+		}
+		if len(projects) > maxGroupProjects {
+			return nil, fmt.Errorf("%s holds %d projects, too many to search; name the system repository with --system", group, len(projects))
+		}
+		var found []string
+		for _, p := range projects {
+			if _, _, err := host.HostFile(p, File); err == nil {
+				found = append(found, p)
+			}
+		}
+		if len(found) > 0 {
+			return found, nil
+		}
+	}
+	return nil, nil
 }
 
 // Document is c as control/trackers.md holds it.

@@ -615,6 +615,27 @@ func (t *Tracker) SetAssignee(project string, iid int, username string) error {
 	return err
 }
 
+// GroupProjects lists an organization's repositories, or a user's, by full name.
+func (t *Tracker) GroupProjects(owner string) ([]string, error) {
+	var out []string
+	add := func(raw json.RawMessage) error {
+		var r struct {
+			FullName string `json:"full_name"`
+		}
+		if err := json.Unmarshal(raw, &r); err != nil {
+			return err
+		}
+		out = append(out, r.FullName)
+		return nil
+	}
+	if err := t.all("orgs/"+owner+"/repos", add); err == nil {
+		return out, nil
+	}
+	out = nil
+	err := t.all("users/"+owner+"/repos", add)
+	return out, err
+}
+
 // SetAssignees makes usernames the issue's assignees: an epic's mirror (srd045 R2.7).
 func (t *Tracker) SetAssignees(project string, iid int, usernames []string) error {
 	_, err := t.API.Do("PATCH", fmt.Sprintf("repos/%s/issues/%d", project, iid), map[string]any{"assignees": append([]string{}, usernames...)})

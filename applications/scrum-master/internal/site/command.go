@@ -298,6 +298,10 @@ func init() {
 				return err
 			}
 			r := Result{Dir: d, Pages: []Page{}, DryRun: ctx.DryRun}
+			// A repository with no checkout costs its own pages, not the site.
+			defer checkout.TolerateMissing(func(project string) {
+				r.Notes = append(r.Notes, project+": no checkout here, so what it holds is left out; scrum-master checkouts lays it down")
+			})()
 			for _, w := range ws {
 				if err := w.run(ctx, d, &r); err != nil {
 					return err

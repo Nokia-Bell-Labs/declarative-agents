@@ -34,11 +34,14 @@ lifecycle: |-
      and each closes on the commit the merge word reported, and reports
      complete each closed Sprint Goal
   5. Deliver → Refused (ToolFailed): the merge was refused
-  6. Close → Cleanup (ToolDone): scrum-master issue clean-up removes the
-     issue's worktree and its branch, here and on origin (GH-2796)
-  7. Cleanup → Done (ToolDone, ToolFailed): the delivery is complete; what
+  6. Close → Record (ToolDone): scrum-master backlog record --push writes the
+     close into the story's issues record and pushes it (srd045 R4.4)
+  7. Record → Cleanup (ToolDone, ToolFailed): a record that fails never blocks
+     the delivery. scrum-master issue clean-up removes the issue's worktree and
+     its branch, here and on origin (GH-2796)
+  8. Cleanup → Done (ToolDone, ToolFailed): the delivery is complete; what
      the clean-up kept, and why, is in its output
-  8. Close → PartiallyDelivered (ToolFailed): merged but not closed; re-run
+  9. Close → PartiallyDelivered (ToolFailed): merged but not closed; re-run
      close-delivered with the named commit
 initial_state: Idle
 budget:
@@ -68,6 +71,12 @@ states:
     closes reference still open on the reported commit, and posts a
     reported_complete event on each closed Sprint Goal's ledger (srd038
     R2.2). The commit and the closes come from the merge word's output.
+- name: Record
+  meaning: |
+    The close reaches the story: scrum-master backlog record --push writes who
+    worked on each issue and when into its issues record, on the default branch
+    of the main checkout, and pushes it. A failure never blocks the delivery
+    (srd045 R4.4).
 - name: Cleanup
   meaning: |
     The clean-up word: scrum-master issue clean-up, from the main checkout,
@@ -135,6 +144,21 @@ transitions:
   next: Refused
 - state: Close
   signal: ToolDone
+  next: Record
+  action: backlog_record
+  summary: true
+- state: Record
+  signal: ToolDone
+  next: Cleanup
+  action: clean_up
+  summary: true
+- state: Record
+  signal: ToolFailed
+  next: Cleanup
+  action: clean_up
+  summary: true
+- state: Record
+  signal: CommandError
   next: Cleanup
   action: clean_up
   summary: true

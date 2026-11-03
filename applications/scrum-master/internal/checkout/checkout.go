@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
@@ -55,9 +56,25 @@ func (c *Code) HasCheckout(project string) bool {
 	return ok
 }
 
+// tolerated is who hears of a project with no checkout while such a project
+// reads as absent; nil, it is an error.
+var tolerated atomic.Pointer[func(project string)]
+
+// TolerateMissing has a project with no checkout read as absent, and tells record,
+// until the returned restore: a word that reads the whole program goes on without
+// the repository it could not read, and says so (srd048 R10.4).
+func TolerateMissing(record func(project string)) (restore func()) {
+	prev := tolerated.Swap(&record)
+	return func() { tolerated.Store(prev) }
+}
+
 // noCheckout is the error for a project Checkout finds no checkout of,
 // naming the folders searched.
 func (c *Code) noCheckout(project string) error {
+	if f := tolerated.Load(); f != nil {
+		(*f)(project)
+		return fmt.Errorf("%s: %w", project, tracker.ErrNotFound)
+	}
 	return fmt.Errorf("%s: %w in %s; check it out beside this one, or in a folder its group mirrors", project, ErrNoCheckout, strings.Join(Levels(c.Dir), ", "))
 }
 
@@ -199,6 +216,11 @@ func (c *Code) Merges(project, author, since string) ([]tracker.Merge, error) {
 		if from, err = time.Parse("2006-01-02", since); err != nil {
 			return nil, fmt.Errorf("since %q is neither YYYY-MM-DD nor an RFC 3339 instant", since)
 		}
+	}
+	// A project read as absent has no merges to count, which is not a failure.
+	if f := tolerated.Load(); f != nil && c.Checkout(project) == "" {
+		(*f)(project)
+		return nil, nil
 	}
 	base, err := c.DefaultBranch(project)
 	if err != nil {

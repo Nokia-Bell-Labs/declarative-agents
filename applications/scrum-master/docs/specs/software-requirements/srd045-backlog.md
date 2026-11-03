@@ -155,7 +155,7 @@ tasks turns a story selected onto a Sprint Goal into the issues that execute it,
 <!-- req: R4.4 -->
 ### R4.4
 
-A story, or an epic that issues name directly (srd007 R6.5), carries the record of the issues that implement it in its issues field, tree form: one entry per issue keyed project#iid, with its url and title, who works on it (its assignees; an open issue nobody has picked up records nobody, and a closed one with no assignee records its author, who worked it, GH-2855), who its own Reviewer line names, if anyone (srd013 R11.1), the dates it opened and closed, and its state, so who did the work and how long it took is read from the planning corpus whatever tracking system held the issue, and the site draws it from the checkouts without asking the tracker (srd048 R10). scrum-master backlog record, run from any of the team's repositories, finds the scrum repository through the registry — the record lands in its stories and epics, from the issues of the team's scrum repository and the code repositories its subsystem SRD declares; run in the system repository, whose epics span teams, it reads every repository the registry names — writing the documents in place, idempotently, and reporting each file it changed; with --commit it commits them on the current branch with its record, and a dry run writes nothing. The implement skill runs it as it finishes, so the record follows every close (srd036 R3.4); reconcile files the drift when it lags (srd043 R8.4). An absent issues field is a story no issue has implemented yet, never an error (GH-2844).
+A story, or an epic that issues name directly (srd007 R6.5), carries the record of the issues that implement it in its issues field, tree form: one entry per issue keyed project#iid, with its url and title, who works on it (its assignees; an open issue nobody has picked up records nobody, and a closed one with no assignee records its author, who worked it, GH-2855), who its own Reviewer line names, if anyone (srd013 R11.1), the dates it opened and closed, and its state, so who did the work and how long it took is read from the planning corpus whatever tracking system held the issue, and the site draws it from the checkouts without asking the tracker (srd048 R10). scrum-master backlog record, run from any of the team's repositories, finds the scrum repository through the registry — the record lands in its stories and epics, from the issues of the team's scrum repository and the code repositories its subsystem SRD declares; run in the system repository, whose epics span teams, it reads every repository the registry names — writing the documents in place, idempotently, and with --push landing them on the default branch of the main checkout and pushing them; the merge skill, the implement skill, and the site skill all do, and backlog record-program does it across the system repository and each team's scrum repository; a checkout holding changes or on another branch, or a push the host refuses, is a note that leaves the checkout level with origin, and reporting each file it changed; with --commit it commits them on the current branch with its record, and a dry run writes nothing. The implement skill runs it as it finishes, so the record follows every close (srd036 R3.4); reconcile files the drift when it lags (srd043 R8.4). An absent issues field is a story no issue has implemented yet, never an error (GH-2844).
 
 <!-- req: R5 -->
 ## R5 - Product Backlog and Sprint Planning
@@ -437,3 +437,13 @@ backlog epic-issues files one issue for an agreed open epic and records it in th
 #### Traces
 
 - [R2.7](#r27)
+
+<!-- ac: AC15 -->
+### AC15
+
+backlog record --push leaves the record on origin, from the main checkout or a worktree of it, and a second run pushes nothing; a checkout holding changes or on another branch is a note and writes nothing; a push the host refuses is a note and leaves the checkout level with origin; backlog record-program covers the system repository and each team's scrum repository, and a team with no checkout is a note; the merge skill's profile records after it closes, and a failure there does not stop the delivery.
+
+<!-- field: traces -->
+#### Traces
+
+- [R4.4](#r44)

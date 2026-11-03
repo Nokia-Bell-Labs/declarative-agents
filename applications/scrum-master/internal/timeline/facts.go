@@ -158,6 +158,9 @@ type Facts struct {
 	Today    string    `json:"today"`
 	Releases []Release `json:"releases"`
 	Items    []Item    `json:"items"`
+	// Unread are the repositories the registry names with no checkout beside the
+	// system's, whose documents may be missing from the facts.
+	Unread []string `json:"unread,omitempty"`
 	// Teams are the program's scrums, as the system's subsystem SRDs
 	// declare them; a tag's facts hold none.
 	Teams []Team `json:"teams,omitempty"`

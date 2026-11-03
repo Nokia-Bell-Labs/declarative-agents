@@ -236,3 +236,39 @@ tools:
     condition: the word cannot read the repository the worktree belongs to
     message_shape: 'clean-up needs a local checkout: <reason>'
     state_after_failure: the delivery stands; the worktree and branches are as they were
+- name: backlog_record
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - record
+  - --json
+  - --push
+  visibility: internal
+  description: Write the close into the story's issues record — who worked on each issue and when it opened and closed — in the scrum repository the registry names, committed there (srd045 R4.4).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master backlog record's JSON report — each story swept, the refs its record holds, and the commit that recorded it.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: git_remote
+    description: Reads the team's issues from the tracking system and commits the recorded story documents in the scrum repository's checkout.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The record is idempotent and regenerated on every run; the words' own policy governs what follows.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_record: <error>'
+    state_after_failure: nothing was recorded by a process that did not start; the run still finishes, and reconcile files the drift (srd036 R3.4)
+  - signal: ToolFailed
+    condition: the word cannot find the scrum repository's checkout or read the tracking system, and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the stories are as they were; the run still finishes, and reconcile files the drift (srd036 R3.4)

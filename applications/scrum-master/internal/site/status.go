@@ -211,7 +211,7 @@ func StatusPages(in StatusInput) (pages, data map[string][]byte, notes []string,
 		}
 		open = append(open, issues...)
 	}
-	add("issues", issuesPage(open), open)
+	add("issues", issuesPage(open, in.Sources.Today.Format(time.DateOnly)), open)
 	return pages, data, notes, nil
 }
 
@@ -368,9 +368,9 @@ func signalsPage(agg reports.Aggregation) string {
 	return b.String()
 }
 
-func issuesPage(open []tracker.Issue) string {
+func issuesPage(open []tracker.Issue, today string) string {
 	var b strings.Builder
-	b.WriteString(generated("status", "the tracker's open issues") + "# Open issues\n\nEvery open issue of the program's repositories, by plane, kind, state, and op.\n\n")
+	b.WriteString(generated("status", "the tracker's open issues") + "# Open issues\n\nEvery open issue of the program's repositories, by plane, kind, state, and op, as the tracker held them on " + today + ", when this page was generated.\n\n")
 	if len(open) == 0 {
 		b.WriteString("No open issue.\n")
 		return b.String()

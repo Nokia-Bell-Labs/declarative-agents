@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -365,6 +366,11 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		arch, notes := architectureFacts(dir, s, f.Releases)
 		f.Architecture = arch
 		f.Notes = append(f.Notes, notes...)
+		for _, repo := range s.Scrums.Repositories() {
+			if _, ok := checkout.Locate(dir, repo); !ok && !slices.Contains(f.Unread, repo) {
+				f.Unread = append(f.Unread, repo)
+			}
+		}
 		ledgerNotes := documentLedgers(docs, &f)
 		f.Notes = append(f.Notes, ledgerNotes...)
 		f.People, notes = peopleFacts(dir, f)
