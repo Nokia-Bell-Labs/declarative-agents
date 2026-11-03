@@ -201,16 +201,54 @@ func (s *Store) Find(repository string, iid int) (Issue, bool, error) {
 	return Issue{}, false, nil
 }
 
-// Pop takes a ready issue for the store's user (srd041 R9.1). A second pop
-// by the same person changes nothing; a pop of someone else's issue is
-// refused.
+// Assign makes username the issue's assignee and leaves its state, through
+// the program's assign rows, or, with "", leaves it with none (srd041 R9.2).
+func (s *Store) Assign(id, username string) error {
+	_, _, _, err := s.mutate(id, "assign", func(i *Issue) (bool, error) {
+		if i.Assignee == username {
+			return false, nil
+		}
+		return true, s.assign(i, username)
+	})
+	return err
+}
+
+// Unassign gives the issue back: the store's user, its assignee, leaves it,
+// and an issue they had started is ready again (srd041 R9.2).
+func (s *Store) Unassign(id string) error {
+	_, _, _, err := s.mutate(id, "unassign", func(i *Issue) (bool, error) {
+		if i.Assignee == "" {
+			return false, nil
+		}
+		if i.Assignee != s.User {
+			return false, fmt.Errorf("%w: %s is assigned to %s; only that person gives it back (srd041 R9.2)", ErrRefused, id, i.Assignee)
+		}
+		if i.State == InProgress {
+			if err := s.transition(i, ActorPerson, Taken, s.User); err != nil {
+				return false, err
+			}
+		}
+		if i.State == Taken {
+			return true, s.transition(i, ActorPerson, Ready, s.User)
+		}
+		return true, s.assign(i, "")
+	})
+	return err
+}
+
+// Pop takes a ready issue for the store's user (srd041 R9.1), one a person
+// assigned them among them. A second pop by the same person changes nothing;
+// a pop of someone else's issue is refused.
 func (s *Store) Pop(id string) (PopResult, error) {
 	r := PopResult{ID: id}
 	tries := 0
 	fr, written, queued, err := s.mutate(id, "pop", func(i *Issue) (bool, error) {
 		tries++
 		if i.Assignee == s.User {
-			return false, nil
+			if i.State != Open && i.State != Ready {
+				return false, nil
+			}
+			return true, s.transition(i, ActorPop, Taken, s.User)
 		}
 		if i.Assignee != "" && tries > 1 {
 			// A replay after a rejected push finds the issue taken by

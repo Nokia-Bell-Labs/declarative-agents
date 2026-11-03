@@ -4,6 +4,7 @@ package program
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"path"
 	"slices"
@@ -67,26 +68,12 @@ func ListImplementing(t tracker.Tracker, project, dir, story, epic string) (List
 	}
 	var listed []Listed
 	for _, i := range open {
-		var target string
-		var blockers []string
-		for _, l := range links.ParseLinks(i.Description) {
-			switch l.Kind {
-			case links.Implements:
-				target = docID(l.Target)
-			case links.BlockedBy:
-				blockers = append(blockers, l.Target)
-			}
-		}
-		if !slices.Contains(r.Stories, target) && (epic == "" || target != epic) {
+		if target := implementsOf(i); !slices.Contains(r.Stories, target) && (epic == "" || target != epic) {
 			continue
 		}
-		it := Listed{Ref: fmt.Sprintf("%s#%d", project, i.IID), IID: i.IID, Title: i.Title, State: i.State, Assignees: i.Assignees, Story: target}
-		for _, b := range blockers {
-			if open, err := openIssue(t, project, b); err != nil {
-				return r, err
-			} else if open {
-				it.BlockedBy = append(it.BlockedBy, b)
-			}
+		it, err := listing(t, project, i)
+		if err != nil {
+			return r, err
 		}
 		listed = append(listed, it)
 	}
@@ -111,6 +98,86 @@ func ListImplementing(t tracker.Tracker, project, dir, story, epic string) (List
 		}
 	}
 	return r, nil
+}
+
+// ListAssigned lists the caller's open issues in projects, by project then
+// IID, whoever assigned them and whether or not they have started (srd013).
+func ListAssigned(t tracker.Tracker, projects []string) (ListResult, error) {
+	r := ListResult{Stories: []string{}, Issues: []Listed{}, Blocked: []Listed{}}
+	if len(projects) == 1 {
+		r.Project = projects[0]
+	}
+	seen := map[string]bool{}
+	for _, project := range projects {
+		if seen[project] {
+			continue
+		}
+		seen[project] = true
+		me, err := tracker.UserIn(t, project)
+		if err != nil {
+			return r, err
+		}
+		open, err := t.ListIssues(project, tracker.IssueQuery{State: "opened"})
+		if err != nil {
+			return r, fmt.Errorf("%s: %w", project, err)
+		}
+		slices.SortStableFunc(open, func(a, b tracker.Issue) int { return a.IID - b.IID })
+		for _, i := range open {
+			if !slices.Contains(i.Assignees, me.Username) {
+				continue
+			}
+			it, err := listing(t, project, i)
+			if err != nil {
+				return r, err
+			}
+			if len(it.BlockedBy) > 0 {
+				r.Blocked = append(r.Blocked, it)
+			} else {
+				r.Issues = append(r.Issues, it)
+			}
+		}
+	}
+	return r, nil
+}
+
+// programProjects is the system repository and every repository its
+// subsystem SRDs declare.
+func programProjects(t tracker.Tracker, system, ref string) ([]string, error) {
+	subs, err := LoadSubsystems(t, system, ref)
+	if err != nil && !errors.Is(err, tracker.ErrNotFound) {
+		return nil, err
+	}
+	return append([]string{ProjectPath(system)}, subs.Repositories()...), nil
+}
+
+// implementsOf is the document id i's Implements line names, if any.
+func implementsOf(i tracker.Issue) string {
+	var target string
+	for _, l := range links.ParseLinks(i.Description) {
+		if l.Kind == links.Implements {
+			target = docID(l.Target)
+		}
+	}
+	return target
+}
+
+// listing is i as a list shows it, with the open issues its Blocked-by lines
+// name.
+func listing(t tracker.Tracker, project string, i tracker.Issue) (Listed, error) {
+	it := Listed{Ref: fmt.Sprintf("%s#%d", project, i.IID), IID: i.IID, Title: i.Title, State: i.State, Assignees: i.Assignees, Story: implementsOf(i)}
+	for _, l := range links.ParseLinks(i.Description) {
+		if l.Kind != links.BlockedBy {
+			continue
+		}
+		open, err := openIssue(t, project, l.Target)
+		if err != nil {
+			return it, err
+		}
+		if open {
+			it.BlockedBy = append(it.BlockedBy, l.Target)
+		}
+	}
+	return it, nil
 }
 
 // storiesUnder is every story with epic among its ancestors, by rank then

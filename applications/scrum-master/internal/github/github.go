@@ -601,7 +601,17 @@ func (t *Tracker) CurrentUser() (tracker.User, error) {
 // AssignIssue makes user the issue's only assignee; pop's rule that only
 // the caller is assigned stays scrum-master's (srd041 R9.1).
 func (t *Tracker) AssignIssue(project string, iid int, user tracker.User) error {
-	_, err := t.API.Do("PATCH", fmt.Sprintf("repos/%s/issues/%d", project, iid), map[string]any{"assignees": []string{user.Username}})
+	return t.SetAssignee(project, iid, user.Username)
+}
+
+// SetAssignee is a person's assignment (srd041 R9.2); "" leaves the issue
+// with no assignee.
+func (t *Tracker) SetAssignee(project string, iid int, username string) error {
+	assignees := []string{}
+	if username != "" {
+		assignees = append(assignees, username)
+	}
+	_, err := t.API.Do("PATCH", fmt.Sprintf("repos/%s/issues/%d", project, iid), map[string]any{"assignees": assignees})
 	return err
 }
 

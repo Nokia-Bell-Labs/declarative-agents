@@ -230,7 +230,17 @@ func Claim(t tracker.Tracker, project, issueProject string, iid int, p Policy, d
 		}
 		r.NotAdmitted = reasons
 	}
-	if !slices.Contains(i.Assignees, me.Username) {
+	take := !slices.Contains(i.Assignees, me.Username)
+	if ws, ok := tracker.For(t, issueProject).(tracker.WorkState); ok && !take {
+		// A person assigned it (issue assign) and its state has not moved: the
+		// pop takes it. On a forge, being assigned is already all there is.
+		started, err := ws.Started(issueProject, iid)
+		if err != nil {
+			return r, i, err
+		}
+		take = !started
+	}
+	if take {
 		r.Assigned = true
 		if !dryRun {
 			if err := t.AssignIssue(issueProject, iid, me); err != nil {

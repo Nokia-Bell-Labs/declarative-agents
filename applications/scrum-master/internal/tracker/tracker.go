@@ -163,6 +163,13 @@ type Reader interface {
 	LastRead() (Read, bool)
 }
 
+// WorkState is a tracker that records whether work on an assigned issue has
+// started, as beads does in the srd041 taken state. On a forge nothing does:
+// the issue's branch is what shows it.
+type WorkState interface {
+	Started(project string, iid int) (bool, error)
+}
+
 // Triager is a tracker that holds admission as srd041 state transitions
 // fired by lint, not as a bare label: Triage admits or flags one issue and
 // reports whether its state changed. The fake is not one; there admission
@@ -239,9 +246,13 @@ type Issues interface {
 	UpdateGroupLabel(group string, l Label) error
 	// CurrentUser is the account the token belongs to.
 	CurrentUser() (User, error)
-	// AssignIssue makes user the issue's only assignee. Only pop calls it
-	// (srd041 R9.1).
+	// AssignIssue takes the issue for user, its only assignee. Only pop calls
+	// it, and only for the person running it (srd041 R9.1).
 	AssignIssue(project string, iid int, user User) error
+	// SetAssignee is a person's assignment: username becomes the issue's only
+	// assignee and its state stays, or, with "", the issue has none (srd041
+	// R9.2). Only scrum-master issue assign and unassign call it.
+	SetAssignee(project string, iid int, username string) error
 }
 
 // Forge is the code half of a tracking system: a project's files, tags,

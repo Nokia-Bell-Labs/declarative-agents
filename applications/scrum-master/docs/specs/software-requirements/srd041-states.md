@@ -16,6 +16,8 @@ title: "States: where an issue is and who may move it"
 | needs-triage | ready | lint | none | labels fixed, admitted, unassigned, backlog kind |
 | needs-triage | taken | lint | none | labels fixed on an issue its author already took |
 | ready | taken | pop | set | a person pops it |
+| open | open | assign | set | a person assigns it to someone, or its assignee gives it back; its state stays |
+| ready | ready | assign | set | a person assigns it to someone, or its assignee gives it back; its state stays |
 | taken | ready | person | clear | the assignee releases it back |
 | taken | in-progress | person | none | the assignee starts it |
 | in-progress | taken | person | none | the assignee stops it |
@@ -77,7 +79,7 @@ Open, unassigned, admitted, plane data, and of a kind that enters the backlog (s
 <!-- req: R3.2 -->
 ### R3.2
 
-A ready issue may be popped by anyone in the program. No script offers it to a person or assigns it.
+A ready issue may be popped by anyone in the program, until a person assigns it to someone; then only that person pops it, and on beads it keeps its state until they do. No script offers it to a person or assigns it on its own.
 
 <!-- req: R4 -->
 ## R4 - taken
@@ -85,7 +87,7 @@ A ready issue may be popped by anyone in the program. No script offers it to a p
 <!-- req: R4.1 -->
 ### R4.1
 
-Open and assigned to exactly one person, with no status label. Represented by the assignee field.
+Open and assigned to exactly one person, with no status label. Represented by the assignee field. On a forge, an issue a person assigned reads as taken from then on, and its branch is what shows work has started (srd013 R10.1); on beads it is taken when its assignee pops it.
 
 <!-- req: R4.2 -->
 ### R4.2
@@ -142,7 +144,7 @@ The transitions table is the complete state machine, held as data in control/sta
 <!-- req: R8.2 -->
 ### R8.2
 
-Each row names the actor that fires it, one of person, pop, merge, track-goals, handoff, or lint. pop is the person's own implement. lint is admission.
+Each row names the actor that fires it, one of person, pop, assign, merge, track-goals, handoff, or lint. pop is the person's own implement. assign is a person's scrum-master issue assign or unassign. lint is admission.
 
 <!-- req: R8.3 -->
 ### R8.3
@@ -155,12 +157,12 @@ Each row states its effect on the assignee, one of none, set, or clear.
 <!-- req: R9.1 -->
 ### R9.1
 
-Only pop sets an assignee, and pop assigns only the person who runs it.
+Pop assigns only the person who runs it. A person may assign an issue to someone else with scrum-master issue assign (srd013 R10.1), and the issue's state stays until that person pops it. No agent and no script assigns anyone on its own.
 
 <!-- req: R9.2 -->
 ### R9.2
 
-Only a person clears their own assignment. No script changes an assignee except pop.
+Only a person clears their own assignment, with scrum-master issue unassign (srd013 R10.2). A person changes an assignee only until work has started, and an agent or script never does on its own.
 
 <!-- req: R9.3 -->
 ### R9.3
@@ -193,7 +195,7 @@ Until track-goals and handoff run, neither label is set: a dependency is a link 
 <!-- field: goals -->
 ## Goals
 
-- G1: Every transition between states has exactly one actor that may fire it; only the person taking work sets its assignee, and only delivery or a person's decision closes it.
+- G1: Every transition between states has exactly one actor that may fire it; only a person sets its assignee, for themselves or someone else, and only delivery or a person's decision closes it.
 - G2: A state is read from tracker fields and labels, never inferred from a title or an author.
 
 <!-- field: non_goals -->
@@ -220,7 +222,7 @@ Every new issue is checked by admission; an issue with a bad axis label carries 
 <!-- ac: AC2 -->
 ### AC2
 
-An open, unassigned, admitted data issue of a backlog kind is ready, may be popped by anyone, and has no ready label; once assigned it is no longer ready; no script caps in-progress issues.
+An open, unassigned, admitted data issue of a backlog kind is ready, may be popped by anyone, and has no ready label; once a person assigns it, only that person pops it; no script caps in-progress issues.
 
 <!-- field: traces -->
 #### Traces
@@ -258,7 +260,7 @@ An issue closes only by a closing merge, a person's decline with a reason, or tr
 <!-- ac: AC5 -->
 ### AC5
 
-Every row of the transitions table names exactly one actor and an assignee effect; every row whose actor is not pop or person has assignee none; a script asked for an unlisted transition refuses.
+Every row of the transitions table names exactly one actor and an assignee effect; every row whose actor is not pop, assign, or person has assignee none; a script asked for an unlisted transition refuses.
 
 <!-- field: traces -->
 #### Traces
