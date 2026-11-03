@@ -1,0 +1,65 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The issue-link machine's words (GH-2871). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue; the story or epic and the optional
+# flags are parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-issue-link-declarations
+tools:
+- name: issue_link
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - link
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: 'Name the story or epic a filed issue implements, and lint it again (srd007 R6.6).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      epic:
+        type: string
+        description: 'The epic, by same-repository id or pinned URL; give this or story.'
+        flag: --epic
+      story:
+        type: string
+        description: 'The story, by same-repository id or pinned URL; give this or epic.'
+        flag: --story
+      force:
+        type: boolean
+        description: 'Replace the story or epic the issue already names.'
+        flag: --force
+        bool_flag: true
+      control:
+        type: string
+        description: 'Program repository holding control/ files, when not the one beside the checkout.'
+        flag: --control
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The link word's JSON report: the issue, what it implements, what it did, and the lint verdict."
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Writes the Implements line on the issue and lints it again.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: "The word's write is a person's to reverse, by naming another with force or editing the issue."
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_link: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the program is as the word's refusal left it

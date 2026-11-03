@@ -80,9 +80,10 @@ work has started it can go to someone else; after that its assignee gives it
 back first. `scrum-master issue list --mine` shows what is assigned to you.
 Who is on a scrum or an epic is a separate record: the technical program
 manager names them in `control/people.md` with `scrum-master people allocate`,
-the site shows it, and it assigns no one an issue.
+which the `people` skill runs, the site shows it, and it assigns no one an issue.
 An issue usually names a story in its `Implements` line; work with no story
-yet can name its epic instead, with `scrum-master issue link --epic`.
+yet can name its epic instead, with `scrum-master issue link --epic`, which
+the `issue` skill lists as `issue-link`.
 
 A program has levels, and each level has one owner and the same corpus: a
 docs/ directory with SRDs and a road-map, checked by the same audit.
