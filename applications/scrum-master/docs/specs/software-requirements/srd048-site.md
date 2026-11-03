@@ -240,6 +240,16 @@ The timeline facts carry each story's and epic's issues record as its document h
 
 The backlog word draws the timeline facts, and computes none (R5.1), under site/backlog/: every issue the stories record, across the program's repositories, open and closed. The folder's index opens with the embedded kanban board and holds two tables, the forge's view of the same record: the open issues, each with who works on it, when it opened, how long it has been open, and the projected time, its story's release and that release's sprint end where the road map names one; and the closed issues, each with who worked on it, when it opened and closed, and how long it took. Every issue links its tracker page where its url opens in a browser and is named without a link where it does not (R8.5), and every row links its story's page and its epic's, the epic found up the story's parents. The embedded page, site/backlog/backlog.html, is one self-contained kanban board whose cards are inlined, a card's column its record — to do, open with nobody on it; in progress, open with someone; done, closed (GH-2855) — filtering by repository, state, and who in place, ?repo=, ?state=, and ?who= opening it filtered, a state filter narrowing the board to its columns; under ?embed=1 it drops its heading and tells the page holding it its height, as the interactive timeline does (R5.3), and a planning item opens its page in the site, in the top window. The navigator lists the Backlog between the scrums and the architecture (R8.2), and the status word's open-issues page links each issue the same way (R4) (GH-2845).
 
+<!-- req: R10.3 -->
+### R10.3
+
+The backlog and open issues pages state the date they were generated, so an old page does not read as current. An empty backlog says so and says how an issue comes to appear, its data an empty list the board can read.
+
+<!-- req: R10.4 -->
+### R10.4
+
+The site skill first lays the program's checkouts down and refreshes its issues records (srd043 R6, srd045 R4.4), neither of which stops it. During its words, a repository with no checkout reads as absent and is a note in the run's report, so a repository that cannot be reached costs what it holds and not the site, and the backlog names the registered repositories with no checkout beside the system's.
+
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -427,3 +437,14 @@ An epic's page links its issue from the facts, by its URL where the document rec
 #### Traces
 
 - [R8.11](#r811)
+
+<!-- ac: AC16 -->
+### AC16
+
+The backlog and open issues pages state their date; a backlog with nothing recorded says why, and its board's data is an empty list; a project with no checkout reads as absent and is reported while the words run, and is the error it was afterwards; the backlog names repositories with no checkout.
+
+<!-- field: traces -->
+#### Traces
+
+- [R10.3](#r103)
+- [R10.4](#r104)

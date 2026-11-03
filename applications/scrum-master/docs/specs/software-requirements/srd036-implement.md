@@ -75,7 +75,7 @@ The issue closes when its branch merges (srd041 R7.1); the skill closes nothing 
 <!-- req: R3.4 -->
 ### R3.4
 
-Once the merge closes an issue whose Implements line names a story, the skill runs scrum-master backlog record --commit in that story's scrum repository checkout, so the story's issues record carries the close — who worked on it and when it opened and closed — as of the close itself (srd045 R4.4); a checkout it cannot find or a record that fails is reported and never blocks the finish, since reconcile files the drift (srd043 R8.4, GH-2844).
+Once the merge closes an issue whose Implements line names a story, the skill runs scrum-master backlog record --push in that story's scrum repository checkout, so the story's issues record carries the close — who worked on it and when it opened and closed — as of the close itself (srd045 R4.4); a checkout it cannot find or a record that fails is reported and never blocks the finish, since reconcile files the drift (srd043 R8.4, GH-2844).
 
 <!-- req: R4 -->
 ## R4 - Asks and refusals

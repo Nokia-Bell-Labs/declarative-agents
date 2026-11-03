@@ -69,7 +69,7 @@ func BacklogPages(dir string) (map[string][]byte, error) {
 		return nil, fmt.Errorf("%s/timeline/facts.json: %w", Dir, err)
 	}
 	rows := backlogRows(f)
-	index := backlogIndex(rows)
+	index := backlogIndex(rows, f)
 	data, err := json.Marshal(struct {
 		Today string       `json:"today"`
 		Rows  []backlogRow `json:"rows"`
@@ -99,7 +99,7 @@ func backlogRows(f timeline.Facts) []backlogRow {
 	for _, r := range f.Releases {
 		release[r.Version] = r
 	}
-	var rows []backlogRow
+	rows := []backlogRow{}
 	for _, it := range f.Items {
 		if len(it.Ledger) == 0 {
 			continue
@@ -168,9 +168,16 @@ func daysBetween(from, to string) string {
 // above an open and a closed table, the forge's view of the same record, every
 // issue linked on its tracker where its url opens in a browser and named
 // without a link where it does not (R8.5), each with its story and epic.
-func backlogIndex(rows []backlogRow) string {
+func backlogIndex(rows []backlogRow, f timeline.Facts) string {
 	var b strings.Builder
 	b.WriteString(generated("backlog", "the timeline facts") + "# Backlog\n\n")
+	fmt.Fprintf(&b, "As the planning documents held it on %s, when this page was generated.\n\n", f.Today)
+	if len(f.Unread) > 0 {
+		fmt.Fprintf(&b, "No checkout of %s here, so what they hold may be missing; scrum-master checkouts lays them down.\n\n", strings.Join(f.Unread, ", "))
+	}
+	if len(rows) == 0 {
+		b.WriteString("No issue is recorded yet. An issue appears here once it names a story or epic in an Implements line and the record has been written, which the merge and site skills do, and scrum-master backlog record does by hand.\n\n")
+	}
 	b.WriteString("Every issue the stories and epics record (srd045 R4.4), across the program's repositories, open and closed, read from the checkouts, never the tracker. The board's columns are the record: to do is open with nobody on it, in progress is open with someone, done is closed; it filters by repository, state, and who, and the tables are the forge's view of the same record.\n\n")
 	b.WriteString("<iframe class=\"timeline\" src=\"backlog/backlog.html?embed=1\" title=\"The backlog board, filterable\"></iframe>\n")
 	cell := func(r backlogRow) (issue, story, epic string) {

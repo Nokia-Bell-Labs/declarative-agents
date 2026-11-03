@@ -755,3 +755,41 @@ func TestMirrorLine(t *testing.T) {
 		}
 	}
 }
+
+// TestAnEmptyBacklogSaysWhy: with nothing recorded the board's data is an empty list,
+// which its script can read, where null left it blank, and the page says how to fill it.
+func TestAnEmptyBacklogSaysWhy(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, Dir, "timeline"), 0o755)
+	j, _ := json.Marshal(timeline.Facts{Today: "2026-11-03", Unread: []string{"g/team"}})
+	if err := os.WriteFile(filepath.Join(dir, Dir, "timeline", "facts.json"), j, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pages, err := BacklogPages(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var board string
+	var index string
+	for name, b := range pages {
+		if strings.HasSuffix(name, ".html") {
+			board = string(b)
+		} else {
+			index = string(b)
+		}
+	}
+	if !strings.Contains(board, `"rows":[]`) {
+		t.Errorf("the board's data has no empty list of rows")
+	}
+	for _, want := range []string{"2026-11-03", "No issue is recorded yet", "backlog record", "No checkout of g/team"} {
+		if !strings.Contains(index, want) {
+			t.Errorf("the index does not say %q:\n%s", want, index)
+		}
+	}
+}
+
+func TestOpenIssuesPageStatesItsDate(t *testing.T) {
+	if page := issuesPage(nil, "2026-11-03"); !strings.Contains(page, "2026-11-03") {
+		t.Fatalf("page = %s", page)
+	}
+}

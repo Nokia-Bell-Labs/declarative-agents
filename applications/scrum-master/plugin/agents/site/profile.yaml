@@ -9,4 +9,5 @@ tools:
   - tools.yaml
 tool_declarations:
   - declarations.yaml
+  - prepare-declarations.yaml
   - declarations-backlog.yaml

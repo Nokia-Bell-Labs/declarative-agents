@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/routing"
 )
 
 // CheckoutEntry is one registered repository the checkouts word handled:
@@ -61,10 +63,68 @@ func Checkouts(dir string, dryRun bool) (CheckoutsResult, error) {
 		return r, fmt.Errorf("the registry names no repositories: %s holds no subsystem SRD under %s", root, program.SRDDir)
 	}
 	r.Root, r.Repositories = registryRoot(root, system), []CheckoutEntry{}
-	for _, repo := range registered(subs.Teams(system), system) {
+	repos := registered(subs.Teams(system), system)
+	if b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(program.LineageFile))); err == nil {
+		if l, err := program.ParseLineage(b); err == nil && l.SiteRepository != "" {
+			if p := checkout.ProjectPath(l.SiteRepository); !slices.ContainsFunc(repos, func(x registeredRepo) bool { return x.project == p }) {
+				repos = append(repos, registeredRepo{project: p, written: l.SiteRepository})
+			}
+		}
+	}
+	for _, repo := range repos {
 		r.Repositories = append(r.Repositories, oneCheckout(r.Root, root, system, repo, cloneURL(origin, system, repo), dryRun))
 	}
 	return r, nil
+}
+
+// FindSystem is the system repository's checkout for the clone at dir, cloned beside
+// it when there is none (srd043 R6.4): dir's own, the one beside it, or the project
+// system names, else the one DiscoverSystem finds through the forge. A clone of any
+// of a program's repositories is enough to lay the program down.
+func FindSystem(dir, system string, discover func(dir string) ([]string, error), dryRun bool) (string, *CheckoutEntry, error) {
+	root, err := toplevel(dir)
+	if err != nil {
+		return "", nil, fmt.Errorf("checkouts needs a checkout of one of the program's repositories: %w", err)
+	}
+	if file, err := checkout.FindTrackers(root); err == nil && file != "" {
+		return filepath.Dir(filepath.Dir(file)), nil, nil
+	}
+	origin := checkout.Origin(root)
+	if !checkout.IsForge(origin) {
+		return "", nil, fmt.Errorf("%s has no forge origin to find its program through; check the system repository out beside it", root)
+	}
+	if system == "" {
+		found, err := discover(root)
+		if err != nil {
+			return "", nil, err
+		}
+		switch len(found) {
+		case 0:
+			return "", nil, fmt.Errorf("no repository in the groups of %s holds %s; name the system repository with --system", checkout.ProjectPath(origin), checkout.TrackersFile)
+		case 1:
+			system = found[0]
+		default:
+			return "", nil, fmt.Errorf("more than one repository holds %s: %s; name the program's with --system", checkout.TrackersFile, strings.Join(found, ", "))
+		}
+	}
+	project := checkout.ProjectPath(system)
+	dest := filepath.Join(filepath.Dir(root), path.Base(project))
+	url := strings.Replace(origin, checkout.ProjectPath(origin), project, 1)
+	e := &CheckoutEntry{Project: project, Action: "cloned", Path: dest}
+	if dryRun {
+		e.Detail = "would clone " + url
+		return "", e, nil
+	}
+	if _, err := os.Stat(dest); err == nil {
+		return "", nil, fmt.Errorf("%s exists and is not a checkout of %s", dest, project)
+	}
+	if out, err := exec.Command("git", "clone", "-q", url, dest).CombinedOutput(); err != nil {
+		return "", nil, fmt.Errorf("clone %s: %v: %s", url, err, strings.TrimSpace(string(out)))
+	}
+	if _, err := os.Stat(filepath.Join(dest, filepath.FromSlash(checkout.TrackersFile))); err != nil {
+		return "", nil, fmt.Errorf("%s holds no %s, so it is no system repository", project, checkout.TrackersFile)
+	}
+	return dest, e, nil
 }
 
 // registeredRepo is one registry entry: the repository's project path and
@@ -255,12 +315,13 @@ func (r CheckoutsResult) Human() string {
 }
 
 func init() {
-	var dir string
+	var dir, system string
 	cli.Default.Register(&cli.Command{
 		Group:   "checkouts",
-		Summary: "clone every registered repository at its group path beside the system checkout, and fast-forward the ones already there (GH-2812)",
+		Summary: "clone every registered repository at its group path beside the system checkout, and fast-forward the ones already there; from a clone of any of them, find and clone the system repository first (GH-2812)",
 		Flags: func(fs *flag.FlagSet) {
-			fs.StringVar(&dir, "dir", "", "the system repository's checkout (default: the git root)")
+			fs.StringVar(&dir, "dir", "", "a checkout of one of the program's repositories (default: the git root)")
+			fs.StringVar(&system, "system", "", "the system repository's project path, when it cannot be found through the forge")
 		},
 		Run: func(ctx *cli.Context) error {
 			d := dir
@@ -270,7 +331,18 @@ func init() {
 					return err
 				}
 			}
-			r, err := Checkouts(d, ctx.DryRun)
+			found, cloned, err := FindSystem(d, system, routing.DiscoverSystem, ctx.DryRun)
+			if err != nil {
+				return err
+			}
+			if found == "" { // a dry run with the system repository still to clone
+				r := CheckoutsResult{DryRun: true, Repositories: []CheckoutEntry{*cloned}}
+				return ctx.Emit(r, r.Human())
+			}
+			r, err := Checkouts(found, ctx.DryRun)
+			if cloned != nil {
+				r.Repositories = append([]CheckoutEntry{*cloned}, r.Repositories...)
+			}
 			if err != nil {
 				return err
 			}

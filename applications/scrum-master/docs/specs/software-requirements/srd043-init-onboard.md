@@ -215,6 +215,11 @@ A repository already checked out, as the lookup finds it, is fetched and fast-fo
 
 The output is one line per repository — cloned, updated, kept with the reason, or failed with the reason — with the counts, and the JSON mirrors it. A repository that cannot be reached fails alone, and the run goes on. A dry run reports what would be cloned or updated and touches nothing. Where a reader notes a registered repository has no checkout (GH-2726), the note names this word as the remedy.
 
+<!-- req: R6.4 -->
+### R6.4
+
+checkouts runs from a clone of any of a program's repositories. With no system repository's checkout at or beside it, it finds the system repository, named by --system or, through the forge the clone's origin is on, as the project holding control/trackers.md in the nearest of the clone's groups that holds one; it clones that beside the clone and goes on from there. Finding none, or more than one, is refused, naming them and --system, and so is a group too large to search. It also lays down the site repository control/program.md names.
+
 <!-- req: R7 -->
 ## R7 - scrum-master roll
 
@@ -421,3 +426,13 @@ With a scrum repository whose story's issues record lags the tracking system —
 #### Traces
 
 - [R8.4](#r84)
+
+<!-- ac: AC14 -->
+### AC14
+
+From a clone of a team repository with nothing beside it, checkouts finds the system repository through the forge or --system, clones it, and lays down the rest; two candidates, or none, are refused naming --system; a named repository holding no trackers document is refused; a dry run clones nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R6.4](#r64)

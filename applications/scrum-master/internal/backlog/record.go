@@ -38,8 +38,10 @@ type RecordResult struct {
 	Projects []string        `json:"projects"`
 	Stories  []RecordedStory `json:"stories"`
 	Commit   string          `json:"commit,omitempty"`
-	Notes    []string        `json:"notes,omitempty"`
-	DryRun   bool            `json:"dry_run"`
+	// Pushed is whether the record commit reached origin (--push).
+	Pushed bool     `json:"pushed,omitempty"`
+	Notes  []string `json:"notes,omitempty"`
+	DryRun bool     `json:"dry_run"`
 }
 
 // LedgerDocuments are the documents in the checkout at root that hold an
@@ -67,6 +69,19 @@ func LedgerDocuments(root string) ([]string, error) {
 // idempotent; commit records the changed documents on the current branch;
 // a dry run writes nothing and reports what it would.
 func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordResult, error) {
+	return record(t, dir, story, commit, false, dryRun)
+}
+
+// RecordAndPush is Record landing on origin (srd045 R4.4): the record goes on the
+// default branch of the repository's main checkout, and is pushed, so everyone and
+// every site sees it. A checkout it should not touch, or a push the host refuses,
+// is a note and leaves the checkout level with origin; the next run writes the same
+// record.
+func RecordAndPush(t tracker.Tracker, dir, story string, dryRun bool) (RecordResult, error) {
+	return record(t, dir, story, true, true, dryRun)
+}
+
+func record(t tracker.Tracker, dir, story string, commit, push, dryRun bool) (RecordResult, error) {
 	r := RecordResult{DryRun: dryRun}
 	root, err := toplevelOf(dir)
 	if err != nil {
@@ -100,6 +115,15 @@ func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordRe
 				return r, fmt.Errorf("the stories live in %s, which has no checkout beside %s; scrum-master checkouts lays it down", scrum, root)
 			}
 			root, own, r.Scrum = dir, scrum, scrum
+		}
+	}
+	branch := ""
+	if push {
+		root = checkout.MainCheckout(root)
+		var why string
+		if branch, why = landable(root, dryRun); why != "" {
+			r.Notes = append(r.Notes, fmt.Sprintf("%s: the record is not written: %s", own, why))
+			return r, nil
 		}
 	}
 	entries, swept, notes := TrackerLedgers(t, r.Projects, own)
@@ -167,8 +191,112 @@ func Record(t tracker.Tracker, dir, story string, commit, dryRun bool) (RecordRe
 			return r, err
 		}
 		r.Commit = strings.TrimSpace(string(sha))
+		if push {
+			if why := pushRecord(root, branch); why != "" {
+				r.Commit = ""
+				r.Notes = append(r.Notes, fmt.Sprintf("%s: the record is not pushed, so it is dropped until the next run: %s", own, why))
+			} else {
+				r.Pushed = true
+			}
+		}
 	}
 	return r, nil
+}
+
+// landable is the default branch of the checkout at root, brought level with
+// origin, or why the record should not be written there: a person's changes or
+// other branch are theirs.
+func landable(root string, dryRun bool) (branch, why string) {
+	git := func(args ...string) (string, error) {
+		out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	if status, err := git("status", "--porcelain"); err != nil || status != "" {
+		return "", "its checkout holds changes"
+	}
+	branch = "main"
+	if head, err := git("symbolic-ref", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		branch = strings.TrimPrefix(head, "origin/")
+	}
+	if cur, _ := git("branch", "--show-current"); cur != branch {
+		return "", "its checkout is on " + cur + ", not " + branch
+	}
+	if dryRun {
+		return branch, ""
+	}
+	if out, err := git("fetch", "-q", "origin", branch); err != nil {
+		return "", "fetch: " + out
+	}
+	if out, err := git("merge", "-q", "--ff-only", "FETCH_HEAD"); err != nil {
+		return "", "fast-forward: " + out
+	}
+	return branch, ""
+}
+
+// pushRecord pushes the record commit, rebasing once over someone else's push. A
+// push still refused, as a protected branch refuses it, drops the commit: the
+// checkout was clean before it, and the next run writes the same record.
+func pushRecord(root, branch string) (why string) {
+	git := func(args ...string) (string, error) {
+		out, err := exec.Command("git", append([]string{"-C", root}, args...)...).CombinedOutput()
+		return strings.TrimSpace(string(out)), err
+	}
+	out, err := git("push", "-q", "origin", branch)
+	if err == nil {
+		return ""
+	}
+	if _, ferr := git("fetch", "-q", "origin", branch); ferr == nil {
+		if _, rerr := git("rebase", "-q", "FETCH_HEAD"); rerr == nil {
+			if out, err = git("push", "-q", "origin", branch); err == nil {
+				return ""
+			}
+		} else {
+			git("rebase", "--abort")
+		}
+	}
+	git("reset", "-q", "--hard", "origin/"+branch)
+	return out
+}
+
+// RecordProgram records in the system repository and each team's scrum repository
+// found beside it, landing each on origin. A repository with no checkout, or one
+// that cannot be written, is a note: the site that runs this draws what there is.
+func RecordProgram(t tracker.Tracker, dir string, dryRun bool) ([]RecordResult, []string, error) {
+	file, err := checkout.FindTrackers(dir)
+	if err != nil {
+		return nil, nil, err
+	}
+	if file == "" {
+		return nil, nil, fmt.Errorf("no system repository's checkout at or beside %s holds %s", dir, checkout.TrackersFile)
+	}
+	system := filepath.Dir(filepath.Dir(file))
+	subs, err := program.SubsystemsIn(system)
+	if err != nil {
+		return nil, nil, err
+	}
+	dirs, notes := []string{system}, []string{}
+	for _, sub := range subs.Teams(program.SystemControl(system)) {
+		scrum := sub.ScrumRepository()
+		found, ok := checkout.Locate(system, scrum)
+		if !ok {
+			notes = append(notes, scrum+": no checkout, so its record is not refreshed")
+			continue
+		}
+		if !slices.Contains(dirs, found) {
+			dirs = append(dirs, found)
+		}
+	}
+	var out []RecordResult
+	for _, d := range dirs {
+		res, err := RecordAndPush(t, d, "", dryRun)
+		if err != nil {
+			notes = append(notes, d+": "+err.Error())
+			continue
+		}
+		out = append(out, res)
+		notes = append(notes, res.Notes...)
+	}
+	return out, notes, nil
 }
 
 // TrackerLedgers reads from the tracking system the issues record each of
@@ -274,6 +402,7 @@ func init() {
 	var ra struct {
 		dir, story string
 		commit     bool
+		push       bool
 	}
 	cli.Default.Register(&cli.Command{
 		Group: "backlog", Name: "record", Summary: "reconcile each story's and epic's issues record with the tracking system: who worked on its issues and when they opened and closed, written into the documents (srd045 R4.4)",
@@ -281,13 +410,19 @@ func init() {
 			fs.StringVar(&ra.dir, "dir", ".", "the scrum repository's checkout")
 			fs.StringVar(&ra.story, "story", "", "record one story or epic, by its id")
 			fs.BoolVar(&ra.commit, "commit", false, "commit the recorded documents on the current branch")
+			fs.BoolVar(&ra.push, "push", false, "land the record on the default branch of the main checkout and push it; what stops that is a note")
 		},
 		Run: func(ctx *cli.Context) error {
 			t, err := ctx.Tracker()
 			if err != nil {
 				return err
 			}
-			r, err := Record(t, ra.dir, ra.story, ra.commit, ctx.DryRun)
+			var r RecordResult
+			if ra.push {
+				r, err = RecordAndPush(t, ra.dir, ra.story, ctx.DryRun)
+			} else {
+				r, err = Record(t, ra.dir, ra.story, ra.commit, ctx.DryRun)
+			}
 			if err != nil {
 				return err
 			}
@@ -309,6 +444,44 @@ func init() {
 				fmt.Fprintf(&h, "note: %s\n", n)
 			}
 			return ctx.Emit(r, h.String())
+		},
+	})
+}
+
+func init() {
+	var a struct{ dir string }
+	cli.Default.Register(&cli.Command{
+		Group: "backlog", Name: "record-program", Summary: "refresh the issues record in the system repository and each team's scrum repository, and push each; what stops one is a note",
+		Flags: func(fs *flag.FlagSet) {
+			fs.StringVar(&a.dir, "dir", ".", "the system repository's checkout, or a checkout beside it")
+		},
+		Run: func(ctx *cli.Context) error {
+			t, err := ctx.Tracker()
+			if err != nil {
+				return err
+			}
+			results, notes, err := RecordProgram(t, a.dir, ctx.DryRun)
+			if err != nil {
+				return err
+			}
+			var h strings.Builder
+			for _, r := range results {
+				changed := 0
+				for _, s := range r.Stories {
+					if s.Action == "recorded" {
+						changed++
+					}
+				}
+				fmt.Fprintf(&h, "%s: %d of %d documents recorded\n", r.Scrum, changed, len(r.Stories))
+			}
+			for _, n := range notes {
+				fmt.Fprintf(&h, "note: %s\n", n)
+			}
+			return ctx.Emit(struct {
+				Results []RecordResult `json:"results"`
+				Notes   []string       `json:"notes,omitempty"`
+				DryRun  bool           `json:"dry_run,omitempty"`
+			}{results, notes, ctx.DryRun}, h.String())
 		},
 	})
 }
