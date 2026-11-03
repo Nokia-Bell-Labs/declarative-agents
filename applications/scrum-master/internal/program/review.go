@@ -407,7 +407,8 @@ func NameReviewer(t tracker.Tracker, project, issueProject string, iid int, pers
 }
 
 // ListReviewing lists the open issues in projects the caller signs off on,
-// by project then IID, leaving out any assigned to them.
+// by project then IID, leaving out any assigned to them and tracking issues,
+// which hold no work to sign off on.
 func ListReviewing(t tracker.Tracker, reviews *Reviews, projects []string) (ListResult, error) {
 	r := ListResult{Stories: []string{}, Issues: []Listed{}, Blocked: []Listed{}}
 	if len(projects) == 1 {
@@ -433,7 +434,7 @@ func ListReviewing(t tracker.Tracker, reviews *Reviews, projects []string) (List
 			if err != nil {
 				return r, err
 			}
-			if !ok || s.Person != me.Username || slices.Contains(i.Assignees, me.Username) {
+			if !ok || s.Person != me.Username || slices.Contains(i.Assignees, me.Username) || i.HasLabel("type::tracking") {
 				continue
 			}
 			it, err := listing(t, project, i)

@@ -236,10 +236,12 @@ func ReconcileEpicIssues(t tracker.Tracker, dir string, commit, dryRun bool) (Ep
 			body := epicBody(d, rel, on)
 			_, several := tracker.For(t, r.Project).(tracker.MultiAssigner)
 			differs := several && !slices.Equal(sorted(i.Assignees), sorted(on))
-			if i.Description != body || differs {
+			// A forge may trim a body, as GitLab does its last newline.
+			rewrite := strings.TrimSpace(i.Description) != strings.TrimSpace(body)
+			if rewrite || differs {
 				e.Action = "updated"
 				if !dryRun {
-					if i.Description != body {
+					if rewrite {
 						if _, err := t.UpdateIssue(r.Project, iid, tracker.IssueUpdate{Description: &body}); err != nil {
 							return r, err
 						}

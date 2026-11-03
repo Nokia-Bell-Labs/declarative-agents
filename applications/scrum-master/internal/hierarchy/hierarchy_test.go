@@ -278,6 +278,15 @@ func TestAgreedText(t *testing.T) {
 	if string(AgreedText([]byte(front+body))) == string(AgreedText([]byte(front+strings.Replace(body, "The problem", "Another", 1)))) {
 		t.Error("a change to the text reads as no change")
 	}
+	context := "\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: a\n"
+	mirrored := "\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: a\n- issue: g/p#9\n- issue_url: https://example.com/9\n"
+	if string(AgreedText([]byte(front+context+body))) != string(AgreedText([]byte(front+mirrored+body))) {
+		t.Error("recording an epic's issue reads as a change")
+	}
+	outside := front + context + "\n<!-- field: problem -->\n## Problem\n\n- issue: a line of the text\n"
+	if !strings.Contains(string(AgreedText([]byte(outside))), "- issue: a line of the text") {
+		t.Error("a line outside the context was taken for the issue item")
+	}
 	if !strings.Contains(string(AgreedText([]byte("no block\nreviewer: stays\n"))), "reviewer: stays") {
 		t.Error("a body line was taken for the block")
 	}
