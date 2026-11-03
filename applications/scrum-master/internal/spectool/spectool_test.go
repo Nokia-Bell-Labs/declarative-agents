@@ -4,6 +4,7 @@ package spectool
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -88,6 +89,122 @@ func TestSpecToolReadsObjectivesAsSRDs(t *testing.T) {
 		if !strings.Contains(Program("main", "m"), want) {
 			t.Errorf("the program lacks %s", want)
 		}
+	}
+}
+
+// The format leaves a story's issues record as scrum-master wrote it, whatever
+// form would fit its records, and formats the rest of the document (srd045
+// R4.4, GH-2891). The test builds the tool from the monorepo's agent-core, which
+// a build out of tree does not carry.
+func TestFormatKeepsTheIssuesRecord(t *testing.T) {
+	agentCore, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "agent-core"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(agentCore, "go.mod")); err != nil {
+		t.Skip("no agent-core beside this module")
+	}
+	tool, err := Ensure(t.TempDir(), agentCore, quiet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := `<!-- field: issues | form: "tree" -->
+## Issues
+
+- "g/a#1":
+  - url: "https://x/1"
+  - title: "One"
+  - opened: "2026-11-01"
+  - state: open
+- "g/a#2":
+  - url: "https://x/2"
+  - title: "Two"
+  - opened: "2026-11-01"
+  - state: open
+`
+	doc := `---
+id: st001-x
+title: X
+---
+
+<!-- field: problem -->
+## Problem
+
+
+
+P.
+
+<!-- field: goals -->
+## Goals
+
+- G1: Do it.
+
+<!-- req: R1 -->
+## R1 - Work
+
+<!-- req: R1.1 -->
+### R1.1
+
+It is done.
+
+<!-- field: non_goals -->
+## Non-goals
+
+- Anything else.
+
+<!-- field: acceptance_criteria -->
+## Acceptance criteria
+
+<!-- ac: AC1 -->
+### AC1
+
+It is done.
+
+<!-- field: traces -->
+#### Traces
+
+- [R1.1](#r11)
+
+` + record
+	dir := t.TempDir()
+	story := filepath.Join(dir, "docs", "specs", "stories", "st001-x.md")
+	if err := os.MkdirAll(filepath.Dir(story), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(story, []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	spec := func(command string) string {
+		cmd := exec.Command(tool, command, "all")
+		cmd.Dir = dir
+		out, _ := cmd.CombinedOutput()
+		return string(out)
+	}
+	if out := spec("fmt"); !strings.Contains(out, "formatted docs/specs/stories/st001-x.md") {
+		t.Fatalf("fmt = %s, want the document's other fields formatted", out)
+	}
+	got, err := os.ReadFile(story)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(string(got), record) {
+		t.Fatalf("fmt changed the record:\n%s", got)
+	}
+	if strings.Contains(string(got), "\n\n\n\nP.") {
+		t.Fatalf("fmt left the rest of the document:\n%s", got)
+	}
+	if out := spec("fmt"); strings.Contains(out, "formatted") {
+		t.Errorf("a second fmt = %s, want nothing to format", out)
+	}
+	if out := spec("check"); strings.Contains(out, "not-canonical") {
+		t.Errorf("check = %s, want the record read as canonical", out)
 	}
 }
 

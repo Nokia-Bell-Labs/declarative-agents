@@ -512,6 +512,7 @@ func run(command, scope string, out io.Writer) error {
 				return err
 			}
 			formatted, findings, err := d.FormatLinked(data, path, links.For(path))
+			formatted = keepIssues(path, data, formatted)
 			if err != nil && command == "check" {
 				// A document that does not parse is a finding about it; the
 				// rest of the corpus is still checked (srd045 R8.2).
@@ -555,6 +556,37 @@ func run(command, scope string, out io.Writer) error {
 		return fmt.Errorf("%d problem(s) in %d document(s)", problems, matched)
 	}
 	return nil
+}
+
+// keepIssues puts a hierarchy document's issues field back as it was written:
+// scrum-master writes that record and reads it as a tree, and the format would
+// print it in whichever form fits its records (srd045 R4.4).
+func keepIssues(path string, data, formatted []byte) []byte {
+	if formatted == nil || !hierarchyPath.MatchString(path) {
+		return formatted
+	}
+	from, fromEnd, ok := issuesField(data)
+	to, toEnd, found := issuesField(formatted)
+	if !ok || !found {
+		return formatted
+	}
+	field := bytes.TrimRight(formatted[to:toEnd], "\n")
+	out := append([]byte{}, formatted[:to]...)
+	out = append(out, bytes.TrimRight(data[from:fromEnd], "\n")...)
+	return append(out, formatted[to+len(field):]...)
+}
+
+// issuesField is where a document's issues field starts and ends: at its marker
+// and at the next marker, or the document's end.
+func issuesField(doc []byte) (start, end int, ok bool) {
+	start = bytes.Index(doc, []byte("<!-- field: issues"))
+	if start < 0 {
+		return 0, 0, false
+	}
+	if next := bytes.Index(doc[start:], []byte("\n<!-- ")); next >= 0 {
+		return start, start + next + 1, true
+	}
+	return start, len(doc), true
 }
 
 // inScope reads a scope as all, a document type, a directory, or a path.
