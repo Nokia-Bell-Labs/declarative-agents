@@ -139,3 +139,23 @@ func TestTimelineClipsToASprintRange(t *testing.T) {
 		}
 	}
 }
+
+// One timeline filters by theme, initiative, and state, each opening from the
+// URL and kept in the browser, a row keeping what it lies under; it draws at
+// most ChartRows rows unless the reader asks for them all, saying how many it
+// left out; and a divider resizes the names, by dragging or the arrow keys,
+// its width kept (srd048 R5.3, GH-2896).
+func TestTimelineFiltersBoundsAndResizes(t *testing.T) {
+	for _, want := range []string{
+		`<select id="theme">`, `<select id="initiative">`, `<select id="status">`,
+		`query.get(k === "status" ? "state" : k)`, `localStorage.setItem(FILTERS`,
+		`chain(it).indexOf(chosen) >= 0 || chain(byId[chosen]).indexOf(it.id) >= 0`,
+		`var inits = ofKind("initiative").filter(function (it) { return within(it, state.theme); });`,
+		fmt.Sprintf("var LIMIT = %d;", ChartRows), `(all.length - LIMIT) + " left out.`, `"Show all"`,
+		`id="split" role="separator"`, `split.setPointerCapture(e.pointerId)`, `localStorage.setItem(KEY`, `e.key === "ArrowLeft"`, `split.addEventListener("dblclick"`,
+	} {
+		if !strings.Contains(timelineHTML, want) {
+			t.Errorf("the timeline lacks %q", want)
+		}
+	}
+}
