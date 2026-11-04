@@ -82,7 +82,9 @@ states:
     The hierarchy word: a page per planning document with its links up and
     down and the Sprint Goals and issues that serve it (GH-126), a page per
     sprint under site/sprints/ and per team and program under site/scrums/
-    (GH-2781), and the site's navigator (GH-127).
+    (GH-2781), every epic under site/epics/ and every story under
+    site/stories/, each on a filterable board (GH-2895), and the site's
+    navigator (GH-127).
 - name: Architecture
   meaning: |
     The architecture word: a page per subsystem and per component under

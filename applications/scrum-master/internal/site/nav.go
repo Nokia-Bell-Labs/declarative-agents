@@ -148,6 +148,9 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 			fmt.Fprintf(&b, "    - [%s](/%s)\n", sp.Title, sp.Page)
 		}
 	}
+	// Every epic and every story on a page that filters them, so a reader
+	// reaches them without unfolding the plan's tree (srd048 R8.12).
+	b.WriteString("- [Epics](/" + EpicsDir + "/index.md)\n- [Stories](/" + StoriesDir + "/index.md)\n")
 	b.WriteString("- [Plan](/" + HierarchyDir + "/index.md)\n")
 	var walk func(id string, depth int)
 	walk = func(id string, depth int) {

@@ -162,7 +162,7 @@ The hierarchy word writes a page per theme, initiative, epic, feature, and story
 <!-- req: R8.2 -->
 ### R8.2
 
-The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, the program's scrums (R8.6), the backlog (R10.2), and the architecture tree (R9.3) each under their own heading, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The program's vision sits first under the Program heading, linking the corpus copy of the system repository's docs/VISION.md, only when the corpus holds it (R8.5), so the program's why is one click from every page (GH-2837). The shell searches every page the navigator links, so every story (GH-127).
+The hierarchy word also writes site/_sidebar.md, the navigator the shell loads on every page: the overview, the program's index as About, the generated folders, the timeline opening into the program's sprints (R8.4), the epics and the stories (R8.12), the plan's tree from every theme to every story, each named with its level's one-letter chip and titled with its own title, the program's scrums (R8.6), the backlog (R10.2), and the architecture tree (R9.3) each under their own heading, and each of the program's repositories with a checkout beside the reports checkout, the system's and those its subsystem SRDs declare, and the reports repository named by its repository rather than a worktree's folder, linked on its forge when its configured origin opens in a browser; a checkout the program does not declare is someone else's and is left out (GH-141). The program's vision sits first under the Program heading, linking the corpus copy of the system repository's docs/VISION.md, only when the corpus holds it (R8.5), so the program's why is one click from every page (GH-2837). The shell searches every page the navigator links, so every story (GH-127).
 
 <!-- req: R8.3 -->
 ### R8.3
@@ -208,6 +208,11 @@ The site shows who wrote a document (srd045 R2.6), from its frontmatter and neve
 ### R8.11
 
 An epic's page links its issue in the tracker (srd045 R2.7), as the document records it, with no tracker read.
+
+<!-- req: R8.12 -->
+### R8.12
+
+The plan's tree folds, so a reader must not unfold it to reach an epic or a story: the hierarchy word writes every epic under site/epics/ and every story under site/stories/, and the navigator links both at its top level, above the plan (GH-2895). It draws the timeline facts and asks the tracker nothing (R5.1). Each folder's index states the date it was generated and names the repositories with no checkout, as the backlog does (R10.3, R10.4), and opens with the embedded board, with an open and a closed table below as the forge's view of the same rows; an empty list says so and says how a document comes to appear. Each document links its page. The embedded page, site/epics/epics.html or site/stories/stories.html, is one self-contained board whose cards are inlined, a card's column its state as the plan's boards read it (future, active, done; R8.1), with its repository, its release or horizon, its owner, its points, what lies under it, and the open and closed issues it and the documents under it record (R10.1); a story's card also holds its statement and links its epic. It filters in place by repository, state, release, owner, and who, and a story's also by epic, each opening filtered from its query parameter, ?repo=, ?state=, ?release=, ?owner=, ?who=, and ?epic=. A document is open until it is done, and a state filter narrows the board to its columns. Who is whoever control/people.md names on the epic (R8.8) and whoever the issues record names. Under ?embed=1 it drops its heading and tells the page holding it its height, as the backlog's board does (R10.2), and a document opens its page in the top window; the shell takes a board in a frame for what it is rather than a lapsed session (GH-2723).
 
 <!-- req: R9 -->
 ## R9 - Architecture pages
@@ -448,3 +453,14 @@ The backlog and open issues pages state their date; a backlog with nothing recor
 
 - [R10.3](#r103)
 - [R10.4](#r104)
+
+<!-- ac: AC17 -->
+### AC17
+
+On a fixture program, the navigator links the epics and the stories above the plan. Each list's index opens with its board and tables its documents as open or closed, each linking its page, with its repository, release, owner, points, and issues; a story names its epic, and an epic counts the issues of the stories under it. The embedded page inlines the same rows with a column per state and filters by repository, state, release, owner, and who, a story's also by epic. A list with no document says so. The shell does not read a board in a frame as a lapsed session.
+
+<!-- field: traces -->
+#### Traces
+
+- [R8.2](#r82)
+- [R8.12](#r812)

@@ -272,7 +272,7 @@ func TestShellResizesTheNavigatorAndWatchesItsFrames(t *testing.T) {
 	for _, want := range []string{
 		"--nav-width: 300px; }", ".content { left: var(--nav-width); }", "@media screen and (min-width: 520px) {\n    /* The divider is always visible", "@media screen and (max-width: 519px) { .nav-resizer { display: none; } }", `handle.className = "nav-resizer"`, ".nav-resizer::before { content: \"\"; position: absolute; top: 50%;", ".nav-resizer::after { content: \"\"; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; background: #e5e7eb;", `setAttribute("role", "separator")`,
 		`localStorage.setItem(KEY`, "handle.setPointerCapture(e.pointerId)", `e.key === "ArrowLeft"`, `addEventListener("dblclick"`,
-		"function watchFrames()", `f.contentDocument.getElementById("plot")`, "if (!ok) renewSession();", "watchFrames();",
+		"function watchFrames()", `f.contentDocument.getElementById("plot")`, `f.contentDocument.getElementById("board")`, "if (!ok) renewSession();", "watchFrames();",
 		`new URL(href, "http://site" + folder)`, "plainLinks(vm.route && vm.route.path)",
 		".kind-theme, .kb-theme", ".kind-story, .kb-story",
 		"function buildTabs()", "buildTabs();", `strip.setAttribute("role", "tablist")`, `p.setAttribute("role", "tabpanel")`, `localStorage.setItem(key, String(i))`, `e.key === "ArrowRight"`,
