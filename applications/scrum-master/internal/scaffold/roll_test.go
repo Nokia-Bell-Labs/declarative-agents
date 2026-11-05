@@ -12,6 +12,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
 
 // rollProgram is a program for the roll word: the checkouts program with its
@@ -222,4 +223,60 @@ func TestRollDryRunOpensNothing(t *testing.T) {
 	if heads := checkoutsGit(t, dir, "ls-remote", "--heads", "origin", e.Branch); heads != "" {
 		t.Errorf("a dry run pushed the branch:\n%s", heads)
 	}
+}
+
+// A repository ahead of the release this machine would roll is skipped, saying
+// so, with no issue and no branch: an upgrade from here would take it back
+// (GH-2899).
+func TestRollLeavesARepositoryAheadOfTheMachine(t *testing.T) {
+	root, system := rollProgram(t, "g/pods/p1/tpm")
+	dir := filepath.Join(root, "g", "pods", "p1", "tpm")
+	os.MkdirAll(filepath.Join(dir, install.VendorDir), 0o755)
+	b, _ := json.Marshal(install.Manifest{Release: "v0.20261103.4", Files: map[string]string{}})
+	if err := os.WriteFile(filepath.Join(dir, install.ManifestFile), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(install.HomeEnv, releaseHome(t, "v0.20261103.2"))
+	f := fake.New()
+	r, err := Roll(f, system, false)
+	if err != nil {
+		t.Fatalf("Roll: %v", err)
+	}
+	e := byRollProject(t, r, "g/pods/p1/tpm")
+	if e.Action != "skipped" || e.Vendored != "v0.20261103.4" || !strings.Contains(e.Detail, "ahead") || !strings.Contains(e.Detail, "install.sh v0.20261103.4") {
+		t.Fatalf("the repository ahead = %+v", e)
+	}
+	if issues, _ := f.ListIssues("g/pods/p1/tpm", tracker.IssueQuery{State: "opened"}); len(issues) != 0 {
+		t.Errorf("issues filed: %+v", issues)
+	}
+	if out := checkoutsGit(t, dir, "ls-remote", "--heads", "origin", "scrum-master-upgrade-*"); out != "" {
+		t.Errorf("a branch opened: %s", out)
+	}
+}
+
+// An agent older than the release it would roll refuses, touching nothing
+// (GH-2899).
+func TestRollRefusesAnAgentOlderThanTheRelease(t *testing.T) {
+	_, system := rollProgram(t, "g/pods/p1/tpm")
+	t.Setenv(install.HomeEnv, releaseHome(t, "v0.20261103.4"))
+	saved := version.Release
+	version.Release = "v0.20261103.2"
+	defer func() { version.Release = saved }()
+	f := fake.New()
+	if _, err := Roll(f, system, false); err == nil || !strings.Contains(err.Error(), "nothing was rolled") {
+		t.Fatalf("Roll = %v, want a refusal", err)
+	}
+	if issues, _ := f.ListIssues("g/pods/p1/tpm", tracker.IssueQuery{State: "opened"}); len(issues) != 0 {
+		t.Errorf("issues filed: %+v", issues)
+	}
+}
+
+// releaseHome is where install.sh would have unpacked one release.
+func releaseHome(t *testing.T, release string) string {
+	t.Helper()
+	home := t.TempDir()
+	os.WriteFile(filepath.Join(home, "release"), []byte(release+"\n"), 0o644)
+	os.MkdirAll(filepath.Join(home, "agents"), 0o755)
+	os.MkdirAll(filepath.Join(home, "agent-core", "tools"), 0o755)
+	return home
 }

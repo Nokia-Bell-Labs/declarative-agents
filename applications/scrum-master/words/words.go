@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	_ "github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/commands"
@@ -93,11 +94,35 @@ func namedSystem(args []string) string {
 // out, an error to errOut, and the exit code.
 func Main(args []string, out, errOut io.Writer) int { return mainIn(args, os.Stdin, out, errOut) }
 
+// staleOut is where a run names an agent older than its repository: standard
+// error rather than the word's output, which a profile may read as JSON.
+var (
+	staleOut  io.Writer = os.Stderr
+	staleOnce sync.Once
+)
+
+// warnStale names, once in a process however many words a profile runs, an
+// agent older than the release the repository vendors. The word still runs:
+// a machine that pulled before it installed reads as what it is rather than
+// as the new release behaving oddly (GH-2899).
+func warnStale() {
+	staleOnce.Do(func() {
+		dir, err := os.Getwd()
+		if err != nil {
+			return
+		}
+		if stale := install.StaleAgentAt(dir); stale != "" {
+			fmt.Fprintln(staleOut, "scrum-master: warning:", stale)
+		}
+	})
+}
+
 func mainIn(args []string, in io.Reader, out, errOut io.Writer) int {
 	if len(args) == 1 && (args[0] == "--version" || args[0] == "version") {
 		fmt.Fprintln(out, "scrum-master", install.Version())
 		return ExitOK
 	}
+	warnStale()
 	open := func() (tracker.Tracker, error) {
 		dir, err := os.Getwd()
 		if err != nil {

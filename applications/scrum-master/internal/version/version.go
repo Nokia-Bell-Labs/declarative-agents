@@ -11,6 +11,8 @@ package version
 import (
 	"regexp"
 	"runtime/debug"
+	"strconv"
+	"strings"
 )
 
 // Release is stamped by the Publisher: -X <this package>.Release=<tag>.
@@ -39,3 +41,19 @@ func Current() string {
 
 // IsRelease reports whether v is a published release tag, v0.YYYYMMDD.N.
 func IsRelease(v string) bool { return releaseTag.MatchString(v) }
+
+// Older reports whether a is a release published before b: by its date,
+// then its number that day. Anything that is no release, a development build
+// or a source tree, is older than nothing and has nothing older than it.
+func Older(a, b string) bool {
+	if !IsRelease(a) || !IsRelease(b) {
+		return false
+	}
+	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
+	if pa[1] != pb[1] {
+		return pa[1] < pb[1]
+	}
+	na, _ := strconv.Atoi(pa[2])
+	nb, _ := strconv.Atoi(pb[2])
+	return na < nb
+}

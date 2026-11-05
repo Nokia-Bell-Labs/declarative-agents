@@ -6,12 +6,17 @@ package words
 import (
 	"bytes"
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
 
 // The issue group serves every subcommand, and program is not a group
@@ -53,5 +58,62 @@ func TestProgramGroupRefusesWithPointer(t *testing.T) {
 	}
 	if opened {
 		t.Error("program opened the tracker; it must run nothing")
+	}
+}
+
+// An agent older than the repository's release still runs its words, and the
+// run names the drift once, on staleOut, however many words it runs, leaving
+// each word's output as it was (GH-2899).
+func TestAnOlderAgentIsNamedOnceAndTheWordStillRuns(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, install.VendorDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, install.ManifestFile), []byte(`{"release":"v0.20261103.4","files":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	saved, savedOut := version.Release, staleOut
+	var warned bytes.Buffer
+	version.Release, staleOut, staleOnce = "v0.20261103.2", &warned, sync.Once{}
+	defer func() { version.Release, staleOut, staleOnce = saved, savedOut, sync.Once{} }()
+	var out bytes.Buffer
+	for range 2 {
+		if code := RunIn(dir, []string{"install", "--list"}, nil, &out); code != ExitOK {
+			t.Fatalf("exit %d: %s", code, out.String())
+		}
+	}
+	if n := strings.Count(warned.String(), "this agent is v0.20261103.2"); n != 1 {
+		t.Errorf("warned %d times: %q", n, warned.String())
+	}
+	if !strings.Contains(warned.String(), "install.sh v0.20261103.4") {
+		t.Errorf("the warning names no fix: %q", warned.String())
+	}
+	if strings.Contains(out.String(), "warning") {
+		t.Errorf("the warning reached the word's output: %q", out.String())
+	}
+}
+
+// An agent older than the repository's release writes no skills, since the
+// skills it holds are the older release's (GH-2899).
+func TestAnOlderAgentWritesNoSkills(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, install.VendorDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, install.ManifestFile), []byte(`{"release":"v0.20261103.4","files":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	saved := version.Release
+	version.Release = "v0.20261103.2"
+	defer func() { version.Release = saved }()
+	var out bytes.Buffer
+	if code := RunIn(dir, []string{"install", "--agent", "claude", "--dir", dir}, nil, &out); code != ExitError {
+		t.Fatalf("exit %d, want a refusal: %s", code, out.String())
+	}
+	if !strings.Contains(out.String(), "no skills were written") {
+		t.Errorf("the refusal = %q", out.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".claude")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("skills were written: %v", err)
 	}
 }

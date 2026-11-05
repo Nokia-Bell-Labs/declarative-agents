@@ -169,6 +169,11 @@ scrum-master install --profiles vendors the release's profiles and the agent-cor
 
 The vendoring reports the release and each file's action, created, updated, unchanged, kept, or removed. It honours --json and --dry-run; a dry run writes nothing.
 
+<!-- req: R7.6 -->
+### R7.6
+
+The vendored profiles arrive with a pull and the agent only through install.sh, so a machine can hold an agent older than the repository it works in (GH-2899). The vendoring, and init and onboard before their first write, refuse a release older than the one the repository vendors, and one newer than the running agent, as when PATH finds an older agent than install.sh installed, naming the releases and install.sh as the fix and writing nothing; going back on purpose is a revert of the upgrade's merge, so no flag overrides it. scrum-master install --agent refuses to write skills with an agent older than the vendored release. Any other word still runs, and an older agent is named once a process on standard error, leaving the word's output as it was. Releases order by date, then by their number that day; a development build or a source tree is no release and is never refused.
+
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -264,3 +269,13 @@ A release carries the agent for each published platform and the profiles archive
 - [R7.3](#r73)
 - [R7.4](#r74)
 - [R7.5](#r75)
+
+<!-- ac: AC8 -->
+### AC8
+
+With an agent at one release, a repository vendoring a later one, and the earlier release installed: the vendoring, init, and onboard refuse naming both releases and install.sh, and nothing changes; an agent older than the installed release refuses too; scrum-master install --agent writes no skills; a word's output is unchanged, with one warning on standard error however many words run; and a development build is refused nothing.
+
+<!-- field: traces -->
+#### Traces
+
+- [R7.6](#r76)

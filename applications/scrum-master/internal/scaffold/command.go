@@ -251,6 +251,9 @@ func humanDoctor(r DoctorResult) string {
 	if r.PinDrift != "" {
 		fmt.Fprintf(&b, "pin: %s\n", r.PinDrift)
 	}
+	if r.StaleAgent != "" {
+		fmt.Fprintf(&b, "agent: %s\n", r.StaleAgent)
+	}
 	for _, p := range r.Credentials {
 		var vars []string
 		for _, v := range p.Vars {

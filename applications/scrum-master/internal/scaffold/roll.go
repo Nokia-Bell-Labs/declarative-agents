@@ -16,6 +16,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
 
 // RollEntry is one registered repository the roll handled: skipped at the
@@ -46,8 +47,8 @@ type RollResult struct {
 // system checkout at dir (GH-2813): it reads the registry, the subsystem
 // SRDs, and compares each registered repository's vendored release, its
 // .scrum-master manifest, against the release an upgrade here would vendor.
-// A repository already at it is skipped, naming the release. For each one
-// behind, it files an issue there and opens a branch and merge request that
+// A repository already at it, or ahead of it, is skipped, naming the release.
+// For each one behind, it files an issue there and opens a branch and merge request that
 // takes the release — the upgrade profile's steps, committed on the branch —
 // through each repository's normal flow, never a push to a default branch.
 // An upgrade branch already at the origin is reported, not duplicated. A
@@ -75,6 +76,11 @@ func Roll(t tracker.Tracker, dir string, dryRun bool) (RollResult, error) {
 	src, err := install.Source(root)
 	if err != nil {
 		return r, err
+	}
+	// An agent older than the release it would roll cannot repair a
+	// repository at that release, nor may it take the system's back (GH-2899).
+	if err := install.CheckRelease(root, src); err != nil {
+		return r, fmt.Errorf("%w; nothing was rolled", err)
 	}
 	policy, err := program.LoadPolicy(t, system, "main")
 	if err != nil {
@@ -119,6 +125,12 @@ func oneRoll(t tracker.Tracker, root string, repo registeredRepo, src install.Ve
 	}
 	if vendored == src.Release {
 		e.Action, e.Vendored, e.Detail = "skipped", vendored, "at "+vendored
+		return e
+	}
+	// A repository ahead of this machine is left there: an upgrade from here
+	// would take it back (GH-2899).
+	if version.Older(src.Release, vendored) {
+		e.Action, e.Vendored, e.Detail = "skipped", vendored, fmt.Sprintf("ahead at %s, newer than %s on this machine; run install.sh %s here", vendored, src.Release, vendored)
 		return e
 	}
 	e.Branch = rollBranch(src.Release)

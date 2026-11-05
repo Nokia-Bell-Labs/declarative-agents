@@ -177,7 +177,7 @@ A dry run reports what doctor would write, append, refresh, extend, and repair a
 <!-- req: R4.7 -->
 ### R4.7
 
-Reports the release whose profiles the repository vendored, from .scrum-master's manifest (srd037 R7.4), or that it vendored none, with the upgrade profile (R5) as the fix (GH-34). It also names each tracker clone kept under the user cache that follows no origin: one whose origin is a local path that no longer exists (GH-116), or one made again there since, holding none of the clone's history (GH-141). It removes none, since a clone may hold the only copy of a tracker's commits, pushed or not; the person copies what they need and removes it. Each is drift, so the check profile fails on it (GH-141). The report changes nothing, so a dry run gives it too. Opening a tracker made again at a cached clone's origin sets that clone aside, renamed beside it, and clones the new tracker, so the old one's history is never read as the new one's; a clone whose origin is simply gone is read as it is (GH-141).
+Reports the release whose profiles the repository vendored, from .scrum-master's manifest (srd037 R7.4), or that it vendored none, with the upgrade profile (R5) as the fix (GH-34). It also names each tracker clone kept under the user cache that follows no origin: one whose origin is a local path that no longer exists (GH-116), or one made again there since, holding none of the clone's history (GH-141). It removes none, since a clone may hold the only copy of a tracker's commits, pushed or not; the person copies what they need and removes it. Each is drift, so the check profile fails on it (GH-141). An agent older than the vendored release writes nothing, refusing with the releases and install.sh as the fix, since it would write its own format and pin over the repository's; a dry run reports it as drift, so the check profile fails on it too (srd037 R7.6, GH-2899). The report changes nothing, so a dry run gives it too. Opening a tracker made again at a cached clone's origin sets that clone aside, renamed beside it, and clones the new tracker, so the old one's history is never read as the new one's; a clone whose origin is simply gone is read as it is (GH-141).
 
 <!-- req: R5 -->
 ## R5 - The upgrade profile
@@ -195,7 +195,7 @@ It serves a system and a subsystem repository alike, seeds no tracker, files no 
 <!-- req: R5.3 -->
 ### R5.3
 
-Each word that refuses ends the run in a state that names what stands: with no release installed, the vendoring refuses and nothing is written; a directory that is not a program repository is refused by doctor after the vendoring; a repository that uses no agent scrum-master knows is reported with the profiles vendored and the repository repaired. The refusal's reason, as printed, is the run's last output.
+Each word that refuses ends the run in a state that names what stands: with no release installed, or one that would take the repository back (srd037 R7.6), the vendoring refuses and nothing is written; a directory that is not a program repository is refused by doctor after the vendoring; a repository that uses no agent scrum-master knows is reported with the profiles vendored and the repository repaired. The refusal's reason, as printed, is the run's last output.
 
 <!-- req: R6 -->
 ## R6 - scrum-master checkouts
@@ -231,7 +231,7 @@ The setup profile is the first thing a person runs in a fresh clone: checkouts (
 <!-- req: R7.1 -->
 ### R7.1
 
-roll, run from the system checkout, reads the registry and, for each registered repository, compares the scrum-master release its pin vendors — its .scrum-master manifest — against the release an upgrade here would vendor, the one install.sh installed or the source tree overrides name. A repository already at it is skipped, and the output says at which release. With no release installed to roll, it refuses, touching nothing.
+roll, run from the system checkout, reads the registry and, for each registered repository, compares the scrum-master release its pin vendors — its .scrum-master manifest — against the release an upgrade here would vendor, the one install.sh installed or the source tree overrides name. A repository already at it is skipped, and the output says at which release; one ahead of it is skipped too, saying so and naming install.sh as the fix, with no issue or branch, since taking the release would take that repository back (srd037 R7.6, GH-2899). With no release installed to roll, or an agent older than it, it refuses, touching nothing.
 
 <!-- req: R7.2 -->
 ### R7.2
@@ -451,3 +451,15 @@ The setup profile, run in a fresh clone, leaves the program's checkouts and the 
 #### Traces
 
 - [R6.5](#r65)
+
+<!-- ac: AC16 -->
+### AC16
+
+With an agent older than the release a repository vendors, doctor refuses and writes nothing, and a dry run reports it as drift. With the release installed older than a repository's, the upgrade profile ends in its refusal state with nothing written, and roll skips that repository, saying it is ahead, filing no issue and opening no branch. An agent older than the release installed refuses to roll.
+
+<!-- field: traces -->
+#### Traces
+
+- [R4.7](#r47)
+- [R5.3](#r53)
+- [R7.1](#r71)
