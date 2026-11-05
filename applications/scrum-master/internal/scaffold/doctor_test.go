@@ -16,6 +16,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
 
 // older is a system repository as an older release laid it down: the skeleton
@@ -757,5 +758,38 @@ func TestProfileCredentialsListEmptyVars(t *testing.T) {
 	}
 	if empty == 0 {
 		t.Error("no profile without variables to check")
+	}
+}
+
+// An agent older than the release the repository vendors would write its own
+// format and pin over the repository's: doctor refuses and writes nothing, and
+// a dry run, as the check profile runs it, reports it as drift (GH-2899).
+func TestDoctorRefusesAnAgentOlderThanTheRepository(t *testing.T) {
+	dir := older(t)
+	if err := os.MkdirAll(filepath.Join(dir, install.VendorDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, install.ManifestFile), []byte(`{"release":"v0.20261103.4","files":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	saved := version.Release
+	version.Release = "v0.20261103.2"
+	defer func() { version.Release = saved }()
+	_, err := Doctor(DoctorOptions{Dir: dir, Version: "v0.20261103.2"})
+	if err == nil || !strings.Contains(err.Error(), "install.sh v0.20261103.4") || !strings.Contains(err.Error(), "nothing was written") {
+		t.Fatalf("Doctor = %v, want a refusal", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "README.md")); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("doctor wrote the file it would have repaired: %v", err)
+	}
+	r, err := Doctor(DoctorOptions{Dir: dir, Version: "v0.20261103.2", DryRun: true})
+	if err != nil {
+		t.Fatalf("the dry run: %v", err)
+	}
+	if !slices.ContainsFunc(r.Drift(), func(d string) bool { return strings.Contains(d, "this agent is v0.20261103.2") }) {
+		t.Errorf("Drift = %v, want the older agent", r.Drift())
+	}
+	if h := humanDoctor(r); !strings.Contains(h, "agent: this agent is v0.20261103.2") {
+		t.Errorf("the report does not name the agent:\n%s", h)
 	}
 }

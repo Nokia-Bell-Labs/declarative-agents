@@ -7,12 +7,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/runtime"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
 
 // VendorDir is where a program repository keeps the profiles its skills
@@ -53,8 +55,12 @@ type VendorSource struct {
 // rewritten when the release differs; an edited file, or one it did not
 // write, is kept unless force; a vendored file the release no longer has is
 // removed when unedited. A dry run writes nothing. A rerun on an up-to-date
-// repository reports every file unchanged.
+// repository reports every file unchanged. A release the machine should not
+// vendor is refused, writing nothing (CheckRelease).
 func Vendor(dir string, src VendorSource, force, dryRun bool) ([]Result, error) {
+	if err := CheckRelease(dir, src); err != nil {
+		return nil, fmt.Errorf("%w; nothing was written", err)
+	}
 	want, err := vendorTree(src)
 	if err != nil {
 		return nil, err
@@ -209,6 +215,57 @@ func sortedKeys[V any](m map[string]V) []string {
 func VendoredRelease(dir string) (string, error) {
 	m, err := readManifest(dir)
 	return m.Release, err
+}
+
+// CheckRelease refuses a release this machine should not vendor into the
+// repository at dir (GH-2899): one older than the repository already vendors,
+// which a second machine that pulled before it installed would otherwise take
+// the repository back to, or one newer than the running agent, as when PATH
+// finds an older agent than install.sh installed. Going back on purpose is a
+// revert of the upgrade's merge. A development build or a source tree is no
+// release and is never refused.
+func CheckRelease(dir string, src VendorSource) error {
+	m, err := readManifest(dir)
+	if err != nil {
+		return err
+	}
+	if version.Older(src.Release, m.Release) {
+		return fmt.Errorf("%s vendors %s, newer than the release %s installed on this machine; run install.sh %s here, or revert the upgrade's merge to go back on purpose", VendorDir, m.Release, src.Release, m.Release)
+	}
+	if cur := version.Current(); version.Older(cur, src.Release) {
+		return fmt.Errorf("this agent is %s, older than the release %s it would vendor; run install.sh %s, and check which agent PATH finds", cur, src.Release, src.Release)
+	}
+	return nil
+}
+
+// StaleAgent says why the running agent is too old for the repository at dir,
+// empty when it is not: older than the release the repository vendors, as on
+// a machine that pulled the upgrade without running install.sh (GH-2899).
+func StaleAgent(dir string) string {
+	m, err := readManifest(dir)
+	if err != nil {
+		return ""
+	}
+	if cur := version.Current(); version.Older(cur, m.Release) {
+		return fmt.Sprintf("this agent is %s, but %s vendors %s; run install.sh %s, and check which agent PATH finds", cur, VendorDir, m.Release, m.Release)
+	}
+	return ""
+}
+
+// StaleAgentAt is StaleAgent for the repository holding dir, found up its
+// folders with no process started, so every word can afford to ask.
+func StaleAgentAt(dir string) string {
+	for {
+		if _, err := os.Stat(filepath.Join(dir, ManifestFile)); err == nil {
+			return StaleAgent(dir)
+		}
+		parent := filepath.Dir(dir)
+		_, git := os.Stat(filepath.Join(dir, ".git"))
+		if git == nil || parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 // CheckVendored reports each vendored file that differs from the manifest:

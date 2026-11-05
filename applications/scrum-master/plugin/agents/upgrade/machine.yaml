@@ -19,6 +19,7 @@ invariants:
 - Every step is a word; no model acts anywhere in this machine
 - A file a person edited is kept, by every word
 - Nothing is written when no release is installed on the host
+- Nothing is written when this host would take the repository to an older release
 - A rerun of the whole machine on an up-to-date repository changes nothing
 lifecycle: |-
   1. Idle → Vendor (Seed): scrum-master install --profiles vendors the installed
@@ -42,7 +43,9 @@ states:
     release install.sh installed into .scrum-master/agents and the agent-core
     declarations they read into .scrum-master/agent-core, with a manifest
     naming the release, and reports each file created, updated, unchanged,
-    kept, or removed. With no release installed it refuses, writing nothing.
+    kept, or removed. With no release installed, or one older than the
+    repository already vendors, or an agent older than that release, it
+    refuses, writing nothing.
 - name: Repair
   meaning: |
     The repair word: scrum-master doctor reads the repository's level, writes the
@@ -66,8 +69,9 @@ states:
   run_status: failed
   meaning: |
     Terminal. The profiles did not vendor — most often because no release
-    is installed on this host, which install.sh fixes; the reason, as
-    printed, is the run's last output, and nothing was written.
+    is installed on this host, or the one installed or the agent running is
+    older than the repository's (GH-2899), both of which install.sh fixes; the
+    reason, as printed, is the run's last output, and nothing was written.
 - name: Refused
   run_status: failed
   meaning: |

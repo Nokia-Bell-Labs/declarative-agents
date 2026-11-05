@@ -51,6 +51,9 @@ type DoctorResult struct {
 	// documents should follow (GH-91).
 	Pinned   string `json:"pinned,omitempty"`
 	PinDrift string `json:"pin_drift,omitempty"`
+	// StaleAgent says the running agent is older than the vendored release,
+	// which only a dry run reports; a run that writes refuses (GH-2899).
+	StaleAgent string `json:"stale_agent,omitempty"`
 	// Credentials is, per shipped profile, every environment variable its
 	// declarations read and whether each is set here, so a run's model and
 	// tracker credentials are checked before a run (srd043 R4.7, GH-135).
@@ -97,6 +100,9 @@ func (r DoctorResult) Drift() []string {
 	}
 	if r.PinDrift != "" {
 		out = append(out, r.PinDrift)
+	}
+	if r.StaleAgent != "" {
+		out = append(out, r.StaleAgent)
 	}
 	for _, c := range r.OrphanedClones {
 		out = append(out, "orphaned tracker clone "+c)
@@ -295,6 +301,11 @@ func Doctor(o DoctorOptions) (DoctorResult, error) {
 	r := DoctorResult{Dir: o.Dir, DryRun: o.DryRun}
 	if err := requireRepository(o.Dir); err != nil {
 		return r, err
+	}
+	// An older agent would write its own format and pin over a newer
+	// repository's (GH-2899).
+	if r.StaleAgent = install.StaleAgent(o.Dir); r.StaleAgent != "" && !o.DryRun {
+		return r, fmt.Errorf("%s; nothing was written", r.StaleAgent)
 	}
 	level, err := Level(o.Dir)
 	if err != nil {

@@ -111,6 +111,9 @@ func init() {
 				}
 				return nil
 			}
+			if stale := StaleAgent(dir); stale != "" {
+				return fmt.Errorf("%s; no skills were written", stale)
+			}
 			results, err := Install(dir, targets, skills, version, force, ctx.DryRun)
 			if err != nil {
 				return err
@@ -182,10 +185,15 @@ func vendorSource(dir string) (VendorSource, error) {
 func Source(dir string) (VendorSource, error) { return vendorSource(dir) }
 
 // CheckSource refuses, writing nothing, when the repository at dir has no
-// release to vendor the profiles from (GH-49), so init and onboard can
-// refuse before their first write rather than after.
+// release to vendor the profiles from (GH-49), or one this machine should not
+// vendor (GH-2899), so init and onboard can refuse before their first write
+// rather than after.
 func CheckSource(dir string) error {
-	if _, err := vendorSource(dir); err != nil {
+	src, err := vendorSource(dir)
+	if err == nil {
+		err = CheckRelease(dir, src)
+	}
+	if err != nil {
 		return fmt.Errorf("%w; nothing was written", err)
 	}
 	return nil
