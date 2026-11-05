@@ -236,7 +236,7 @@ roll, run from the system checkout, reads the registry and, for each registered 
 <!-- req: R7.2 -->
 ### R7.2
 
-For each repository behind, roll files one issue there — plane data, kind consume, filed by roll (op::upgrade, srd001 R34.1) — and opens a branch and merge request that takes the release: the upgrade profile's steps (srd037 R7.4) — vendor, doctor, skills — committed once on the branch, cut from the repository's default branch in a temporary worktree its checkout never leaves its own branch for, pushed to the origin, the merge request closing the issue where the tracking system's host reviews branches (srd013 R5.5); never a push to a default branch. One branch per release, so an upgrade already open at the origin is reported, not duplicated, and its issue found by its marker rather than filed again.
+For each repository behind, roll files one issue there — plane data, kind consume, filed by roll (op::upgrade, srd001 R34.1), on the repository's active sprint milestone as file puts a data issue (srd013 R3.3); with no single active sprint the issue is filed without one and roll's entry for the repository names the reason — and opens a branch and merge request that takes the release: the upgrade profile's steps (srd037 R7.4) — vendor, doctor, skills — committed once on the branch, cut from the repository's default branch in a temporary worktree its checkout never leaves its own branch for, pushed to the origin, the merge request closing the issue where the tracking system's host reviews branches (srd013 R5.5); never a push to a default branch. One branch per release, so an upgrade already open at the origin is reported, not duplicated, and its issue found by its marker rather than filed again.
 
 <!-- req: R7.3 -->
 ### R7.3
@@ -406,7 +406,7 @@ From a system checkout below its group path, checkouts clones every registered r
 <!-- ac: AC11 -->
 ### AC11
 
-With two registered repositories, one at the running release and one behind, roll skips the first naming its release and files an issue in the second — plane data, kind consume, op::upgrade — and opens a branch at its origin taking the release, the upgrade's steps committed once, the checkout's own branch untouched; run again with the upgrade open, it reports the open merge request and opens nothing — no second issue, no second commit; a registered repository with no checkout fails alone naming checkouts as the remedy, and the rest are still processed; and a dry run reports what would be opened, files nothing, and pushes nothing.
+With two registered repositories, one at the running release and one behind, roll skips the first naming its release and files an issue in the second — plane data, kind consume, op::upgrade, on the sprint milestone whose dates cover the day, so it lints admitted, or with no such milestone filed without one and the entry naming why — and opens a branch at its origin taking the release, the upgrade's steps committed once, the checkout's own branch untouched; run again with the upgrade open, it reports the open merge request and opens nothing — no second issue, no second commit; a registered repository with no checkout fails alone naming checkouts as the remedy, and the rest are still processed; and a dry run reports what would be opened, files nothing, and pushes nothing.
 
 <!-- field: traces -->
 #### Traces

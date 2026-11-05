@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
@@ -97,10 +98,10 @@ func Roll(t tracker.Tracker, dir string, dryRun bool) (RollResult, error) {
 	r.Release, r.Repositories = src.Release, []RollEntry{}
 	repos := registered(teams, system)
 	for _, repo := range repos {
-		r.Repositories = append(r.Repositories, oneRoll(t, root, repo, src, teams, policy, dryRun))
+		r.Repositories = append(r.Repositories, oneRoll(t, root, system, repo, src, teams, policy, dryRun))
 	}
 	if site, ok := siteRepository(root, repos); ok {
-		r.Repositories = append(r.Repositories, rollSite(t, root, site, src, teams, policy, dryRun))
+		r.Repositories = append(r.Repositories, rollSite(t, root, system, site, src, teams, policy, dryRun))
 	} else if l, err := program.LineageIn(root); err == nil && l.SiteRepository == "" {
 		r.Notes = undeclaredSites(root)
 	}
@@ -110,13 +111,13 @@ func Roll(t tracker.Tracker, dir string, dryRun bool) (RollResult, error) {
 // rollSite rolls the program's site repository, which need not vendor anything:
 // the site can be written from the system checkout, so one with no release is
 // left without one rather than given it.
-func rollSite(t tracker.Tracker, root string, repo registeredRepo, src install.VendorSource, teams program.Subsystems, policy program.Policy, dryRun bool) RollEntry {
+func rollSite(t tracker.Tracker, root, system string, repo registeredRepo, src install.VendorSource, teams program.Subsystems, policy program.Policy, dryRun bool) RollEntry {
 	if dir, ok := checkout.Locate(root, repo.project); ok {
 		if vendored, err := install.VendoredRelease(dir); err == nil && vendored == "" {
 			return RollEntry{Project: repo.project, Action: "skipped", Detail: "vendors no scrum-master release"}
 		}
 	}
-	return oneRoll(t, root, repo, src, teams, policy, dryRun)
+	return oneRoll(t, root, system, repo, src, teams, policy, dryRun)
 }
 
 // undeclaredSites notes each checkout beside the one at root that is laid out as
@@ -153,7 +154,7 @@ func rollMarker(release string) string {
 }
 
 // oneRoll skips, opens, or fails one registered repository.
-func oneRoll(t tracker.Tracker, root string, repo registeredRepo, src install.VendorSource, teams program.Subsystems, policy program.Policy, dryRun bool) RollEntry {
+func oneRoll(t tracker.Tracker, root, system string, repo registeredRepo, src install.VendorSource, teams program.Subsystems, policy program.Policy, dryRun bool) RollEntry {
 	e := RollEntry{Project: repo.project}
 	dir, ok := checkout.Locate(root, repo.project)
 	if !ok {
@@ -202,13 +203,14 @@ func oneRoll(t tracker.Tracker, root string, repo registeredRepo, src install.Ve
 		e.Action, e.Detail = "opened", "would file an issue and open "+e.Branch+" taking "+src.Release
 		return e
 	}
+	milestoneReason := ""
 	if e.Issue = findRollIssue(t, repo.project, src.Release); e.Issue == "" {
-		issue, err := fileRollIssue(t, repo.project, vendored, src.Release, e.Branch, teams, policy)
+		issue, reason, err := fileRollIssue(t, repo.project, system, vendored, src.Release, e.Branch, teams, policy)
 		if err != nil {
 			e.Action, e.Detail = "failed", err.Error()
 			return e
 		}
-		e.Issue = issue
+		e.Issue, milestoneReason = issue, reason
 	}
 	if err := openRollBranch(git, dir, e.Branch, base, src, e.Issue); err != nil {
 		e.Action, e.Detail = "failed", err.Error()
@@ -216,6 +218,11 @@ func oneRoll(t tracker.Tracker, root string, repo registeredRepo, src install.Ve
 	}
 	e.Action = "opened"
 	e.Detail = "takes " + src.Release
+	if milestoneReason != "" {
+		// Why the issue carries no sprint milestone is the fix its
+		// needs-triage verdict asks for (GH-2917).
+		e.Detail += "; milestone: " + milestoneReason
+	}
 	e.Review = openReview(t, repo.project, e.Branch, base, src.Release, e.Issue, dryRun)
 	return e
 }
@@ -237,9 +244,15 @@ func findRollIssue(t tracker.Tracker, project, release string) string {
 
 // fileRollIssue files the repository's upgrade issue: work that adapts to a
 // released artifact, so plane data and kind consume (srd001), filed by roll
-// (op::upgrade).
-func fileRollIssue(t tracker.Tracker, project, vendored, release, branch string, teams program.Subsystems, policy program.Policy) (string, error) {
+// (op::upgrade), on the repository's active sprint milestone as file puts a
+// data issue (srd013 R3.3, GH-2917). With no single active sprint it files
+// the issue without one and returns the reason.
+func fileRollIssue(t tracker.Tracker, project, system, vendored, release, branch string, teams program.Subsystems, policy program.Policy) (string, string, error) {
 	component, _, _ := teams.ComponentFor(project)
+	milestone, reason, err := program.SprintMilestone(t, project, system, time.Now(), false)
+	if err != nil {
+		return "", "", err
+	}
 	was := "vendors scrum-master " + vendored
 	if vendored == "" {
 		was = "vendors no scrum-master release"
@@ -260,12 +273,13 @@ func fileRollIssue(t tracker.Tracker, project, vendored, release, branch string,
 		Title:       "Take scrum-master release " + release,
 		Description: body,
 		Labels:      append(program.Labels("data", "", "consume", component.Name), program.Op(program.OpUpgrade)),
+		Milestone:   milestone,
 	}
 	res, err := program.File(t, project, in, policy, false)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return fmt.Sprintf("%s#%d", project, res.IID), nil
+	return fmt.Sprintf("%s#%d", project, res.IID), reason, nil
 }
 
 // openRollBranch takes the release on a new branch of the checkout at dir,

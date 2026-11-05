@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
@@ -279,4 +280,47 @@ func releaseHome(t *testing.T, release string) string {
 	os.MkdirAll(filepath.Join(home, "agents"), 0o755)
 	os.MkdirAll(filepath.Join(home, "agent-core", "tools"), 0o755)
 	return home
+}
+
+// The upgrade issue goes on the repository's active sprint milestone, as file
+// puts a data issue, so it is not needs-triage for the want of one; with no
+// sprint covering today the issue is filed without one and the entry says
+// why (GH-2917).
+func TestRollFilesTheUpgradeOnTheActiveSprint(t *testing.T) {
+	_, system := rollProgram(t, "g/analytics/model-evaluation")
+	f := fake.New()
+	today := time.Now()
+	f.Milestones["Sprint 7"] = tracker.Milestone{Title: "Sprint 7",
+		StartDate: today.AddDate(0, 0, -3).Format("2006-01-02"), DueDate: today.AddDate(0, 0, 10).Format("2006-01-02")}
+	r, err := Roll(f, system, false)
+	if err != nil {
+		t.Fatalf("Roll: %v", err)
+	}
+	e := byRollProject(t, r, "g/analytics/model-evaluation")
+	if e.Action != "opened" || e.Detail != "takes v9.9.9" {
+		t.Fatalf("entry = %+v, want opened taking v9.9.9", e)
+	}
+	issues, _ := f.ListIssues("g/analytics/model-evaluation", tracker.IssueQuery{State: "opened"})
+	if len(issues) != 1 || issues[0].Milestone != "Sprint 7" {
+		t.Fatalf("the upgrade issue = %+v, want it on Sprint 7", issues)
+	}
+	if issues[0].HasLabel("needs-triage") {
+		t.Errorf("the upgrade issue is needs-triage: %v", issues[0].Labels)
+	}
+}
+
+func TestRollNamesWhyAnUpgradeHasNoSprint(t *testing.T) {
+	_, system := rollProgram(t, "g/analytics/model-evaluation")
+	f := fake.New()
+	r, err := Roll(f, system, false)
+	if err != nil {
+		t.Fatalf("Roll: %v", err)
+	}
+	e := byRollProject(t, r, "g/analytics/model-evaluation")
+	if e.Action != "opened" || !strings.Contains(e.Detail, "milestone: no active milestone") {
+		t.Fatalf("entry = %+v, want opened naming why it has no milestone", e)
+	}
+	if h := r.Human(); !strings.Contains(h, "milestone: no active milestone") {
+		t.Errorf("Human does not say why:\n%s", h)
+	}
 }
