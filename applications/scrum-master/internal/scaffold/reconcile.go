@@ -113,7 +113,10 @@ func Reconcile(t tracker.Tracker, dir string, dryRun bool) (ReconcileResult, err
 	// The group sweep: projects the registry does not name, where the host
 	// lists them (design.md D7: membership is declared, not inferred).
 	group := path.Dir(program.ProjectPath(system))
-	if gl, ok := tracker.For(t, system).(tracker.GroupLister); ok && group != "" && group != "." {
+	host := tracker.For(t, system)
+	if a, ok := host.(tracker.AccountGrouped); ok && a.GroupIsAccount() {
+		r.Notes = append(r.Notes, fmt.Sprintf("%s is a whole account on this host, holding more than the program, so unregistered repositories are not checked", group))
+	} else if gl, ok := host.(tracker.GroupLister); ok && group != "" && group != "." {
 		projects, err := gl.GroupProjects(group)
 		if err != nil {
 			r.Notes = append(r.Notes, fmt.Sprintf("%s: the group's projects are not listed, so unregistered repositories are not checked: %v", group, err))

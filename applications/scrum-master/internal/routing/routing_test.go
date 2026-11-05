@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -295,5 +296,49 @@ func TestOpenForReadsTheTrackersThroughTheForge(t *testing.T) {
 	_, err = OpenFor(dir, "")
 	if err == nil || !strings.Contains(err.Error(), filepath.Dir(dir)) || !strings.Contains(err.Error(), "SCRUM_MASTER_SYSTEM") || !strings.Contains(err.Error(), "SCRUM_MASTER_TRACKER") {
 		t.Fatalf("with nothing to read: %v", err)
+	}
+}
+
+// The default GitHub tracker learns the program's repositories from the system
+// checkout's registry and the document's routes, leaving out one routed
+// elsewhere, so a group's labels and milestones stay within them (GH-2903).
+func TestGitHubKnowsTheProgramsRepositories(t *testing.T) {
+	var got System
+	prev := openers[GitHub]
+	openers[GitHub] = func(s System) (tracker.Tracker, error) {
+		if s.Dir != "" && got.Paths == nil {
+			got = s
+		}
+		return fake.New(), nil
+	}
+	t.Cleanup(func() { openers[GitHub] = prev })
+	t.Setenv("SCRUM_MASTER_TRACKER", "")
+	t.Setenv("SCRUM_MASTER_SYSTEM", "")
+	prevLab := openers[GitLab]
+	openers[GitLab] = func(System) (tracker.Tracker, error) { return fake.New(), nil }
+	t.Cleanup(func() { openers[GitLab] = prevLab })
+	system := t.TempDir()
+	for _, args := range [][]string{{"init", "-q"}, {"remote", "add", "origin", "https://github.com/acme/system.git"}} {
+		if out, err := exec.Command("git", append([]string{"-C", system}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+	}
+	prevReg := Registered
+	Registered = func(string) []string { return []string{"acme/plan", "acme/code", "acme/scoring"} }
+	t.Cleanup(func() { Registered = prevReg })
+	doc := "---\nid: trackers\ntitle: Tracking systems\n---\n\n<!-- field: version -->\n## Version\n\n1\n\n<!-- field: default -->\n## Default\n\n<!-- field: system -->\n### System\n\ngh\n\n" +
+		"<!-- field: overrides | form: \"tree\" -->\n## Overrides\n\n- acme/reports: gh\n- acme/scoring: glab\n"
+	if err := os.MkdirAll(filepath.Join(system, "control"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(system, File), []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open(system); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"acme/code", "acme/plan", "acme/reports", "acme/system"}
+	if !slices.Equal(got.Paths, want) {
+		t.Fatalf("paths = %v, want %v", got.Paths, want)
 	}
 }

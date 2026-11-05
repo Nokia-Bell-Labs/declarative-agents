@@ -404,8 +404,10 @@ func (t *Tracker) ActiveMilestones(project string) ([]tracker.Milestone, error) 
 }
 
 // repositories are the repositories a group's labels and milestones go to:
-// the group itself when it is a repository, else the routed repositories
-// under it, else every repository its owner holds.
+// the group itself when it is a repository, else the program's repositories
+// under it, else the checkout's own. Nothing lists the owner to write to it: a
+// group here is a whole account or organization, holding more than the program
+// (GH-2903).
 func (t *Tracker) repositories(group string) ([]string, error) {
 	if strings.Count(group, "/") == 1 {
 		return []string{group}, nil
@@ -419,21 +421,15 @@ func (t *Tracker) repositories(group string) ([]string, error) {
 	if len(out) > 0 {
 		return out, nil
 	}
-	err := t.all("orgs/"+group+"/repos", func(raw json.RawMessage) error {
-		var r struct {
-			FullName string `json:"full_name"`
-			Archived bool   `json:"archived"`
-		}
-		if err := json.Unmarshal(raw, &r); err != nil {
-			return err
-		}
-		if !r.Archived {
-			out = append(out, r.FullName)
-		}
-		return nil
-	})
-	return out, err
+	if own := checkout.ProjectPath(checkout.Origin(t.Dir)); strings.HasPrefix(own, group+"/") {
+		return []string{own}, nil
+	}
+	return nil, fmt.Errorf("no repository of %s is known to this program: run from its system repository's checkout, name one as %s/REPO, or route them in %s", group, group, checkout.TrackersFile)
 }
+
+// GroupIsAccount says a group here is a whole account or organization, since
+// GitHub has no subgroups, so it may hold far more than one program (GH-2903).
+func (t *Tracker) GroupIsAccount() bool { return true }
 
 // EnsureMilestone dates the milestone in each repository of the group,
 // the pattern a releasing repository outside the program group already

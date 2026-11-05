@@ -30,6 +30,13 @@ import (
 // an agent build loads a profile, so its references see them too.
 func init() {
 	program.Words = Run
+	routing.Registered = func(dir string) []string {
+		subs, err := program.SubsystemsIn(dir)
+		if err != nil {
+			return nil
+		}
+		return subs.Repositories()
+	}
 	legacyenv.Adopt()
 }
 

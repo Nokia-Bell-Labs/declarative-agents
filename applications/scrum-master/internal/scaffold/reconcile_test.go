@@ -249,3 +249,28 @@ func TestReconcileFindsLedgerDrift(t *testing.T) {
 		t.Errorf("a recorded story still drifts: %+v", e.Findings)
 	}
 }
+
+// accountHost is a host whose group is a whole account, as GitHub's is.
+type accountHost struct{ *fake.Fake }
+
+func (accountHost) GroupIsAccount() bool { return true }
+
+// Where a group is a whole account, what else the owner holds is no finding:
+// reconcile skips its sweep and says so (GH-2903).
+func TestReconcileSkipsTheSweepOfAWholeAccount(t *testing.T) {
+	_, system := rollProgram(t, "g/pods/p1/tpm")
+	f := fake.New()
+	f.Projects = map[string][]string{"g": {"g/system", "g/pods/p1/tpm", "g/someones-notes"}}
+	r, err := Reconcile(accountHost{f}, system, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range r.Repositories {
+		if strings.Contains(strings.Join(e.Findings, "\n"), "someones-notes") {
+			t.Errorf("the sweep reported what else the owner holds: %+v", e)
+		}
+	}
+	if !strings.Contains(strings.Join(r.Notes, "\n"), "is a whole account") {
+		t.Errorf("notes = %v", r.Notes)
+	}
+}

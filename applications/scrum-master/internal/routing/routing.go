@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -223,6 +224,9 @@ func OpenFor(dir, system string) (tracker.Tracker, error) {
 		c.Default = env
 	}
 	c.Default.Dir = dir
+	if c.Default.Name == GitHub {
+		c.Default.Paths = programRepositories(path, system, c)
+	}
 	def, err := open(c.Default)
 	if err != nil {
 		return nil, err
@@ -246,6 +250,44 @@ func OpenFor(dir, system string) (tracker.Tracker, error) {
 		r.Systems[p] = opened[name]
 	}
 	return r, nil
+}
+
+// Registered reads the repositories the system checkout at dir declares in its
+// subsystem SRDs. The words set it: the program package reads them, and that
+// package's tests read this one.
+var Registered func(dir string) []string
+
+// programRepositories are where a GitHub group's labels and milestones go:
+// GitHub has no subgroups, so a program's group is a whole account or
+// organization, and only the registry says which of its repositories are the
+// program's (GH-2903). They are the system repository, those its subsystem SRDs
+// declare when its checkout is here, and those the document routes to gh,
+// leaving out any it routes elsewhere.
+func programRepositories(file, system string, c Config) []string {
+	var out []string
+	if system != "" {
+		out = append(out, checkout.ProjectPath(system))
+	}
+	if file != "" {
+		dir := filepath.Dir(filepath.Dir(file))
+		if p := checkout.ProjectPath(checkout.Origin(dir)); p != "" {
+			out = append(out, p)
+		}
+		if Registered != nil {
+			out = append(out, Registered(dir)...)
+		}
+	}
+	for p, name := range c.Overrides {
+		if name == GitHub {
+			out = append(out, p)
+		}
+	}
+	out = slices.DeleteFunc(out, func(p string) bool {
+		name, routed := c.Overrides[p]
+		return routed && name != GitHub
+	})
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 // fromForge reads the system repository's trackers document from the
