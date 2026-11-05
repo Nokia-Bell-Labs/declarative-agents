@@ -137,4 +137,18 @@ func TestRoutingReadsTheRegistry(t *testing.T) {
 	if !slices.Contains(got, "acme/plan") || !slices.Contains(got, "acme/code") {
 		t.Fatalf("registered = %v, want the scrum and code repositories", got)
 	}
+	if slices.Contains(got, "acme/site") {
+		t.Fatalf("registered = %v, naming a site repository nothing declares", got)
+	}
+	lineage := filepath.Join(dir, program.LineageFile)
+	if err := os.MkdirAll(filepath.Dir(lineage), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	doc := "---\nid: program\ntitle: Program\n---\n\n<!-- field: site_repository -->\n## Site repository\n\nhttps://github.com/acme/site.git\n"
+	if err := os.WriteFile(lineage, []byte(doc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := routing.Registered(dir); !slices.Contains(got, "acme/site") {
+		t.Fatalf("registered = %v, want the declared site repository", got)
+	}
 }

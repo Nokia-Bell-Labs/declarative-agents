@@ -77,6 +77,10 @@ edit.
 To refresh it, run the site skill from a checkout of this repository with
 the system repository checked out beside it, and land the change like any
 other: file the issue, pop it, and merge it. The site never commits.
+
+Name this repository as site_repository in the system repository's
+control/program.md, so setup lays it down from a fresh clone and roll takes
+each release into it.
 `
 
 // SiteIndexStub is the site's front page until the site skill first runs,
@@ -87,6 +91,19 @@ const SiteIndexStub = `# Program site
 The site skill writes the program's status, timeline, requirement history,
 and corpus here; run it to fill this site. This page is yours to edit.
 `
+
+// IsSite reports whether the checkout at dir is laid out as a program's site
+// repository: the site's front page and the deck template Init lays down in
+// either form (GH-2915). A repository may hold a site/ of its own for other
+// reasons, so the one file is not enough.
+func IsSite(dir string) bool {
+	for _, f := range []string{filepath.Join("site", "index.md"), filepath.Join("deck", "template.md")} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			return false
+		}
+	}
+	return true
+}
 
 // Init scaffolds the repository the program's site lives in, in a local
 // checkout (srd018 R1): its README, the site's front page, and a deck

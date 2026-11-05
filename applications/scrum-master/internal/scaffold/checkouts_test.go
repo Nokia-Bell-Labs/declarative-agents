@@ -327,11 +327,11 @@ func TestDeclaredBy(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, own := range []string{"https://github.com/acme/plan.git", "https://github.com/acme/code", "https://github.com/acme/system.git"} {
-		if err := declaredBy(system, gitRepo(own)); err != nil {
+		if err := declaredBy(system, gitRepo(own), false); err != nil {
 			t.Errorf("%s: %v", own, err)
 		}
 	}
-	err := declaredBy(system, gitRepo("https://github.com/acme/notes"))
+	err := declaredBy(system, gitRepo("https://github.com/acme/notes"), false)
 	if err == nil || !strings.Contains(err.Error(), "does not declare acme/notes") || !strings.Contains(err.Error(), "--system") {
 		t.Errorf("an unrelated clone = %v", err)
 	}

@@ -93,21 +93,31 @@ func bootstrapping(i tracker.Issue, p Policy) bool {
 	return p.ComponentsRead && len(p.Components) == 0 && len(axis(i, "component::")) == 0
 }
 
+// upgradeNoComponent reports whether i is an upgrade roll filed with no
+// component: the registry gives a program's site repository none, and taking a
+// release there is still admitted work (GH-2915).
+func upgradeNoComponent(i tracker.Issue) bool {
+	return i.HasLabel(Op(OpUpgrade)) && len(axis(i, "component::")) == 0
+}
+
 // BootstrapNote says when lint waived the one-component rule, so a report
 // never passes an issue for that reason silently (GH-2744).
 func BootstrapNote(i tracker.Issue, p Policy) string {
-	if !bootstrapping(i, p) {
-		return ""
+	switch {
+	case bootstrapping(i, p):
+		return "one-component waived: the control project's subsystem SRDs declare no component yet"
+	case upgradeNoComponent(i):
+		return "one-component waived: an upgrade in a repository the registry gives no component"
 	}
-	return "one-component waived: the control project's subsystem SRDs declare no component yet"
+	return ""
 }
 
 func oneComponent(i tracker.Issue, p Policy) []string {
 	components := axis(i, "component::")
 	sprint := slices.Contains(canonicalTypes(axis(i, "type::")), "sprint")
-	bootstrap := bootstrapping(i, p)
+	waived := bootstrapping(i, p) || upgradeNoComponent(i)
 	var out []string
-	if !sprint && !bootstrap && len(components) != 1 {
+	if !sprint && !waived && len(components) != 1 {
 		out = append(out, fmt.Sprintf("needs exactly one component:: label, has %d", len(components)))
 	}
 	return append(out, listed("component", components, p.Components)...)

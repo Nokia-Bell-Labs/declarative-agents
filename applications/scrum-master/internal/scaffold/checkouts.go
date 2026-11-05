@@ -3,6 +3,7 @@
 package scaffold
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/routing"
 )
 
@@ -64,12 +66,8 @@ func Checkouts(dir string, dryRun bool) (CheckoutsResult, error) {
 	}
 	r.Root, r.Repositories = registryRoot(root, system), []CheckoutEntry{}
 	repos := registered(subs.Teams(system), system)
-	if b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(program.LineageFile))); err == nil {
-		if l, err := program.ParseLineage(b); err == nil && l.SiteRepository != "" {
-			if p := checkout.ProjectPath(l.SiteRepository); !slices.ContainsFunc(repos, func(x registeredRepo) bool { return x.project == p }) {
-				repos = append(repos, registeredRepo{project: p, written: l.SiteRepository})
-			}
-		}
+	if site, ok := siteRepository(root, repos); ok {
+		repos = append(repos, site)
 	}
 	for _, repo := range repos {
 		r.Repositories = append(r.Repositories, oneCheckout(r.Root, root, system, repo, cloneURL(origin, system, repo), dryRun))
@@ -130,6 +128,22 @@ func FindSystem(dir, system string, discover func(dir string) ([]string, error),
 // registeredRepo is one registry entry: the repository's project path and
 // how its SRD writes it.
 type registeredRepo struct{ project, written string }
+
+// siteRepository is the repository the system checkout at root names as its
+// site's home in control/program.md, when it does and repos does not already
+// hold it: the one declaration of a program's reports repository, which the
+// registry does not list.
+func siteRepository(root string, repos []registeredRepo) (registeredRepo, bool) {
+	l, err := program.LineageIn(root)
+	if err != nil || l.SiteRepository == "" {
+		return registeredRepo{}, false
+	}
+	p := checkout.ProjectPath(l.SiteRepository)
+	if slices.ContainsFunc(repos, func(x registeredRepo) bool { return x.project == p }) {
+		return registeredRepo{}, false
+	}
+	return registeredRepo{project: p, written: l.SiteRepository}, true
+}
 
 // registered lists every repository the subsystem SRDs name, each once,
 // the system repository left out: each team's scrum repository and every
@@ -341,7 +355,7 @@ func init() {
 				return ctx.Emit(r, r.Human())
 			}
 			if named == "" && routing.OnAccount(d) {
-				if err := declaredBy(found, d); err != nil {
+				if err := declaredBy(found, d, cloned == nil); err != nil {
 					if cloned != nil {
 						os.RemoveAll(found) //nolint:errcheck // The clone this run just made.
 					}
@@ -374,8 +388,10 @@ func namedSystem(flag string) string {
 // forge found that program only by the account they share: a group is a whole
 // account there, so an unrelated repository would otherwise lay the program down
 // beside it (GH-2904). The system repository's own clone is declared, and naming
-// the system repository says the person means it.
-func declaredBy(system, dir string) error {
+// the system repository says the person means it. So is the site repository
+// control/program.md names, and a site repository with the system already checked
+// out beside it, beside being how its README says to run the site (GH-2915).
+func declaredBy(system, dir string, beside bool) error {
 	root, err := toplevel(dir)
 	if err != nil {
 		return err
@@ -388,10 +404,20 @@ func declaredBy(system, dir string) error {
 	if err != nil {
 		return err
 	}
-	for _, repo := range registered(subs.Teams(project), project) {
-		if repo.project == own {
-			return nil
-		}
+	repos := registered(subs.Teams(project), project)
+	if site, ok := siteRepository(system, repos); ok {
+		repos = append(repos, site)
 	}
-	return fmt.Errorf("%s does not declare %s, and this forge's group is a whole account, so finding it there says nothing about this clone; name the system repository with --system or SCRUM_MASTER_SYSTEM to lay it down anyway", project, own)
+	if slices.ContainsFunc(repos, func(x registeredRepo) bool { return x.project == own }) {
+		return nil
+	}
+	isSite := reports.IsSite(root)
+	if isSite && beside {
+		return nil
+	}
+	reason := fmt.Sprintf("%s does not declare %s, and this forge's group is a whole account, so finding it there says nothing about this clone; name the system repository with --system or SCRUM_MASTER_SYSTEM to lay it down anyway", project, own)
+	if isSite {
+		reason += fmt.Sprintf(", or name this repository as site_repository in %s's %s", project, program.LineageFile)
+	}
+	return errors.New(reason)
 }

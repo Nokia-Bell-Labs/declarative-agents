@@ -8,8 +8,8 @@ purpose: |-
   install.sh and asks to upgrade or update the repository.
 
   This machine has no model state: three words (design.md D10, D14;
-  GH-2719). It serves a system and a subsystem repository alike, and it
-  seeds no tracker and files no issue, as a rerun of the init or onboard
+  GH-2719). It serves a system, a subsystem, and a site repository alike,
+  though a site repository has nothing to repair, and it seeds no tracker and files no issue, as a rerun of the init or onboard
   profile may. Each word keeps what a person edited, so a second run
   changes nothing.
 configuration:
@@ -52,7 +52,7 @@ states:
     files the release lays down that are missing, refreshes the managed
     blocks of the orientation files, moves the format pin to the release,
     and repairs the documents to its canonical form; a file a person
-    edited is kept.
+    edited is kept. A site repository holds nothing for it to repair.
 - name: Skills
   meaning: |
     The skills word: scrum-master install --agent detect rewrites the skills of
