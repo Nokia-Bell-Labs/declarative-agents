@@ -489,3 +489,28 @@ func TestAReadmeGetsANewPersonStarted(t *testing.T) {
 		}
 	}
 }
+
+// A tracker its forge hosts is recorded, with the group when one is named, and
+// never cloned as though it named a repository (GH-2905).
+func TestInitRecordsAHostedTracker(t *testing.T) {
+	for _, name := range []string{routing.GitHub, routing.GitLab} {
+		for _, group := range []string{"", "acme"} {
+			dir := repo(t)
+			r, err := Init(InitOptions{Dir: dir, Tracker: name, Group: group})
+			if err != nil {
+				t.Fatalf("%s, group %q: %v", name, group, err)
+			}
+			if r.Tracker == nil || r.Tracker.Seeded || !strings.Contains(r.Tracker.Reason, "nothing to seed") {
+				t.Errorf("%s, group %q: tracker = %+v", name, group, r.Tracker)
+			}
+			b, err := os.ReadFile(filepath.Join(dir, routing.File))
+			if err != nil {
+				t.Fatal(err)
+			}
+			c, err := routing.Parse(b)
+			if err != nil || c.Default.Name != name || c.Group != group || c.Default.TrackerRepository != "" {
+				t.Errorf("%s, group %q: trackers = %+v, %v", name, group, c, err)
+			}
+		}
+	}
+}
