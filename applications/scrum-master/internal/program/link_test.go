@@ -3,10 +3,14 @@
 package program
 
 import (
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
@@ -112,5 +116,75 @@ func TestListEpicIncludesItsDirectIssues(t *testing.T) {
 	}
 	if _, err := ListImplementing(f, "g/po-1", valid, "", "ep999-another"); err == nil || !strings.Contains(err.Error(), "holds no epic") {
 		t.Fatalf("an epic the hierarchy does not hold: %v", err)
+	}
+}
+
+// A story only the team's scrum repository holds is pinned to the newest tag
+// holding it, in the form the host serves, or to the tag named; no tag is
+// refused, and a repository that is its own scrum repository looks nowhere else
+// (srd007 R6.6, GH-2907).
+func TestTeamTargetPinsInTheScrumRepository(t *testing.T) {
+	subs := Subsystems{{Owner: "Product Owner, team", Scrum: "https://github.com/acme/plan.git",
+		Components: []Component{{Name: "code", Repository: "https://github.com/acme/code"}}}}
+	tagged := func(tag string) func(string, string) (string, error) {
+		return func(holder, file string) (string, error) {
+			if holder != "acme/plan" || file != "docs/specs/stories/st001-x.md" {
+				t.Errorf("looked for %s in %s", file, holder)
+			}
+			return tag, nil
+		}
+	}
+	got, err := teamTarget(subs, "acme/code", "story", "st001-x", "", "https://github.com", tagged("corpus/v0.2.0"))
+	want := "https://github.com/acme/plan/blob/corpus/v0.2.0/docs/specs/stories/st001-x.md"
+	if err != nil || got != want {
+		t.Fatalf("newest tag = %q, %v; want %q", got, err, want)
+	}
+	if err := links.CheckTarget(links.Link{Kind: links.Implements, Target: got}); err != nil {
+		t.Errorf("the line it writes is refused: %v", err)
+	}
+	if got, err := teamTarget(subs, "acme/code", "story", "st001-x", "v1", "https://gitlab.example", tagged("unused")); err != nil || got != "https://gitlab.example/acme/plan/-/blob/v1/docs/specs/stories/st001-x.md" {
+		t.Errorf("a named tag = %q, %v", got, err)
+	}
+	if _, err := teamTarget(subs, "acme/code", "story", "st001-x", "", "https://github.com", tagged("")); err == nil || !strings.Contains(err.Error(), "no tag of acme/plan holds") {
+		t.Errorf("no tag = %v, want a refusal", err)
+	}
+	for _, project := range []string{"acme/plan", "acme/unregistered"} {
+		if got, err := teamTarget(subs, project, "story", "st001-x", "", "https://github.com", tagged("unused")); err != nil || got != "" {
+			t.Errorf("%s = %q, %v; want nothing to look in", project, got, err)
+		}
+	}
+}
+
+// The newest tag holding the file answers, older or newer ones without it passed
+// over (GH-2907).
+func TestNewestTagHolding(t *testing.T) {
+	dir := t.TempDir()
+	git := func(args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_AUTHOR_NAME=a", "GIT_AUTHOR_EMAIL=a@example.invalid", "GIT_COMMITTER_NAME=a", "GIT_COMMITTER_EMAIL=a@example.invalid")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %s", args, out)
+		}
+	}
+	file := "docs/specs/stories/st001-x.md"
+	git("init", "-q")
+	git("commit", "-q", "--allow-empty", "-m", "start")
+	git("tag", "corpus/v0.1.0")
+	if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(file)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := newestTagHolding(ExecGit{}, dir, file); err != nil || got != "" {
+		t.Fatalf("no tag holds it = %q, %v", got, err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(file)), []byte("story"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	git("add", "-A")
+	git("commit", "-q", "-m", "story")
+	git("tag", "-a", "corpus/v0.2.0", "-m", "holds it")
+	if got, err := newestTagHolding(ExecGit{}, dir, file); err != nil || got != "corpus/v0.2.0" {
+		t.Fatalf("newest = %q, %v", got, err)
 	}
 }

@@ -75,3 +75,18 @@ func TestBlocksAndBlockedByAreOneLink(t *testing.T) {
 		t.Fatalf("edges %+v", edges)
 	}
 }
+
+// Implements names a whole document, so its pinned URL needs no anchor, while any
+// other link still does, and a branch is never pinned (GH-2907).
+func TestImplementsNeedsNoAnchor(t *testing.T) {
+	const story = "https://gitlab.example.com/g/po-1/-/blob/v1.0.0/docs/specs/stories/st001-a.md"
+	if err := CheckTarget(Link{Implements, story}); err != nil {
+		t.Errorf("Implements with no anchor: %v", err)
+	}
+	if err := CheckTarget(Link{DependsOn, story}); err == nil {
+		t.Error("another link with no anchor passed")
+	}
+	if err := CheckTarget(Link{Implements, "https://gitlab.example.com/g/po-1/-/blob/main/docs/specs/stories/st001-a.md"}); err == nil {
+		t.Error("Implements on a branch passed")
+	}
+}

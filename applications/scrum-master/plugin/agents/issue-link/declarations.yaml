@@ -32,6 +32,10 @@ tools:
         description: 'Replace the story or epic the issue already names.'
         flag: --force
         bool_flag: true
+      tag:
+        type: string
+        description: 'The tag to pin a document of the team''s scrum repository at, when the issue is in another repository; empty is the newest tag holding it.'
+        flag: --tag
       control:
         type: string
         description: 'Program repository holding control/ files, when not the one beside the checkout.'

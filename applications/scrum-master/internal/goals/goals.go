@@ -4,64 +4,20 @@ package goals
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 )
 
-// WebBase is the web root repositories are cited under: a pinned citation
-// is <web base>/<project>/-/blob/<tag>/<path> (srd007). SCRUM_MASTER_WEB_BASE
-// names it; when unset, it is the root of the checkout at dir's origin as
-// configured, not as url.insteadOf expands it (GH-93, GH-105), since every
-// repository of a program is on the one forge (GH-109).
-func WebBase(dir string) (string, error) {
-	if base := strings.TrimSuffix(strings.TrimSpace(os.Getenv("SCRUM_MASTER_WEB_BASE")), "/"); base != "" { //nolint:forbidigo // Reads the documented SCRUM_MASTER_* environment interface.
-		return base, nil
-	}
-	if base := originWebRoot(dir); base != "" {
-		return base, nil
-	}
-	return "", errors.New("no web base for citations: set SCRUM_MASTER_WEB_BASE to the web root repositories are cited under, or run from a checkout whose origin is an https or ssh URL")
-}
-
-// originWebRoot is the scheme and host of dir's origin, as a browser opens
-// them: https://host for an https or scp-style ssh origin, empty for any
-// other.
-func originWebRoot(dir string) string {
-	out, err := exec.Command("git", "-C", dir, "config", "--get", "remote.origin.url").Output()
-	if err != nil {
-		return ""
-	}
-	origin := strings.TrimSpace(string(out))
-	if rest, ok := strings.CutPrefix(origin, "https://"); ok {
-		host, _, _ := strings.Cut(rest, "/")
-		if _, h, ok := strings.Cut(host, "@"); ok {
-			host = h
-		}
-		return "https://" + host
-	}
-	if rest, ok := strings.CutPrefix(origin, "ssh://"); ok {
-		host, _, _ := strings.Cut(rest, "/")
-		if _, h, ok := strings.Cut(host, "@"); ok {
-			host = h
-		}
-		host, _, _ = strings.Cut(host, ":")
-		return "https://" + host
-	}
-	if user, rest, ok := strings.Cut(origin, "@"); ok && !strings.Contains(user, "/") {
-		if host, path, ok := strings.Cut(rest, ":"); ok && path != "" && !strings.Contains(host, "/") {
-			return "https://" + host
-		}
-	}
-	return ""
-}
+// WebBase is the web root repositories are cited under (srd007): see
+// checkout.WebBase.
+func WebBase(dir string) (string, error) { return checkout.WebBase(dir) }
 
 func init() {
 	var a struct{ system, release, ref, planFile, control, dir string }
