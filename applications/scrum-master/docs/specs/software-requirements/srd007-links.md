@@ -126,7 +126,7 @@ Cycle findings appear in the program's weekly roll-up and dashboard until the cy
 <!-- req: R5.1 -->
 ### R5.1
 
-A cross-repository reference is a URL of the form https://HOST/GROUP/REPO/-/blob/TAG/PATH#ANCHOR, where TAG is a release tag of REPO, PATH is a file in it, and ANCHOR is a requirement id (Rn or Rn.m) or an interface name in that file. In an issue description it is a line Cites: URL; in a corpus document it is a field value.
+A cross-repository reference is a URL of the form https://HOST/GROUP/REPO/-/blob/TAG/PATH#ANCHOR, or on GitHub, which has no groups, https://HOST/OWNER/REPO/blob/TAG/PATH#ANCHOR (GH-2901), where TAG is a release tag of REPO, PATH is a file in it, and ANCHOR is a requirement id (Rn or Rn.m) or an interface name in that file. In an issue description it is a line Cites: URL; in a corpus document it is a field value.
 
 <!-- req: R5.2 | derived_from: [{"repo": "github.com/Nokia-Bell-Labs/declarative-agents", "release": "v0.20261022.0", "srd": "srd014-spec-graph", "item": "R3.16", "reason": "The parent resolves a cross-repository citation only at its validated release through a local clone cache; a citation here resolves the same way, at its tag, so the parent's audit can check it."}] -->
 ### R5.2
