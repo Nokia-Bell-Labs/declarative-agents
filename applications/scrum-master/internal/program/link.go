@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
@@ -67,6 +68,60 @@ func article(kind string) string {
 	return "a story"
 }
 
+// notHeldError is a target its repository does not hold.
+type notHeldError string
+
+func (e notHeldError) Error() string { return string(e) }
+
+// documentFile is where a story or epic of that id lives in its repository.
+func documentFile(kind, id string) string {
+	folder := "stories"
+	if kind == "epic" {
+		folder = "epics"
+	}
+	return path.Join("docs/specs", folder, id+".md")
+}
+
+// teamTarget is the pinned URL of a story or epic in the team's scrum repository,
+// for an issue in a code repository that does not hold it, as a bare id only names
+// a document of the issue's own repository (GH-2907): at tag, else the newest tag
+// holding it. It is empty when the project has no other scrum repository to look
+// in, and a tag nothing holds is refused rather than pinned to a moving branch.
+func teamTarget(subs Subsystems, project, kind, id, tag, web string, newest func(holder, file string) (string, error)) (string, error) {
+	sub, ok := subs.SubsystemFor(project)
+	holder := sub.ScrumRepository()
+	if !ok || holder == "" || holder == project {
+		return "", nil
+	}
+	file := documentFile(kind, id)
+	if tag == "" {
+		var err error
+		if tag, err = newest(holder, file); err != nil {
+			return "", err
+		}
+		if tag == "" {
+			return "", fmt.Errorf("no tag of %s holds %s, and an Implements line names a tag; tag it, or name one with --tag", holder, file)
+		}
+	}
+	return links.BlobURL(web, holder, tag, file), nil
+}
+
+// newestTagHolding is the newest tag of the checkout at dir that holds file, empty
+// when none does.
+func newestTagHolding(git Git, dir, file string) (string, error) {
+	git.Run(dir, "fetch", "-q", "--tags", "origin") //nolint:errcheck // Offline, the tags here still answer.
+	tags, err := git.Run(dir, "for-each-ref", "--sort=-creatordate", "--format=%(refname:short)", "refs/tags")
+	if err != nil {
+		return "", err
+	}
+	for _, tag := range strings.Fields(tags) {
+		if _, err := git.Run(dir, "cat-file", "-e", tag+":"+file); err == nil {
+			return tag, nil
+		}
+	}
+	return "", nil
+}
+
 // documentHeld refuses a target its repository does not hold: a pinned URL's
 // at its tag, a bare id's in the issue's own repository's default branch.
 func documentHeld(t tracker.Tracker, project, kind, target string) error {
@@ -82,14 +137,10 @@ func documentHeld(t tracker.Tracker, project, kind, target string) error {
 		if err != nil {
 			return err
 		}
-		folder := "stories"
-		if kind == "epic" {
-			folder = "epics"
-		}
-		file, ref = path.Join("docs/specs", folder, target+".md"), branch
+		file, ref = documentFile(kind, target), branch
 	}
 	if _, err := t.GetFile(holder, file, ref); errors.Is(err, tracker.ErrNotFound) {
-		return fmt.Errorf("%s holds no %s %s at %s", holder, kind, file, ref)
+		return notHeldError(fmt.Sprintf("%s holds no %s %s at %s", holder, kind, file, ref))
 	} else if err != nil {
 		return err
 	}
@@ -119,11 +170,31 @@ func withLine(description, key, value string) string {
 	return strings.TrimRight(description, "\n") + "\n\n" + line + "\n"
 }
 
+// pinnedInTeam reads what teamTarget needs: the registry through the tracker, the
+// web root from this checkout, and tags from the scrum repository's checkout.
+func pinnedInTeam(t tracker.Tracker, control, ref, project, kind, id, tag string) (string, error) {
+	subs, err := LoadSubsystems(t, control, ref)
+	if err != nil {
+		return "", err
+	}
+	web, err := checkout.WebBase(".")
+	if err != nil {
+		return "", err
+	}
+	return teamTarget(subs, project, kind, id, tag, web, func(holder, file string) (string, error) {
+		dir, ok := checkout.Locate(".", holder)
+		if !ok {
+			return "", fmt.Errorf("no checkout of %s here to read its tags; scrum-master checkouts lays it down, or name one with --tag", holder)
+		}
+		return newestTagHolding(ExecGit{}, dir, file)
+	})
+}
+
 func init() {
 	var a struct {
-		project, story, epic, control, ref string
-		iid                                int
-		force                              bool
+		project, story, epic, control, ref, tag string
+		iid                                     int
+		force                                   bool
 	}
 	cli.Default.Register(&cli.Command{
 		Group: "issue", Name: "link", FromCheckout: true, Summary: "name the story or epic a filed issue implements, and lint it again",
@@ -135,6 +206,7 @@ func init() {
 			fs.BoolVar(&a.force, "force", false, "replace the story or epic the issue already names")
 			fs.StringVar(&a.control, "control", "", "program repository holding control/ files; empty is the system repository beside the checkout")
 			fs.StringVar(&a.ref, "ref", "main", "ref of the control files")
+			fs.StringVar(&a.tag, "tag", "", "the tag to pin a document of the team's scrum repository at; empty is the newest tag holding it")
 		},
 		Run: func(ctx *cli.Context) error {
 			if a.project == "" || a.iid == 0 || (a.epic == "") == (a.story == "") {
@@ -148,9 +220,23 @@ func init() {
 			if err != nil {
 				return err
 			}
-			p, err := LoadPolicy(t, ControlFor(a.control, ".", ""), a.ref)
+			control := ControlFor(a.control, ".", "")
+			p, err := LoadPolicy(t, control, a.ref)
 			if err != nil {
 				return err
+			}
+			if !strings.Contains(target, "://") {
+				var notHeld notHeldError
+				if err := documentHeld(t, a.project, kind, target); errors.As(err, &notHeld) {
+					pinned, err := pinnedInTeam(t, control, a.ref, a.project, kind, target, a.tag)
+					if err != nil {
+						return err
+					}
+					if pinned == "" {
+						return notHeld
+					}
+					target = pinned
+				}
 			}
 			r, err := LinkIssue(t, a.project, a.iid, kind, target, a.force, p, ctx.DryRun)
 			if err != nil {

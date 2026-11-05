@@ -174,12 +174,12 @@ Duplicates names the item this one repeats. A duplicate issue closes as a duplic
 <!-- req: R6.5 -->
 ### R6.5
 
-Implements names the story an issue executes, or the epic it serves when no story holds it yet, by same-repository id or pinned URL. tasks writes it on every issue it creates from a story; a story or epic may be implemented by several issues, and an issue implements at most one. An issue has no Parent line: what it names is its parent. No other document kind can be named, and an issue naming an epic adds no story points to it (srd045 R3.3).
+Implements names the story an issue executes, or the epic it serves when no story holds it yet, by same-repository id or pinned URL. tasks writes it on every issue it creates from a story; a story or epic may be implemented by several issues, and an issue implements at most one. An issue has no Parent line: what it names is its parent. No other document kind can be named, and an issue naming an epic adds no story points to it (srd045 R3.3). A pinned URL here names a whole document, so it needs no anchor (GH-2907).
 
 <!-- req: R6.6 -->
 ### R6.6
 
-scrum-master issue link writes the Implements line on a filed issue, given an epic or a story, and lints the issue again. It refuses a target of another kind and one its repository does not hold, and an issue already naming something else unless --force says to replace it. A second identical run changes nothing, and a dry run changes nothing. The model-free issue-link profile runs it, which the installed issue skill lists.
+scrum-master issue link writes the Implements line on a filed issue, given an epic or a story, and lints the issue again. It refuses a target of another kind and one its repository does not hold, and an issue already naming something else unless --force says to replace it. A bare id the issue's own repository does not hold, on an issue in a code repository, is read in the team's scrum repository the registry names, and the line is written as a URL pinned to --tag, else the newest tag holding the document; no such tag is refused (GH-2907). A second identical run changes nothing, and a dry run changes nothing. The model-free issue-link profile runs it, which the installed issue skill lists.
 
 <!-- req: R7 -->
 ## R7 - Links on hierarchy documents
@@ -316,3 +316,14 @@ lint flags a malformed or unpinned link target and a second Duplicates or Implem
 
 - [R8.1](#r81)
 - [R8.2](#r82)
+
+<!-- ac: AC9 -->
+### AC9
+
+On an issue in a code repository, issue link with a story's bare id that only the team's scrum repository holds writes an Implements line pinned to the newest tag holding it, in the form the host serves, and the issue is admitted with no anchor; --tag chooses the tag; a story no tag holds is refused; and in a repository that is its own scrum repository the id stays bare.
+
+<!-- field: traces -->
+#### Traces
+
+- [R6.5](#r65)
+- [R6.6](#r66)

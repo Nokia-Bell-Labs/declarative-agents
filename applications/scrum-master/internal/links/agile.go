@@ -61,7 +61,12 @@ func CheckTarget(l Link) error {
 	case t == "":
 		return fmt.Errorf("%s line names no target", l.Kind)
 	case strings.Contains(t, "://"):
-		if err := CheckPinned(t); err != nil {
+		// Implements names a whole document, so it needs no anchor (GH-2907).
+		check := CheckPinned
+		if l.Kind == Implements {
+			check = CheckPinnedDocument
+		}
+		if err := check(t); err != nil {
 			return err
 		}
 		if l.Kind == Implements && ImplementsKind(t) == "" {
