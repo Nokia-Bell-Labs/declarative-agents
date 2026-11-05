@@ -24,6 +24,10 @@ type hub struct {
 	repos   map[string]*repo
 	orgs    map[string][]string
 	origins map[string]string // repository -> bare git origin
+	// users are personal accounts, each with its public repositories, and mine
+	// what the caller's own listing holds, private ones among them (GH-2904).
+	users map[string][]string
+	mine  []string
 }
 
 type repo struct {
@@ -108,11 +112,30 @@ func (c client) Do(method, raw string, body any) ([]byte, error) {
 
 func (c client) user() map[string]any { return map[string]any{"login": c.login} }
 
+func fullNames(names []string) []map[string]any {
+	out := []map[string]any{}
+	for _, n := range names {
+		out = append(out, map[string]any{"full_name": n})
+	}
+	return out
+}
+
 func (c client) route(method string, seg []string, q url.Values, in map[string]any) (any, error) {
 	switch {
 	case method == "GET" && len(seg) == 1 && seg[0] == "user":
 		return map[string]any{"id": 1, "login": c.login}, nil
+	case method == "GET" && len(seg) == 3 && seg[0] == "users" && seg[2] == "repos":
+		public, ok := c.h.users[seg[1]]
+		if !ok {
+			return nil, notFound()
+		}
+		return fullNames(public), nil
+	case method == "GET" && len(seg) == 2 && seg[0] == "user" && seg[1] == "repos":
+		return fullNames(c.h.mine), nil
 	case method == "GET" && len(seg) == 3 && seg[0] == "orgs" && seg[2] == "repos":
+		if _, personal := c.h.users[seg[1]]; personal {
+			return nil, notFound()
+		}
 		var out []map[string]any
 		for _, r := range c.h.orgs[seg[1]] {
 			out = append(out, map[string]any{"full_name": r})

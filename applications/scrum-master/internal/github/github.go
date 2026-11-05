@@ -612,6 +612,8 @@ func (t *Tracker) SetAssignee(project string, iid int, username string) error {
 }
 
 // GroupProjects lists an organization's repositories, or a user's, by full name.
+// A user's listing holds only public repositories, even for that user, so the
+// private ones the caller can read come from the caller's own (GH-2904).
 func (t *Tracker) GroupProjects(owner string) ([]string, error) {
 	var out []string
 	add := func(raw json.RawMessage) error {
@@ -629,7 +631,25 @@ func (t *Tracker) GroupProjects(owner string) ([]string, error) {
 	}
 	out = nil
 	err := t.all("users/"+owner+"/repos", add)
-	return out, err
+	var mine []string
+	own := func(raw json.RawMessage) error {
+		var r struct {
+			FullName string `json:"full_name"`
+		}
+		if err := json.Unmarshal(raw, &r); err != nil {
+			return err
+		}
+		if strings.HasPrefix(r.FullName, owner+"/") {
+			mine = append(mine, r.FullName)
+		}
+		return nil
+	}
+	if merr := t.all("user/repos?affiliation=owner,collaborator", own); merr == nil {
+		err = nil
+	}
+	out = append(out, mine...)
+	slices.Sort(out)
+	return slices.Compact(out), err
 }
 
 // SetAssignees makes usernames the issue's assignees: an epic's mirror (srd045 R2.7).
