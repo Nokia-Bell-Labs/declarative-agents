@@ -99,9 +99,12 @@ named by its main checkout's folder (GH-2752).
 The gh system serves a repository's issues, notes, labels, and milestones
 from GitHub through the gh CLI and the person's existing login; scrum-master keeps
 no token. GitHub has no due date on an issue and no start date on a
-milestone, so each is a Due: or Start: line of the description. A group's
-labels and milestones go to each of its repositories, as GitHub has none
-of its own. A branch is reviewed as a pull request pop opens as a draft
+milestone, so each is a Due: or Start: line of the description. GitHub has
+no group-level labels or milestones, and no subgroups, so a program's group
+is a whole account or organization: its labels and milestones go to the
+program's repositories, the system repository, those its subsystem SRDs
+declare, and those control/trackers.md routes to gh, else the checkout's own,
+and never to everything the owner holds (GH-2903). A branch is reviewed as a pull request pop opens as a draft
 with one empty commit, an approval is the pull request's review of the
 head commit, and merge merges it on GitHub and closes the issue on that
 merge commit. Files, tags, branches, and merged history come from the

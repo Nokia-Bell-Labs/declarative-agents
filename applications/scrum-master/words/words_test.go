@@ -15,6 +15,8 @@ import (
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/routing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
@@ -115,5 +117,24 @@ func TestAnOlderAgentWritesNoSkills(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".claude")); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("skills were written: %v", err)
+	}
+}
+
+// The words tell routing what a system checkout's subsystem SRDs declare, so a
+// GitHub group's labels and milestones stay within them (GH-2903).
+func TestRoutingReadsTheRegistry(t *testing.T) {
+	dir := t.TempDir()
+	srd := filepath.Join(dir, program.SRDDir, "srd020-team.md")
+	if err := os.MkdirAll(filepath.Dir(srd), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "---\nid: srd020-team\ntitle: Team\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: Product Owner, team\n- scrum_repository: https://github.com/acme/plan.git\n\n" +
+		"<!-- field: implementation_targets -->\n## Implementation targets\n\n| name | repository | path |\n| --- | --- | --- |\n| code | https://github.com/acme/code | / |\n"
+	if err := os.WriteFile(srd, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := routing.Registered(dir)
+	if !slices.Contains(got, "acme/plan") || !slices.Contains(got, "acme/code") {
+		t.Fatalf("registered = %v, want the scrum and code repositories", got)
 	}
 }

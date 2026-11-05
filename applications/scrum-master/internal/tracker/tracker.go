@@ -228,6 +228,13 @@ type GroupLister interface {
 	GroupProjects(group string) ([]string, error)
 }
 
+// AccountGrouped is a host whose group is a whole account or organization, as
+// GitHub's is, so a project in the group need not be the program's and
+// reconcile's sweep would report everything else its owner holds (GH-2903).
+type AccountGrouped interface {
+	GroupIsAccount() bool
+}
+
 // Issues is the issue half of a tracking system: the issues, their notes
 // and the ledger events in them, milestones, labels, and the people who
 // pop and approve (srd042). Every tracking system supplies it, beads from
