@@ -37,7 +37,7 @@ string
 <!-- field: description -->
 #### Description
 
-The repository holding this program's site, its reports repository, as a project path or URL. A parent program reads this program's published plan, site/data/hierarchy/hierarchy.json, from it on its default branch, to count the documents this program serves its plan with.
+The repository holding this program's site, its reports repository, as a project path or URL. A parent program reads this program's published plan, site/data/hierarchy/hierarchy.json, from it on its default branch, to count the documents this program serves its plan with. It is also how the program declares that repository, which its registry does not list: checkouts and setup lay it down, a group's labels and milestones reach it, and roll takes each release into it when it vendors one (srd043 R6.5, R7.4).
 
 <!-- schema_entry: parent -->
 ### parent

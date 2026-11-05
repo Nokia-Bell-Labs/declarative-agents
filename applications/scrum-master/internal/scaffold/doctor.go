@@ -20,6 +20,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/legacyenv"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/routing"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/runtime"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/spectool"
@@ -239,9 +240,14 @@ const (
 	subsystemSRDPath = "docs/specs/software-requirements/srd001-subsystem.md"
 )
 
+// levelSite is the level of a program's site repository, which holds no corpus
+// or control files for doctor to write or repair.
+const levelSite = "site"
+
 // Level reads a program repository's level from the files scrum-master wrote there:
 // system when the policy or the system SRD is present, subsystem when the
-// subsystem SRD is (srd043 R4.1).
+// subsystem SRD is (srd043 R4.1), and site when it holds neither but is laid out
+// as reports init lays a site repository down (GH-2915).
 func Level(dir string) (string, error) {
 	exists := func(p string) bool {
 		_, err := os.Stat(filepath.Join(dir, filepath.FromSlash(p)))
@@ -252,6 +258,8 @@ func Level(dir string) (string, error) {
 		return "system", nil
 	case exists(subsystemSRDPath):
 		return "subsystem", nil
+	case reports.IsSite(dir):
+		return levelSite, nil
 	}
 	return "", fmt.Errorf("%s holds neither %s, %s, nor %s, so it is no program repository scrum-master laid down; run scrum-master init or scrum-master onboard there",
 		dir, program.PolicyFile, systemSRDPath, subsystemSRDPath)
@@ -312,6 +320,10 @@ func Doctor(o DoctorOptions) (DoctorResult, error) {
 		return r, err
 	}
 	r.Level = level
+	if level == levelSite {
+		r.Vendored, _ = install.VendoredRelease(o.Dir)
+		return r, nil
+	}
 	if r.Trackers, err = routing.Check(o.Dir); err != nil {
 		return r, err
 	}

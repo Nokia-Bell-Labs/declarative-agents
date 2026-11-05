@@ -31,11 +31,16 @@ import (
 func init() {
 	program.Words = Run
 	routing.Registered = func(dir string) []string {
-		subs, err := program.SubsystemsIn(dir)
-		if err != nil {
-			return nil
+		var repos []string
+		if subs, err := program.SubsystemsIn(dir); err == nil {
+			repos = subs.Repositories()
 		}
-		return subs.Repositories()
+		// The registry does not list the program's site repository; its
+		// lineage does (GH-2915).
+		if l, err := program.LineageIn(dir); err == nil && l.SiteRepository != "" {
+			repos = append(repos, program.ProjectPath(l.SiteRepository))
+		}
+		return repos
 	}
 	legacyenv.Adopt()
 }

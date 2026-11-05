@@ -147,7 +147,7 @@ An orientation file holds scrum-master's text between a begin marker and an end 
 <!-- req: R4.1 -->
 ### R4.1
 
-Runs in --dir, by default the root of the git repository holding the working directory, and reads the repository's level from the files it finds: system when control/policy.md or the system SRD is there, subsystem when the subsystem SRD is. A directory that holds neither is refused with the reason.
+Runs in --dir, by default the root of the git repository holding the working directory, and reads the repository's level from the files it finds: system when control/policy.md or the system SRD is there, subsystem when the subsystem SRD is, and site when neither is but site/index.md and deck/template.md are, as scrum-master reports init lays them down (srd018 R1, GH-2915). A site repository holds no corpus or control files, so doctor writes and repairs nothing there and reports its level and vendored release. A directory that is none of these is refused with the reason.
 
 <!-- req: R4.2 -->
 ### R4.2
@@ -190,7 +190,7 @@ The upgrade profile brings a program repository to the release install.sh instal
 <!-- req: R5.2 -->
 ### R5.2
 
-It serves a system and a subsystem repository alike, seeds no tracker, files no issue, and touches no tracker. Each word keeps a file a person edited, so a second run changes nothing.
+It serves a system, a subsystem, and a site repository alike (R4.1), seeds no tracker, files no issue, and touches no tracker. Each word keeps a file a person edited, so a second run changes nothing.
 
 <!-- req: R5.3 -->
 ### R5.3
@@ -223,7 +223,7 @@ checkouts runs from a clone of any of a program's repositories. With no system r
 <!-- req: R6.5 -->
 ### R6.5
 
-The setup profile is the first thing a person runs in a fresh clone: checkouts (R6.4), then the skills, a repository it cannot reach not stopping them, though a checkouts word that refuses ends the run failed, since the program is not laid down (GH-2904). The system repository is found through the forge, private repositories the person can read among them, and a request's system or SCRUM_MASTER_SYSTEM names it where the forge cannot find it. Where a group is a whole account, as on GitHub, a program found there lays down only for a clone it declares, so an unrelated repository of the same account does not pull it in; naming the system repository lays it down regardless. The README init and onboard write opens with how to get started: installing the agent, including from an internal GitLab, and this profile.
+The setup profile is the first thing a person runs in a fresh clone: checkouts (R6.4), then the skills, a repository it cannot reach not stopping them, though a checkouts word that refuses ends the run failed, since the program is not laid down (GH-2904). The system repository is found through the forge, private repositories the person can read among them, and a request's system or SCRUM_MASTER_SYSTEM names it where the forge cannot find it. Where a group is a whole account, as on GitHub, a program found there lays down only for a clone it declares, so an unrelated repository of the same account does not pull it in; naming the system repository lays it down regardless. The program declares the repositories its registry names and the site_repository its control/program.md names (GH-2915). A site repository (R4.1) with the system repository already checked out beside it runs regardless, since that is how its README says to run the site; one found only through the account is refused with the reason, which names site_repository. The README init and onboard write opens with how to get started: installing the agent, including from an internal GitLab, and this profile.
 
 <!-- req: R7 -->
 ## R7 - scrum-master roll
@@ -242,6 +242,11 @@ For each repository behind, roll files one issue there — plane data, kind cons
 ### R7.3
 
 roll works on checkouts (R6): a registered repository with no checkout at its group path fails alone, the checkouts word named as the remedy, and the run goes on. The output is one line per repository — skipped at its release, opened with its issue, branch, and merge request, or failed with the reason — with the counts, and the JSON mirrors it; one repository's failure does not stop the rest. A dry run reports what would be opened and changes nothing.
+
+<!-- req: R7.4 -->
+### R7.4
+
+roll also takes the release into the repository control/program.md names as site_repository, by the same issue and branch (R7.2), since the reports-init profile vendors into it and the registry does not list it (GH-2915). One that vendors no release is skipped, saying so, since a site written from the system checkout needs none. With no site_repository named, roll takes no site repository: one laid out as a site repository (R4.1) beside the system checkout and vendoring a release is left alone, since it may be another program's, and a note in the output and the JSON names it and site_repository as the way to include it.
 
 <!-- req: R8 -->
 ## R8 - scrum-master reconcile
@@ -463,3 +468,16 @@ With an agent older than the release a repository vendors, doctor refuses and wr
 - [R4.7](#r47)
 - [R5.3](#r53)
 - [R7.1](#r71)
+
+<!-- ac: AC17 -->
+### AC17
+
+With site_repository named and that repository behind the release, roll opens its upgrade, and the issue passes the one-component rule with no component, a note saying so; the upgrade profile there ends Done, doctor reporting level site and writing nothing. One vendoring nothing is skipped. With none named, roll takes no site repository and notes one beside the checkout that vendors a release. checkouts runs from a named site repository, and from an unnamed one with the system beside it, and an unrelated repository is still refused; a group's labels and milestones reach a named one.
+
+<!-- field: traces -->
+#### Traces
+
+- [R4.1](#r41)
+- [R5.2](#r52)
+- [R6.5](#r65)
+- [R7.4](#r74)

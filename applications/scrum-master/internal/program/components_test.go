@@ -80,6 +80,30 @@ func TestOneComponentReadsTheSameSRDsEitherWay(t *testing.T) {
 	}
 }
 
+// Taking a release is admitted in a repository the registry gives no component,
+// as a program's site repository, and says so; nothing else is (GH-2915).
+func TestAnUpgradeNeedsNoComponent(t *testing.T) {
+	p := Policy{Components: []string{"tpm"}, ComponentsRead: true}
+	upgrade := tracker.Issue{Labels: []string{"plane::data", "kind::consume", Op(OpUpgrade)}}
+	if got := oneComponent(upgrade, p); len(got) != 0 {
+		t.Errorf("oneComponent = %v", got)
+	}
+	if note := BootstrapNote(upgrade, p); !strings.Contains(note, "waived") {
+		t.Errorf("the waiver is silent: %q", note)
+	}
+	filed := tracker.Issue{Labels: []string{"plane::data", "kind::consume", Op(OpFile)}}
+	if got := oneComponent(filed, p); len(got) == 0 {
+		t.Error("an issue a person filed was waived")
+	}
+	wrong := tracker.Issue{Labels: []string{"plane::data", "kind::consume", Op(OpUpgrade), "component::elsewhere"}}
+	if got := oneComponent(wrong, p); len(got) == 0 {
+		t.Error("an upgrade naming a component the program does not declare passed")
+	}
+	if note := BootstrapNote(wrong, p); note != "" {
+		t.Errorf("a waiver was noted on an issue with a component: %q", note)
+	}
+}
+
 // failingDir is a tracker that cannot list the SRDs' folder.
 type failingDir struct{ *fake.Fake }
 

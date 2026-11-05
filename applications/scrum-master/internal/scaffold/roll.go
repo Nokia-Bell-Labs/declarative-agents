@@ -15,6 +15,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/reports"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/version"
 )
@@ -40,7 +41,9 @@ type RollResult struct {
 	// Release is the release being rolled, the one an upgrade here vendors.
 	Release      string      `json:"release"`
 	Repositories []RollEntry `json:"repositories"`
-	DryRun       bool        `json:"dry_run"`
+	// Notes name what the roll left alone and how to bring it in.
+	Notes  []string `json:"notes,omitempty"`
+	DryRun bool     `json:"dry_run"`
 }
 
 // Roll rolls the installed scrum-master release across the program from the
@@ -55,6 +58,10 @@ type RollResult struct {
 // registered repository with no checkout fails alone, the checkouts word the
 // remedy, and the run goes on. A dry run reports what would be opened and
 // changes nothing.
+//
+// The site repository control/program.md names takes the release the same way
+// when it vendors one (GH-2915). With none named, a site repository beside the
+// checkout is noted and left alone: it may be another program's.
 func Roll(t tracker.Tracker, dir string, dryRun bool) (RollResult, error) {
 	r := RollResult{DryRun: dryRun}
 	root, err := toplevel(dir)
@@ -88,10 +95,45 @@ func Roll(t tracker.Tracker, dir string, dryRun bool) (RollResult, error) {
 	}
 	teams := subs.Teams(system)
 	r.Release, r.Repositories = src.Release, []RollEntry{}
-	for _, repo := range registered(teams, system) {
+	repos := registered(teams, system)
+	for _, repo := range repos {
 		r.Repositories = append(r.Repositories, oneRoll(t, root, repo, src, teams, policy, dryRun))
 	}
+	if site, ok := siteRepository(root, repos); ok {
+		r.Repositories = append(r.Repositories, rollSite(t, root, site, src, teams, policy, dryRun))
+	} else if l, err := program.LineageIn(root); err == nil && l.SiteRepository == "" {
+		r.Notes = undeclaredSites(root)
+	}
 	return r, nil
+}
+
+// rollSite rolls the program's site repository, which need not vendor anything:
+// the site can be written from the system checkout, so one with no release is
+// left without one rather than given it.
+func rollSite(t tracker.Tracker, root string, repo registeredRepo, src install.VendorSource, teams program.Subsystems, policy program.Policy, dryRun bool) RollEntry {
+	if dir, ok := checkout.Locate(root, repo.project); ok {
+		if vendored, err := install.VendoredRelease(dir); err == nil && vendored == "" {
+			return RollEntry{Project: repo.project, Action: "skipped", Detail: "vendors no scrum-master release"}
+		}
+	}
+	return oneRoll(t, root, repo, src, teams, policy, dryRun)
+}
+
+// undeclaredSites notes each checkout beside the one at root that is laid out as
+// a site repository and vendors a release, none being named in control/program.md.
+func undeclaredSites(root string) []string {
+	var notes []string
+	for _, sib := range checkout.Siblings(root) {
+		if !reports.IsSite(sib) {
+			continue
+		}
+		vendored, err := install.VendoredRelease(sib)
+		if err != nil || vendored == "" {
+			continue
+		}
+		notes = append(notes, fmt.Sprintf("%s beside this checkout vendors %s and is laid out as a site repository, but %s names no site_repository, so it was left alone; name it there to roll it", filepath.Base(sib), vendored, program.LineageFile))
+	}
+	return notes
 }
 
 // branchJunk is what a release name contributes nothing to a branch name:
@@ -321,6 +363,9 @@ func (r RollResult) Human() string {
 			fmt.Fprintf(&b, "  (%s)", e.Detail)
 		}
 		b.WriteString("\n")
+	}
+	for _, n := range r.Notes {
+		fmt.Fprintf(&b, "note    %s\n", n)
 	}
 	fmt.Fprintf(&b, "roll %s: %d opened, %d skipped, %d failed", r.Release, counts["opened"], counts["skipped"], counts["failed"])
 	if r.DryRun {

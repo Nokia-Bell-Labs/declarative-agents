@@ -256,9 +256,9 @@ func OpenFor(dir, system string) (tracker.Tracker, error) {
 	return r, nil
 }
 
-// Registered reads the repositories the system checkout at dir declares in its
-// subsystem SRDs. The words set it: the program package reads them, and that
-// package's tests read this one.
+// Registered reads the repositories the system checkout at dir declares: in its
+// subsystem SRDs, and its site repository in control/program.md. The words set
+// it: the program package reads them, and that package's tests read this one.
 var Registered func(dir string) []string
 
 // programRepositories are where a GitHub group's labels and milestones go:
