@@ -159,6 +159,13 @@ func MergeBranch(t tracker.Tracker, git Git, project, issueProject string, iid i
 	if _, err := inMain("rev-parse", "--verify", "-q", "refs/remotes/origin/"+base); err == nil {
 		upstream = "refs/remotes/origin/" + base
 	}
+	// A branch this checkout never held, as roll's upgrades are: roll cuts them
+	// in a temporary worktree and leaves them only on origin (GH-2906).
+	if _, err := inMain("rev-parse", "--verify", "-q", "refs/heads/"+branch); err != nil {
+		if _, err := inMain("fetch", "-q", "origin", branch+":"+branch); err != nil {
+			return r, fmt.Errorf("%s is neither a branch here nor on origin", branch)
+		}
+	}
 	if _, err := inMain("merge-base", "--is-ancestor", "refs/heads/"+branch, upstream); err == nil {
 		exact := "--grep=" + regexp.QuoteMeta(fmt.Sprintf("%s#%d", issueProject, iid)) + "([^0-9]|$)"
 		r.Commit, err = mergeOf(inMain, branch, exact, upstream)

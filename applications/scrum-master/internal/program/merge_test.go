@@ -506,3 +506,30 @@ func TestMergeTakesNoEarlierMergeOfTheSameReference(t *testing.T) {
 		t.Fatalf("a re-run = %+v, %v; want its own merge recognized, %s", again, err, m.Commit)
 	}
 }
+
+// A branch only origin holds, as roll leaves its upgrades, is fetched and
+// merges; one neither holds is named, rather than failing on an unknown
+// revision (GH-2906).
+func TestMergeFetchesABranchOnlyOriginHolds(t *testing.T) {
+	tr, checkout := newBeadsTracker(t, "alice")
+	work, _ := tr.CreateIssue("g/po-1", tracker.NewIssue{Title: "Take the release", Milestone: "m", Description: goodBody,
+		Labels: []string{"plane::data", "kind::consume", "component::po-1"}})
+	other := filepath.Join(filepath.Dir(checkout), "elsewhere")
+	beadstest.Git(t, filepath.Dir(checkout), "clone", "-q", filepath.Join(filepath.Dir(checkout), "po-1.git"), other)
+	beadstest.Identity(t, other, "carol")
+	beadstest.Git(t, other, "checkout", "-q", "-b", "upgrade")
+	if err := os.WriteFile(filepath.Join(other, "manifest.json"), []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	beadstest.Git(t, other, "add", "-A")
+	beadstest.Git(t, other, "commit", "-q", "-m", "Take the release")
+	beadstest.Git(t, other, "push", "-q", "origin", "upgrade")
+
+	if _, err := Merge(tr, ExecGit{}, "g/po-1", "g/po-1", work.IID, "no-such-branch", checkout, MergeGate{Command: "false", Dir: checkout}, nil, false); err == nil || !strings.Contains(err.Error(), "neither a branch here nor on origin") {
+		t.Fatalf("merge of a branch nobody holds = %v", err)
+	}
+	m, err := Merge(tr, ExecGit{}, "g/po-1", "g/po-1", work.IID, "upgrade", checkout, MergeGate{Command: "false", Dir: checkout}, nil, false)
+	if err != nil || !m.Merged {
+		t.Fatalf("merge = %+v, %v; want the branch fetched and merged", m, err)
+	}
+}
