@@ -12,12 +12,18 @@ html.embed h1 { display: none; }
 .controls button { border: 0; background: #fff; padding: 4px 10px; font: inherit; cursor: pointer; }
 .controls button + button { border-left: 1px solid #d1d5db; }
 .controls button.on { background: #2563eb; color: #fff; }
+#filters select { max-width: 18em; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 8px; font-size: 12px; color: #4b5563; align-items: center; }
 .legend svg { vertical-align: -2px; margin-right: 4px; }
 .chart { display: flex; align-items: flex-start; border: 1px solid #e5e7eb; border-radius: 6px; }
-#tree { flex: 0 0 260px; width: 260px; min-width: 0; overflow: hidden; border-right: 1px solid #e5e7eb; font-size: 13px; }
+#tree { box-sizing: border-box; flex: 0 0 260px; width: 260px; min-width: 0; overflow: hidden; border-right: 1px solid #e5e7eb; font-size: 13px; }
 html.embed #tree { flex-basis: 200px; width: 200px; }
 #plot { flex: 1 1 0; min-width: 0; overflow-x: auto; }
+#split { flex: none; align-self: stretch; width: 9px; margin: 0 -5px 0 -4px; position: relative; z-index: 2; cursor: col-resize; touch-action: none; }
+#split:hover, #split:focus-visible, #split.dragging { background: rgba(37, 99, 235, .25); }
+#split:focus { outline: none; }
+#more { margin: 0 0 8px; font-size: 13px; color: #4b5563; }
+#more button { border: 1px solid #d1d5db; border-radius: 6px; background: #fff; padding: 2px 8px; margin-left: 6px; font: inherit; cursor: pointer; }
 #tree .head { box-sizing: border-box; display: flex; align-items: flex-end; padding: 0 6px 6px; border-bottom: 1px solid #e5e7eb;
   font-weight: 600; color: #6b7280; }
 #tree .row { box-sizing: border-box; display: flex; align-items: center; white-space: nowrap; padding-right: 6px;
@@ -44,9 +50,15 @@ svg text { font-family: system-ui, sans-serif; }
   <label id="range">Sprints <select id="from"><option value="">first</option></select> to <select id="to"><option value="">last</option></select></label>
   <label>Compare with the plan at <select id="plan"><option value="-1">none</option></select></label>
 </div>
+<div class="controls" id="filters">
+  <label id="theme-filter">Theme <select id="theme"><option value="">all</option></select></label>
+  <label id="initiative-filter">Initiative <select id="initiative"><option value="">all</option></select></label>
+  <label>State <select id="status"><option value="">all</option><option value="open">open</option><option value="closed">closed</option></select></label>
+</div>
 <div class="legend" id="legend"></div>
 <p id="empty" hidden>Nothing on this plan has planned days.</p>
-<div class="chart"><div id="tree"></div><div id="plot"></div></div>
+<p id="more" hidden><span id="more-text"></span><button id="more-toggle"></button></p>
+<div class="chart" id="chart"><div id="tree"></div><div id="split" role="separator" aria-orientation="vertical" aria-label="Resize the names" tabindex="0"></div><div id="plot"></div></div>
 <div id="tip" hidden></div>
 <script type="application/json" id="chart-data">{{.Data}}</script>
 <script>
@@ -72,7 +84,16 @@ svg text { font-family: system-ui, sans-serif; }
   var query = new URLSearchParams(location.search);
   var view = query.get("view") === "roadmap" ? "roadmap" : "timeline";
   var state = { view: view, mode: query.get("mode") || (view === "roadmap" ? "Quarter" : "Sprint"), ghost: -1, opened: { timeline: {}, roadmap: {} },
-    from: query.get("from") || "", to: query.get("to") || "" };
+    from: query.get("from") || "", to: query.get("to") || "", all: false };
+  // What a reader filtered to: ?theme=, ?initiative=, and ?state= open the
+  // page so, else what they chose last in this browser (GH-2896).
+  var FILTERS = "timeline-filters";
+  var kept = {};
+  try { kept = JSON.parse(localStorage.getItem(FILTERS)) || {}; } catch (e) {}
+  ["theme", "initiative", "status"].forEach(function (k) {
+    var q = query.get(k === "status" ? "state" : k);
+    state[k] = q !== null ? q : (kept[k] || "");
+  });
 
   function day(s) { var p = s.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }
   function iso(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
@@ -149,16 +170,51 @@ svg text { font-family: system-ui, sans-serif; }
     if (it.id in o) return o[it.id];
     return state.view === "roadmap" ? it.kind === "theme" : it.kind === "theme" || it.kind === "initiative";
   }
+  // The chain from a document up through what it serves, itself first.
+  function chain(it) {
+    var out = [], seen = {};
+    for (var cur = it; cur && !seen[cur.id]; cur = byId[cur.parent]) { seen[cur.id] = true; out.push(cur.id); }
+    return out;
+  }
+  // A chosen theme or initiative keeps itself, what lies under it, and what
+  // it lies under, so a row keeps its context (GH-2896).
+  function within(it, chosen) {
+    return !chosen || !byId[chosen] || chain(it).indexOf(chosen) >= 0 || chain(byId[chosen]).indexOf(it.id) >= 0;
+  }
+  // Open is anything not done, closed is done; a document stays while
+  // anything under it does, so a kept row is never orphaned.
+  function shown(it) {
+    if (!within(it, state.theme) || !within(it, state.initiative)) return false;
+    var match = state.status === "" || (state.status === "closed") === (it.status === "done");
+    return match || (kids[it.id] || []).some(shown);
+  }
   function rows() {
     var out = [];
     (function walk(list, depth) {
       order(list).forEach(function (it) {
-        var children = kids[it.id] || [];
+        if (!shown(it)) return;
+        var children = (kids[it.id] || []).filter(shown);
         out.push({ it: it, depth: depth, hasKids: children.length > 0 });
         if (children.length && isOpen(it)) walk(children, depth + 1);
       });
     })(kids[""] || [], 0);
     return out;
+  }
+  // The most rows a chart draws unless the reader asks for them all, as the
+  // forge's charts stop at ChartRows: past it a chart stops being legible,
+  // and a growing plan must not run the page on without end (GH-2896).
+  var LIMIT = 30;
+  function filtered() { return !!(state.theme || state.initiative || state.status); }
+  function limit(all) {
+    var over = all.length > LIMIT, box = document.getElementById("more");
+    box.hidden = !over;
+    if (over) {
+      document.getElementById("more-text").textContent = state.all
+        ? "Showing all " + all.length + " rows."
+        : "Showing " + LIMIT + " of " + all.length + " rows, " + (all.length - LIMIT) + " left out. Filter by theme or initiative, or fold a branch, to see the rest.";
+      document.getElementById("more-toggle").textContent = state.all ? "Show fewer" : "Show all";
+    }
+    return over && !state.all ? all.slice(0, LIMIT) : all;
   }
 
   // The scale: Week, Sprint (three weeks from the earliest release
@@ -259,8 +315,9 @@ svg text { font-family: system-ui, sans-serif; }
 
   function draw(keep) {
     var plot = document.getElementById("plot"), left = plot.scrollLeft, top = window.scrollY;
-    var list = rows();
-    document.getElementById("empty").hidden = list.length > 0;
+    var list = limit(rows()), empty = document.getElementById("empty");
+    empty.hidden = list.length > 0;
+    empty.textContent = filtered() ? "Nothing on this plan matches these filters." : "Nothing on this plan has planned days.";
     var b = bounds(list), cols = grid(b[0], b[1]), x0 = cols[0], px = MODES[state.mode].px;
     function x(s) { return Math.round((day(s) - x0) / DAY * px); }
     function xEnd(s) { return x(s) + px; } // the end of the day
@@ -526,6 +583,93 @@ svg text { font-family: system-ui, sans-serif; }
       if (state.ghost === i) { state.ghost = -1; e.target.value = "-1"; draw(true); }
     });
   });
+  // The filters: a theme narrows the initiatives offered, and a control with
+  // nothing to choose between hides (GH-2896).
+  var themeSel = document.getElementById("theme"), initiativeSel = document.getElementById("initiative"), statusSel = document.getElementById("status");
+  function ofKind(kind) { return order(D.items.filter(function (it) { return it.kind === kind; })); }
+  function offer(sel, items, chosen) {
+    while (sel.options.length > 1) sel.remove(1);
+    items.forEach(function (it) {
+      var o = document.createElement("option");
+      o.value = it.id; o.textContent = it.title;
+      sel.appendChild(o);
+    });
+    sel.value = items.some(function (it) { return it.id === chosen; }) ? chosen : "";
+    return sel.value;
+  }
+  function offerFilters() {
+    var themes = ofKind("theme");
+    state.theme = offer(themeSel, themes, state.theme);
+    var inits = ofKind("initiative").filter(function (it) { return within(it, state.theme); });
+    state.initiative = offer(initiativeSel, inits, state.initiative);
+    document.getElementById("theme-filter").hidden = themes.length < 2;
+    document.getElementById("initiative-filter").hidden = ofKind("initiative").length < 2;
+  }
+  function keepFilters() {
+    try { localStorage.setItem(FILTERS, JSON.stringify({ theme: state.theme, initiative: state.initiative, status: state.status })); } catch (e) {}
+  }
+  function refilter() { state.all = false; offerFilters(); keepFilters(); draw(false); }
+  if (state.status !== "open" && state.status !== "closed") state.status = "";
+  statusSel.value = state.status;
+  offerFilters();
+  themeSel.addEventListener("change", function (e) { state.theme = e.target.value; refilter(); });
+  initiativeSel.addEventListener("change", function (e) { state.initiative = e.target.value; refilter(); });
+  statusSel.addEventListener("change", function (e) { state.status = e.target.value; refilter(); });
+  document.getElementById("more-toggle").addEventListener("click", function () { state.all = !state.all; draw(true); });
+  // The divider beside the names: dragged or moved with the arrow keys,
+  // double-clicked back to its default, its width kept in this browser
+  // (GH-2896).
+  (function divider() {
+    var KEY = "timeline-tree-width", MIN = 120;
+    var split = document.getElementById("split"), tree = document.getElementById("tree"), chart = document.getElementById("chart");
+    function widest() { return Math.max(MIN, Math.round(chart.clientWidth * 0.7)); }
+    function apply(w) {
+      w = Math.round(Math.min(widest(), Math.max(MIN, w)));
+      tree.style.flexBasis = tree.style.width = w + "px";
+      split.setAttribute("aria-valuemin", String(MIN));
+      split.setAttribute("aria-valuemax", String(widest()));
+      split.setAttribute("aria-valuenow", String(w));
+      return w;
+    }
+    function keep(w) { try { localStorage.setItem(KEY, String(w)); } catch (e) {} }
+    var saved = 0;
+    try { saved = Number(localStorage.getItem(KEY)) || 0; } catch (e) {}
+    if (saved) apply(saved);
+    var startX = 0, startW = 0;
+    split.addEventListener("pointerdown", function (e) {
+      e.preventDefault();
+      startX = e.clientX; startW = tree.getBoundingClientRect().width;
+      split.setPointerCapture(e.pointerId);
+      split.classList.add("dragging");
+    });
+    split.addEventListener("pointermove", function (e) {
+      if (split.classList.contains("dragging")) apply(startW + e.clientX - startX);
+    });
+    function end() {
+      if (!split.classList.contains("dragging")) return;
+      split.classList.remove("dragging");
+      keep(Math.round(tree.getBoundingClientRect().width));
+    }
+    split.addEventListener("pointerup", end);
+    split.addEventListener("pointercancel", end);
+    split.addEventListener("dblclick", function () {
+      tree.style.flexBasis = tree.style.width = "";
+      try { localStorage.removeItem(KEY); } catch (e) {}
+    });
+    split.addEventListener("keydown", function (e) {
+      var step = e.shiftKey ? 64 : 16, now = tree.getBoundingClientRect().width, w = null;
+      if (e.key === "ArrowLeft") w = now - step;
+      else if (e.key === "ArrowRight") w = now + step;
+      else if (e.key === "Home") w = MIN;
+      else if (e.key === "End") w = widest();
+      if (w === null) return;
+      e.preventDefault();
+      keep(apply(w));
+    });
+    window.addEventListener("resize", function () {
+      if (tree.style.width) apply(parseFloat(tree.style.width));
+    });
+  })();
   refresh();
 })();
 </script>
