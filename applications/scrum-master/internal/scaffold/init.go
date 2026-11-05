@@ -69,7 +69,7 @@ func Init(o InitOptions) (InitResult, error) {
 	if err := requireRepository(o.Dir); err != nil {
 		return r, err
 	}
-	if o.Tracker != "" && o.Group == "" {
+	if o.Tracker != "" && !routing.Hosted(o.Tracker) && o.Group == "" {
 		return r, errors.New("--tracker needs --group, the program group whose labels it creates")
 	}
 	files, err := corpusFiles("system", o.Dir)
@@ -120,6 +120,9 @@ func Init(o InitOptions) (InitResult, error) {
 		r.Skills, r.Exclude = install.SplitExclude(results)
 	}
 	switch {
+	case routing.Hosted(o.Tracker):
+		// Its forge holds the issues, so there is no repository to seed (GH-2905).
+		r.Tracker = &TrackerResult{Reason: fmt.Sprintf(HostedTracker, o.Tracker)}
 	case o.Tracker != "":
 		tr, err := seedTracker(o)
 		r.Tracker = &tr
@@ -131,6 +134,9 @@ func Init(o InitOptions) (InitResult, error) {
 	}
 	return r, nil
 }
+
+// HostedTracker is what init reports when the tracker is one its forge hosts.
+const HostedTracker = "%s holds the issues, so there is nothing to seed; the labels profile creates the program's labels"
 
 // NoTracker is what init reports when it is given no tracker repository and
 // SCRUM_MASTER_TRACKER names none: the issue workflow cannot run until one exists.

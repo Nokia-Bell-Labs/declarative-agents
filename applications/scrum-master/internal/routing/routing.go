@@ -173,6 +173,10 @@ func Override(env string) (System, bool) {
 	return System{Name: Beads, TrackerRepository: env}, true
 }
 
+// Hosted reports whether name is a tracking system its forge hosts, gh or glab,
+// which needs no tracker repository of its own.
+func Hosted(name string) bool { return name == GitHub || name == GitLab }
+
 // Open opens the tracking systems for a command run in dir: with no
 // trackers document, the one SCRUM_MASTER_TRACKER names, exactly as before routing;
 // with one, its default (SCRUM_MASTER_TRACKER overriding it) and each override,

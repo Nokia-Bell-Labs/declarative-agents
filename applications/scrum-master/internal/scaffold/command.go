@@ -14,6 +14,7 @@ import (
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/cli"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/install"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/legacyenv"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/routing"
 )
 
 func init() {
@@ -57,7 +58,7 @@ func init() {
 				}
 			}
 			o.Version, o.DryRun = install.Version(), ctx.DryRun
-			if o.Tracker != "" {
+			if o.Tracker != "" && !routing.Hosted(o.Tracker) {
 				if o.User, err = person(); err != nil {
 					return err
 				}
