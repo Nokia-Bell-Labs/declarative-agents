@@ -443,7 +443,9 @@ func (t *Tracker) EnsureMilestone(group string, m tracker.Milestone) (string, er
 	desc := withLine(m.Description, startLine, "Start", m.StartDate)
 	want := map[string]any{"title": m.Title, "description": desc}
 	if m.DueDate != "" {
-		want["due_on"] = m.DueDate + "T00:00:00Z"
+		// Noon: GitHub's create call moves a midnight date back a day, while
+		// its update call keeps it, and both read noon as that day (GH-2908).
+		want["due_on"] = m.DueDate + "T12:00:00Z"
 	}
 	result := tracker.MilestoneUnchanged
 	for _, repo := range repos {

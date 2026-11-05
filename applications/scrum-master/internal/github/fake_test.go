@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // hub is a GitHub in memory, enough of its REST API for the tracker: each
@@ -222,13 +223,16 @@ func (c client) route(method string, seg []string, q url.Values, in map[string]a
 		}
 		return out, nil
 	case rest[0] == "milestones" && len(rest) == 1 && method == "POST":
-		m := map[string]any{"number": len(r.milestones) + 1, "title": in["title"], "description": in["description"], "due_on": in["due_on"], "state": "open"}
+		m := map[string]any{"number": len(r.milestones) + 1, "title": in["title"], "description": in["description"], "due_on": createdDue(in["due_on"]), "state": "open"}
 		r.milestones = append(r.milestones, m)
 		return m, nil
 	case rest[0] == "milestones" && len(rest) == 2 && method == "PATCH":
 		m := r.milestoneByNumber(num(1))
 		for k, v := range in {
 			m[k] = v
+		}
+		if due, ok := m["due_on"].(string); ok {
+			m["due_on"] = due[:min(10, len(due))] + "T00:00:00Z"
 		}
 		return m, nil
 	case rest[0] == "labels" && len(rest) == 1 && method == "GET":
@@ -393,4 +397,22 @@ func sortedKeys[V any](m map[int]V) []int {
 	}
 	slices.Sort(keys)
 	return keys
+}
+
+// createdDue is what GitHub's create call does to a due date, as a live
+// repository showed: any time reads as that day at midnight, except midnight,
+// which it moves back a day (GH-2908).
+func createdDue(due any) any {
+	s, ok := due.(string)
+	if !ok || len(s) < 10 {
+		return due
+	}
+	day, err := time.Parse(time.DateOnly, s[:10])
+	if err != nil {
+		return due
+	}
+	if strings.HasSuffix(s, "T00:00:00Z") {
+		day = day.AddDate(0, 0, -1)
+	}
+	return day.Format(time.DateOnly) + "T00:00:00Z"
 }
