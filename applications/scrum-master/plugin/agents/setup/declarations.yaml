@@ -14,6 +14,13 @@ tools:
   visibility: internal
   description: Lay the program's repositories down and bring them level with origin, so every word reads what they hold now.
   category: boundary
+  parameters:
+    type: object
+    properties:
+      system:
+        type: string
+        description: The system repository's project path, when the forge cannot find it; empty finds it, or reads SCRUM_MASTER_SYSTEM.
+        flag: --system
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
   output:
@@ -38,7 +45,7 @@ tools:
   - signal: ToolFailed
     condition: the word refuses and exits non-zero
     message_shape: <the word's reason, as printed>
-    state_after_failure: the skills still install
+    state_after_failure: the skills still install, and the run ends failed
 - name: install_skills
   type: exec
   binary: scrum-master

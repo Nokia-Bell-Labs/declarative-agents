@@ -9,7 +9,9 @@ purpose: |-
 
   This machine has no model state: two words (design.md D10, D14; GH-2885). It
   needs the agent installed and the forge's command line logged in. A
-  repository that cannot be reached is reported and does not stop the skills.
+  repository that cannot be reached is reported and does not stop the skills,
+  though the run then ends failed, since the program is not laid down
+  (GH-2904).
 configuration:
   machine: plugin/agents/setup/machine.yaml
   tools: plugin/agents/setup/tools.yaml
@@ -19,8 +21,10 @@ invariants:
 lifecycle: |-
   1. Idle → Checkouts (Seed): scrum-master checkouts finds the program and lays its
      repositories down
-  2. Checkouts → Skills (ToolDone, ToolFailed): scrum-master install writes the skills
+  2. Checkouts → Skills (ToolDone): scrum-master install writes the skills
   3. Skills → Done (ToolDone)
+  4. Checkouts → SkillsOnly (ToolFailed): the skills install all the same
+  5. SkillsOnly → NotLaidDown (ToolDone)
 initial_state: Idle
 budget:
   command_timeout: 16m
@@ -37,10 +41,21 @@ states:
   meaning: |
     The skills word: scrum-master install writes this release's skills into the
     clone, excluded from git.
+- name: SkillsOnly
+  meaning: |
+    The skills word again, after the checkouts word refused: the clone gets its
+    skills even though the program's other repositories are not laid down.
 - name: Done
   run_status: succeeded
   meaning: |
     Terminal. The program's checkouts are in place and the skills installed.
+- name: NotLaidDown
+  run_status: failed
+  meaning: |
+    Terminal. The skills are installed, but the checkouts word refused, so the
+    program's other repositories are not laid down; its reason, printed before
+    the skills, says why, and naming the system repository as a request's
+    system or SCRUM_MASTER_SYSTEM gets past a forge that cannot find it.
 - name: Refused
   run_status: failed
   meaning: |
@@ -50,6 +65,7 @@ states:
   meaning: Terminal. An infrastructure error outside the words' refusals.
 terminal_states:
 - Done
+- NotLaidDown
 - Refused
 - Failed
 signals:
@@ -74,9 +90,18 @@ transitions:
   summary: true
 - state: Checkouts
   signal: ToolFailed
-  next: Skills
+  next: SkillsOnly
   action: install_skills
   summary: true
+- state: SkillsOnly
+  signal: ToolDone
+  next: NotLaidDown
+- state: SkillsOnly
+  signal: ToolFailed
+  next: Refused
+- state: SkillsOnly
+  signal: CommandError
+  next: Failed
 - state: Skills
   signal: ToolDone
   next: Done

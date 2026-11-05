@@ -20,6 +20,10 @@ tools:
         type: string
         description: The system repository's checkout; empty is the git root.
         flag: --dir
+      system:
+        type: string
+        description: The system repository's project path, when the forge cannot find it; empty finds it, or reads SCRUM_MASTER_SYSTEM.
+        flag: --system
   signature:
     emits: [ToolDone, ToolFailed, CommandError]
   output:

@@ -223,7 +223,7 @@ checkouts runs from a clone of any of a program's repositories. With no system r
 <!-- req: R6.5 -->
 ### R6.5
 
-The setup profile is the first thing a person runs in a fresh clone: checkouts (R6.4), then the skills, a repository it cannot reach not stopping them. The README init and onboard write opens with how to get started: installing the agent, including from an internal GitLab, and this profile.
+The setup profile is the first thing a person runs in a fresh clone: checkouts (R6.4), then the skills, a repository it cannot reach not stopping them, though a checkouts word that refuses ends the run failed, since the program is not laid down (GH-2904). The system repository is found through the forge, private repositories the person can read among them, and a request's system or SCRUM_MASTER_SYSTEM names it where the forge cannot find it. Where a group is a whole account, as on GitHub, a program found there lays down only for a clone it declares, so an unrelated repository of the same account does not pull it in; naming the system repository lays it down regardless. The README init and onboard write opens with how to get started: installing the agent, including from an internal GitLab, and this profile.
 
 <!-- req: R7 -->
 ## R7 - scrum-master roll

@@ -270,6 +270,11 @@ func fromForge(dir, system string) ([]byte, error) {
 	return b, nil
 }
 
+// OnAccount reports whether the checkout at dir is on a forge whose group is a
+// whole account, so finding a program in its group does not make the checkout
+// one of the program's (GH-2904).
+func OnAccount(dir string) bool { return strings.Contains(checkout.Origin(dir), "github.com") }
+
 // maxGroupProjects bounds how many projects DiscoverSystem reads, each costing a
 // request, so a very large group asks for --system rather than taking minutes.
 const maxGroupProjects = 300

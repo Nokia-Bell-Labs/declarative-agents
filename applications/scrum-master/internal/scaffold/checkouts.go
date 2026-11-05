@@ -100,7 +100,7 @@ func FindSystem(dir, system string, discover func(dir string) ([]string, error),
 		}
 		switch len(found) {
 		case 0:
-			return "", nil, fmt.Errorf("no repository in the groups of %s holds %s; name the system repository with --system", checkout.ProjectPath(origin), checkout.TrackersFile)
+			return "", nil, fmt.Errorf("no repository in the groups of %s holds %s; name the system repository with --system or SCRUM_MASTER_SYSTEM", checkout.ProjectPath(origin), checkout.TrackersFile)
 		case 1:
 			system = found[0]
 		default:
@@ -331,13 +331,22 @@ func init() {
 					return err
 				}
 			}
-			found, cloned, err := FindSystem(d, system, routing.DiscoverSystem, ctx.DryRun)
+			named := namedSystem(system)
+			found, cloned, err := FindSystem(d, named, routing.DiscoverSystem, ctx.DryRun)
 			if err != nil {
 				return err
 			}
 			if found == "" { // a dry run with the system repository still to clone
 				r := CheckoutsResult{DryRun: true, Repositories: []CheckoutEntry{*cloned}}
 				return ctx.Emit(r, r.Human())
+			}
+			if named == "" && routing.OnAccount(d) {
+				if err := declaredBy(found, d); err != nil {
+					if cloned != nil {
+						os.RemoveAll(found) //nolint:errcheck // The clone this run just made.
+					}
+					return err
+				}
 			}
 			r, err := Checkouts(found, ctx.DryRun)
 			if cloned != nil {
@@ -349,4 +358,40 @@ func init() {
 			return ctx.Emit(r, r.Human())
 		},
 	})
+}
+
+// namedSystem is the system repository a run names: --system, else
+// SCRUM_MASTER_SYSTEM, as the words that read the trackers document take it
+// (GH-2904).
+func namedSystem(flag string) string {
+	if flag != "" {
+		return flag
+	}
+	return strings.TrimSpace(os.Getenv("SCRUM_MASTER_SYSTEM")) //nolint:forbidigo // Reads the documented SCRUM_MASTER_* environment interface.
+}
+
+// declaredBy refuses a clone the program at system does not declare, where the
+// forge found that program only by the account they share: a group is a whole
+// account there, so an unrelated repository would otherwise lay the program down
+// beside it (GH-2904). The system repository's own clone is declared, and naming
+// the system repository says the person means it.
+func declaredBy(system, dir string) error {
+	root, err := toplevel(dir)
+	if err != nil {
+		return err
+	}
+	own, project := checkout.ProjectPath(checkout.Origin(root)), checkout.ProjectPath(checkout.Origin(system))
+	if own == project {
+		return nil
+	}
+	subs, err := program.SubsystemsIn(system)
+	if err != nil {
+		return err
+	}
+	for _, repo := range registered(subs.Teams(project), project) {
+		if repo.project == own {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s does not declare %s, and this forge's group is a whole account, so finding it there says nothing about this clone; name the system repository with --system or SCRUM_MASTER_SYSTEM to lay it down anyway", project, own)
 }

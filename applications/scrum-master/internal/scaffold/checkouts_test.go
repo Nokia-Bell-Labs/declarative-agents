@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/checkout"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 )
 
 // checkoutsGit runs git for the checkouts tests and fails the test on error.
@@ -288,5 +289,50 @@ func TestFindSystem(t *testing.T) {
 	}
 	if d2, _, err := FindSystem(d, "", found(), false); err != nil || d2 != d {
 		t.Fatalf("from the system repository itself = %q, %v", d2, err)
+	}
+}
+
+// A run names its system repository by --system, else SCRUM_MASTER_SYSTEM, so a
+// fresh clone gets past a forge that cannot find it (GH-2904).
+func TestNamedSystem(t *testing.T) {
+	t.Setenv("SCRUM_MASTER_SYSTEM", " g/program ")
+	if got := namedSystem(""); got != "g/program" {
+		t.Errorf("from the environment = %q", got)
+	}
+	if got := namedSystem("g/other"); got != "g/other" {
+		t.Errorf("the flag = %q, want it to win", got)
+	}
+}
+
+// A program found through a whole account lays down only for a clone it declares
+// (GH-2904).
+func TestDeclaredBy(t *testing.T) {
+	gitRepo := func(origin string) string {
+		dir := t.TempDir()
+		for _, args := range [][]string{{"init", "-q"}, {"remote", "add", "origin", origin}} {
+			if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+				t.Fatalf("git %v: %s", args, out)
+			}
+		}
+		return dir
+	}
+	system := gitRepo("https://github.com/acme/system.git")
+	srd := filepath.Join(system, program.SRDDir, "srd020-team.md")
+	if err := os.MkdirAll(filepath.Dir(srd), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "---\nid: srd020-team\ntitle: Team\n---\n\n<!-- field: context | form: \"tree\" -->\n## Context\n\n- owner: Product Owner, team\n- scrum_repository: https://github.com/acme/plan.git\n\n" +
+		"<!-- field: implementation_targets -->\n## Implementation targets\n\n| name | repository | path |\n| --- | --- | --- |\n| code | https://github.com/acme/code | / |\n"
+	if err := os.WriteFile(srd, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, own := range []string{"https://github.com/acme/plan.git", "https://github.com/acme/code", "https://github.com/acme/system.git"} {
+		if err := declaredBy(system, gitRepo(own)); err != nil {
+			t.Errorf("%s: %v", own, err)
+		}
+	}
+	err := declaredBy(system, gitRepo("https://github.com/acme/notes"))
+	if err == nil || !strings.Contains(err.Error(), "does not declare acme/notes") || !strings.Contains(err.Error(), "--system") {
+		t.Errorf("an unrelated clone = %v", err)
 	}
 }
