@@ -330,15 +330,15 @@
   // Docsify keeps the pages it fetched, so a page read before the session
   // lapsed renders again without asking the server, while its embedded
   // timeline is fetched anew and lands on the sign-in, which refuses to be
-  // framed. A frame that loads anything but the timeline renews the
-  // session (GH-2723).
+  // framed. A frame that loads anything but the timeline or a board renews
+  // the session (GH-2723).
   function watchFrames() {
     document.querySelectorAll("iframe.timeline").forEach(function (f) {
       if (f.getAttribute("data-watched")) return;
       f.setAttribute("data-watched", "1");
       f.addEventListener("load", function () {
         var ok = false;
-        try { ok = !!(f.contentDocument && f.contentDocument.getElementById("plot")); } catch (e) {}
+        try { ok = !!(f.contentDocument && (f.contentDocument.getElementById("plot") || f.contentDocument.getElementById("board"))); } catch (e) {}
         if (!ok) renewSession();
       });
     });

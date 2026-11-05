@@ -194,7 +194,7 @@ tools:
   - hierarchy
   - --json
   - --dir=${SCRUM_MASTER_REPORTS}
-  description: Write a page per theme, initiative, epic, feature, and story under site/hierarchy/, each linking its parent, children, Sprint Goals, issues, and source, a page per sprint under site/sprints/ and per team and program under site/scrums/, and the navigator, with the tree and the facts as JSON (GH-126, GH-2781).
+  description: Write a page per theme, initiative, epic, feature, and story under site/hierarchy/, each linking its parent, children, Sprint Goals, issues, and source, a page per sprint under site/sprints/ and per team and program under site/scrums/, every epic under site/epics/ and every story under site/stories/ on a filterable board, and the navigator, with the tree and the facts as JSON (GH-126, GH-2781, GH-2895).
   category: boundary
   signature:
     emits:
@@ -208,7 +208,7 @@ tools:
   side_effects:
   - kind: filesystem_write
     target: repository
-    description: Writes stamped pages under site/hierarchy/ and site/data/hierarchy/ in the reports checkout; nothing is committed. Reads the timeline facts the timeline word wrote.
+    description: Writes stamped pages under site/hierarchy/, site/epics/, site/stories/, and site/data/hierarchy/ in the reports checkout; nothing is committed. Reads the timeline facts the timeline word wrote.
   reversibility:
     classification: irreversible
     requires_confirmation: false

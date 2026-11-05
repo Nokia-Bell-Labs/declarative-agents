@@ -287,6 +287,11 @@ func TestSidebarListsThePlanAndTheRepositories(t *testing.T) {
 			t.Errorf("the navigator lacks %q:\n%s", want, nav)
 		}
 	}
+	// The epics and the stories are one click from every page, above the
+	// plan's tree, which folds (srd048 R8.12).
+	if !strings.Contains(nav, "- [Epics](/epics/index.md)\n- [Stories](/stories/index.md)\n- [Plan](/hierarchy/index.md)\n") {
+		t.Errorf("the navigator does not link the epics and the stories above the plan:\n%s", nav)
+	}
 	epic := strings.Index(nav, "(/hierarchy/ep001-agent-evaluation.md ")
 	team := strings.Index(nav, "(/hierarchy/po-1/st001-score-trajectories.md ")
 	if epic < 0 || team < epic {

@@ -184,7 +184,7 @@ var corpusWord = word{"corpus", "the corpus word: the system repository's docume
 // hierarchyWord writes a page per planning document, with its links up and
 // down and the Sprint Goals and issues that serve it (GH-126), and the
 // site's navigator over them (GH-127).
-var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, initiative, epic, feature, and story under site/hierarchy/, linking its parent, its children, the Sprint Goals and issues that serve it, and its source; a page per sprint under site/sprints/ and per team and program under site/scrums/; and the site's navigator, drawn from the timeline facts",
+var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, initiative, epic, feature, and story under site/hierarchy/, linking its parent, its children, the Sprint Goals and issues that serve it, and its source; a page per sprint under site/sprints/ and per team and program under site/scrums/; every epic under site/epics/ and every story under site/stories/, each on a filterable board; and the site's navigator, drawn from the timeline facts",
 	func(ctx *cli.Context, dir string, r *Result) error {
 		system, err := SystemDir(dir)
 		if err != nil {
@@ -223,6 +223,20 @@ var hierarchyWord = word{"hierarchy", "the hierarchy word: a page per theme, ini
 		r.Pages = append(r.Pages, peoplePages...)
 		if err != nil {
 			return err
+		}
+		epics, stories, err := ListPages(dir)
+		if err != nil {
+			return err
+		}
+		for _, l := range []struct {
+			folder string
+			pages  map[string][]byte
+		}{{EpicsDir, epics}, {StoriesDir, stories}} {
+			published, err := Publish(dir, l.folder, l.pages, install.Version(), ctx.DryRun)
+			r.Pages = append(r.Pages, published...)
+			if err != nil {
+				return err
+			}
 		}
 		nav, err := Write(dir, Sidebar, sidebar, install.Version(), ctx.DryRun)
 		r.Pages = append(r.Pages, nav)
