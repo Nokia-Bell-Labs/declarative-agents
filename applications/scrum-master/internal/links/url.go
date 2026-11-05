@@ -11,7 +11,8 @@ import (
 )
 
 // Ref is a cross-repository reference of the form
-// https://HOST/GROUP/REPO/-/blob/TAG/PATH#ANCHOR (srd007 R5.1).
+// https://HOST/GROUP/REPO/-/blob/TAG/PATH#ANCHOR, or on GitHub
+// https://HOST/OWNER/REPO/blob/TAG/PATH#ANCHOR (srd007 R5.1).
 type Ref struct {
 	Raw     string
 	Host    string
@@ -33,15 +34,50 @@ func Parse(raw string) (Ref, error) {
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return Ref{}, fmt.Errorf("%q is not an absolute URL", raw)
 	}
-	project, rest, ok := strings.Cut(strings.TrimPrefix(u.Path, "/"), "/-/blob/")
+	project, rest, ok := splitBlob(strings.TrimPrefix(u.Path, "/"))
 	if !ok || project == "" {
-		return Ref{}, fmt.Errorf("%q is not a /-/blob/ file URL", raw)
+		return Ref{}, fmt.Errorf("%q is not a /-/blob/ file URL, nor OWNER/REPO/blob/ on GitHub", raw)
 	}
-	tag, path, ok := strings.Cut(rest, "/")
+	tag, path, ok := splitRef(rest)
 	if !ok || tag == "" || path == "" {
 		return Ref{}, fmt.Errorf("%q names no ref and path", raw)
 	}
 	return Ref{Raw: raw, Host: u.Host, Project: project, Tag: tag, Path: path, Anchor: u.Fragment}, nil
+}
+
+// splitBlob cuts a URL's path at its file marker into the project and what
+// follows: GitLab's /-/blob/, under groups of any depth, else GitHub's blob as
+// the segment after OWNER/REPO, which has no groups to mistake it for (GH-2901).
+func splitBlob(p string) (project, rest string, ok bool) {
+	if project, rest, ok = strings.Cut(p, "/-/blob/"); ok {
+		return project, rest, true
+	}
+	seg := strings.SplitN(p, "/", 4)
+	if len(seg) == 4 && seg[2] == "blob" {
+		return seg[0] + "/" + seg[1], seg[3], true
+	}
+	return "", "", false
+}
+
+// splitRef cuts what follows the file marker into the ref and the path. A ref
+// may hold a slash, as the corpus's own tags do (corpus/v0.1.0), and a URL does
+// not say where it ends, so a corpus document's docs/ folder marks it, else the
+// first slash (GH-2901).
+func splitRef(rest string) (ref, path string, ok bool) {
+	if i := strings.Index(rest, "/docs/"); i > 0 {
+		return rest[:i], rest[i+1:], true
+	}
+	return strings.Cut(rest, "/")
+}
+
+// BlobURL is the file's page at ref under webBase, in the form the host serves
+// (srd007 R5.1, GH-2901).
+func BlobURL(webBase, project, ref, path string) string {
+	marker := "/-/blob/"
+	if strings.Contains(webBase, "github") {
+		marker = "/blob/"
+	}
+	return strings.TrimSuffix(webBase, "/") + "/" + project + marker + ref + "/" + path
 }
 
 // Pinned reports why a reference is not pinned, or nil when its form is

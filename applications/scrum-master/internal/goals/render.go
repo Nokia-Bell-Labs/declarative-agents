@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/links"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/objectives"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/sprintgoal"
 )
@@ -13,7 +14,7 @@ import (
 // CiteURL pins an initiative item to the release tag (srd007 R5.1), at the
 // path the initiative was read from.
 func CiteURL(webBase, system, tag, docPath, item string) string {
-	return fmt.Sprintf("%s/%s/-/blob/%s/%s#%s", strings.TrimSuffix(webBase, "/"), system, tag, docPath, item)
+	return links.BlobURL(webBase, system, tag, docPath) + "#" + item
 }
 
 // Render builds a team's Sprint Goal for the release entirely from the
