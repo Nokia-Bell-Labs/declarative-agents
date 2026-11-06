@@ -423,9 +423,19 @@ var hierarchyPath = regexp.MustCompile("(^|/)(themes|initiatives|epics|features|
 // hierarchyTypes names the scope of each hierarchy directory.
 var hierarchyTypes = map[string]string{"themes": "theme", "initiatives": "initiative", "epics": "epic", "features": "feature", "stories": "story", "objectives": "objective"}
 
+// generatedSite reports a page of the program's generated site: the site
+// words write stamped, link-rewritten copies of the corpus's documents
+// under site/, pages to render, never corpus documents, so the tool reads
+// none of them (srd040 R1.5, GH-2919).
+func generatedSite(path string) bool { return strings.HasPrefix(path, "site/") }
+
 // declarationFor picks a document's declaration and the type its scope
-// names: a hierarchy document's is the SRD's, under the scope of its kind.
+// names: a hierarchy document's is the SRD's, under the scope of its kind;
+// a page of the generated site has none (GH-2919).
 func declarationFor(declarations markdown.Declarations, path string, source bool) (*markdown.Declaration, string, bool) {
+	if generatedSite(path) {
+		return nil, "", false
+	}
 	if m := hierarchyPath.FindStringSubmatch(path); m != nil {
 		d, ok := declarations["srd"]
 		return d, hierarchyTypes[m[2]], ok

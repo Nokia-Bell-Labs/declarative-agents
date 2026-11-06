@@ -3,6 +3,7 @@
 package spectool
 
 import (
+	"bytes"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -94,8 +95,10 @@ func TestSpecToolReadsObjectivesAsSRDs(t *testing.T) {
 
 // The format leaves a story's issues record as scrum-master wrote it, whatever
 // form would fit its records, and formats the rest of the document (srd045
-// R4.4, GH-2891). The test builds the tool from the monorepo's agent-core, which
-// a build out of tree does not carry.
+// R4.4, GH-2891); the repository also holds the generated site's stamped copy
+// of the story, which neither fmt nor check reads (srd040 R1.5, GH-2919). The
+// test builds the tool from the monorepo's agent-core, which a build out of
+// tree does not carry.
 func TestFormatKeepsTheIssuesRecord(t *testing.T) {
 	agentCore, err := filepath.Abs(filepath.Join("..", "..", "..", "..", "agent-core"))
 	if err != nil {
@@ -174,6 +177,18 @@ It is done.
 	if err := os.WriteFile(story, []byte(doc), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The generated site's copy of the story, stamped as the site words
+	// write it: a page, not a corpus document, that the tool never reads —
+	// unskipped, check would refuse the stamp comment and fmt would rewrite
+	// the page (srd040 R1.5, GH-2919).
+	stamped := []byte(doc + "\n<!-- scrum-master site version=v0.0.0 sha256=0000 -->\n")
+	sitePage := filepath.Join(dir, "site", "corpus", "specs", "stories", "st001-x.md")
+	if err := os.MkdirAll(filepath.Dir(sitePage), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sitePage, stamped, 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}} {
 		cmd := exec.Command("git", args...)
 		cmd.Dir = dir
@@ -189,6 +204,11 @@ It is done.
 	}
 	if out := spec("fmt"); !strings.Contains(out, "formatted docs/specs/stories/st001-x.md") {
 		t.Fatalf("fmt = %s, want the document's other fields formatted", out)
+	} else if strings.Contains(out, "site/") {
+		t.Fatalf("fmt = %s, want the generated site's page skipped", out)
+	}
+	if got, err := os.ReadFile(sitePage); err != nil || !bytes.Equal(got, stamped) {
+		t.Fatalf("fmt rewrote the generated site's page (err %v):\n%s", err, got)
 	}
 	got, err := os.ReadFile(story)
 	if err != nil {
@@ -205,6 +225,8 @@ It is done.
 	}
 	if out := spec("check"); strings.Contains(out, "not-canonical") {
 		t.Errorf("check = %s, want the record read as canonical", out)
+	} else if strings.Contains(out, "site/") {
+		t.Errorf("check = %s, want no finding on the generated site's page", out)
 	}
 }
 
