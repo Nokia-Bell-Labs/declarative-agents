@@ -429,11 +429,20 @@ var hierarchyTypes = map[string]string{"themes": "theme", "initiatives": "initia
 // none of them (srd040 R1.5, GH-2919).
 func generatedSite(path string) bool { return strings.HasPrefix(path, "site/") }
 
+// fixture reports a document under a testdata directory: a test's fixture,
+// often deliberately malformed, never the corpus, which the parent's own
+// scope also leaves out, so the tool reads none of them (srd040 R1.5,
+// GH-2921).
+func fixture(path string) bool {
+	return strings.HasPrefix(path, "testdata/") || strings.Contains(path, "/testdata/")
+}
+
 // declarationFor picks a document's declaration and the type its scope
 // names: a hierarchy document's is the SRD's, under the scope of its kind;
-// a page of the generated site has none (GH-2919).
+// a page of the generated site (GH-2919) and a testdata fixture (GH-2921)
+// have none.
 func declarationFor(declarations markdown.Declarations, path string, source bool) (*markdown.Declaration, string, bool) {
-	if generatedSite(path) {
+	if generatedSite(path) || fixture(path) {
 		return nil, "", false
 	}
 	if m := hierarchyPath.FindStringSubmatch(path); m != nil {
