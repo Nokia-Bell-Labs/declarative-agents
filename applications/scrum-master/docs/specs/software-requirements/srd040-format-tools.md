@@ -47,7 +47,7 @@ fmt and specCheck index the corpus first, so a reference to another document ren
 <!-- req: R1.5 -->
 ### R1.5
 
-A hierarchy document, thNNN, inNNN, epNNN, ftNNN, or stNNN-short-name under a themes, initiatives, epics, features, or stories directory, and an objective document, objNNN-short-name under an objectives directory, is read with the release's SRD declaration under the scope of its kind: theme, initiative, epic, feature, story, or objective (design.md schema). The generated site under site/ is pages, not corpus documents — its corpus word copies the documents there, stamped and link-rewritten — so the tool reads nothing under it, and a program whose site lives in the system repository still passes the corpus gate after a site refresh (GH-2919).
+A hierarchy document, thNNN, inNNN, epNNN, ftNNN, or stNNN-short-name under a themes, initiatives, epics, features, or stories directory, and an objective document, objNNN-short-name under an objectives directory, is read with the release's SRD declaration under the scope of its kind: theme, initiative, epic, feature, story, or objective (design.md schema). The generated site under site/ is pages, not corpus documents — its corpus word copies the documents there, stamped and link-rewritten — so the tool reads nothing under it, and a program whose site lives in the system repository still passes the corpus gate after a site refresh (GH-2919). A document under a testdata directory is a test's fixture, often deliberately malformed, so the tool reads none of those either, as the parent's own scope already leaves them out, and a repository that tracks such fixtures still passes the corpus gate (GH-2921).
 
 <!-- req: R2 -->
 ## R2 - Format gates in mage audit
@@ -79,7 +79,7 @@ A gate test fails when an implemented test suite's go_test names a package or te
 <!-- ac: AC1 -->
 ### AC1
 
-The spec tool is built once per pinned release and per version of its own source, converts a YAML objective and formats and checks the corpus at that release, reads hierarchy and objective documents as SRDs, and reads nothing under the generated site's site/.
+The spec tool is built once per pinned release and per version of its own source, converts a YAML objective and formats and checks the corpus at that release, reads hierarchy and objective documents as SRDs, and reads nothing under the generated site's site/ or a testdata directory.
 
 <!-- field: traces -->
 #### Traces
