@@ -223,7 +223,8 @@ type Reviewer interface {
 // GroupLister is a tracking system whose host lists a group's projects,
 // subgroups included, as GitLab's API does: reconcile sweeps the program's
 // group for repositories the registry does not name through it (GH-2822).
-// A tracking system without one says so rather than guessing.
+// Archived projects are left out, since the program cannot act on them
+// (GH-2923). A tracking system without one says so rather than guessing.
 type GroupLister interface {
 	GroupProjects(group string) ([]string, error)
 }

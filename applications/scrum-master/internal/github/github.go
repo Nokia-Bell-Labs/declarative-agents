@@ -616,16 +616,21 @@ func (t *Tracker) SetAssignee(project string, iid int, username string) error {
 // GroupProjects lists an organization's repositories, or a user's, by full name.
 // A user's listing holds only public repositories, even for that user, so the
 // private ones the caller can read come from the caller's own (GH-2904).
+// Archived repositories are left out: the program cannot act on them, and
+// reconcile's sweep would report them forever (GH-2923).
 func (t *Tracker) GroupProjects(owner string) ([]string, error) {
 	var out []string
 	add := func(raw json.RawMessage) error {
 		var r struct {
 			FullName string `json:"full_name"`
+			Archived bool   `json:"archived"`
 		}
 		if err := json.Unmarshal(raw, &r); err != nil {
 			return err
 		}
-		out = append(out, r.FullName)
+		if !r.Archived {
+			out = append(out, r.FullName)
+		}
 		return nil
 	}
 	if err := t.all("orgs/"+owner+"/repos", add); err == nil {
@@ -637,11 +642,12 @@ func (t *Tracker) GroupProjects(owner string) ([]string, error) {
 	own := func(raw json.RawMessage) error {
 		var r struct {
 			FullName string `json:"full_name"`
+			Archived bool   `json:"archived"`
 		}
 		if err := json.Unmarshal(raw, &r); err != nil {
 			return err
 		}
-		if strings.HasPrefix(r.FullName, owner+"/") {
+		if strings.HasPrefix(r.FullName, owner+"/") && !r.Archived {
 			mine = append(mine, r.FullName)
 		}
 		return nil

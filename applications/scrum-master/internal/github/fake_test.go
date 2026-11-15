@@ -29,6 +29,8 @@ type hub struct {
 	// what the caller's own listing holds, private ones among them (GH-2904).
 	users map[string][]string
 	mine  []string
+	// archived marks repositories the listings report archived (GH-2923).
+	archived map[string]bool
 }
 
 type repo struct {
@@ -113,10 +115,10 @@ func (c client) Do(method, raw string, body any) ([]byte, error) {
 
 func (c client) user() map[string]any { return map[string]any{"login": c.login} }
 
-func fullNames(names []string) []map[string]any {
+func (h *hub) fullNames(names []string) []map[string]any {
 	out := []map[string]any{}
 	for _, n := range names {
-		out = append(out, map[string]any{"full_name": n})
+		out = append(out, map[string]any{"full_name": n, "archived": h.archived[n]})
 	}
 	return out
 }
@@ -130,18 +132,14 @@ func (c client) route(method string, seg []string, q url.Values, in map[string]a
 		if !ok {
 			return nil, notFound()
 		}
-		return fullNames(public), nil
+		return c.h.fullNames(public), nil
 	case method == "GET" && len(seg) == 2 && seg[0] == "user" && seg[1] == "repos":
-		return fullNames(c.h.mine), nil
+		return c.h.fullNames(c.h.mine), nil
 	case method == "GET" && len(seg) == 3 && seg[0] == "orgs" && seg[2] == "repos":
 		if _, personal := c.h.users[seg[1]]; personal {
 			return nil, notFound()
 		}
-		var out []map[string]any
-		for _, r := range c.h.orgs[seg[1]] {
-			out = append(out, map[string]any{"full_name": r})
-		}
-		return out, nil
+		return c.h.fullNames(c.h.orgs[seg[1]]), nil
 	case len(seg) < 4 || seg[0] != "repos":
 		return nil, notFound()
 	}

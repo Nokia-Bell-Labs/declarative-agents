@@ -342,8 +342,15 @@ func Teams(t tracker.Forge, system, ref string) (Subsystems, error) {
 // Teams are the subsystems but the system's own SRD.
 func (s Subsystems) Teams(system string) Subsystems {
 	return slices.DeleteFunc(slices.Clone(s), func(sub Subsystem) bool {
-		return slices.ContainsFunc(sub.Components, func(c Component) bool { return IsSystem(c.Repository, system) })
+		return sub.IsSystemSRD(system)
 	})
+}
+
+// IsSystemSRD reports whether the subsystem is the system's own SRD: one
+// with a component in the system repository. Its other repositories, an
+// infrastructure repository among them, are still the registry's (GH-2923).
+func (sub Subsystem) IsSystemSRD(system string) bool {
+	return slices.ContainsFunc(sub.Components, func(c Component) bool { return IsSystem(c.Repository, system) })
 }
 
 // IsSystem reports whether repo names the system repository, by project

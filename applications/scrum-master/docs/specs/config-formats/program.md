@@ -65,6 +65,19 @@ string
 
 The parent program's site URL. An Up link to a parent's document opens its page there; without it the link opens the pinned document on the forge.
 
+<!-- schema_entry: non_program_repositories -->
+### non_program_repositories
+
+<!-- field: type -->
+#### Type
+
+list of strings
+
+<!-- field: description -->
+#### Description
+
+The group's repositories that are not the program's — shared utilities, starter templates, mirrors of upstream frameworks, deprecated projects — each a project path or URL. reconcile's group sweep does not report a listed repository as unregistered, so the program can share its group without a standing finding (srd043 R8.2, GH-2923). Nothing else reads the list: a listed repository is not checked out, labeled, or rolled.
+
 <!-- field: config_file_layout -->
 ## Config file layout
 
@@ -98,4 +111,10 @@ https://gitlab.example.com/acme/portfolio
 ## Parent site
 
 https://portfolio.pages.example.com
+
+<!-- field: non_program_repositories -->
+## Non program repositories
+
+- acme/eval/upstream-mirror
+- acme/eval/starter-template
 ```
