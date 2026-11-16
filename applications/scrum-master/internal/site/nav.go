@@ -119,7 +119,7 @@ func containsDir(dirs []string, d string) bool {
 // sprints, the plan's tree, every theme to every story, so search reaches
 // each, the program's scrums, and its repositories on the forge. Links are
 // site-rooted, the routes the shell serves.
-func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team, parent *timeline.ProgramRef, arch []timeline.SubsystemFact, vision bool) string {
+func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams []timeline.Team, parent *timeline.ProgramRef, arch []timeline.SubsystemFact, system []timeline.ComponentFact, vision bool) string {
 	var b strings.Builder
 	b.WriteString(generated("hierarchy", "the timeline facts and the checkouts beside the reports checkout"))
 	// A program that is a team of a larger one says so first, linking the
@@ -193,6 +193,14 @@ func sidebarPage(nodes map[string]*Node, repos []Repo, sprints []sprint, teams [
 			fmt.Fprintf(&b, "  - [%s](/%s/%s.md %q)\n", sub.ID, ArchitectureDir, sub.ID, sub.ID)
 			for _, c := range sub.Components {
 				fmt.Fprintf(&b, "    - [%s](/%s/%s/%s.md %q)\n", c.ID, ArchitectureDir, sub.ID, c.ID, c.ID)
+			}
+		}
+		// The components no subsystem SRD registers, so a citation of
+		// one is searched too (GH-2928).
+		if len(system) > 0 {
+			b.WriteString("  - System\n")
+			for _, c := range system {
+				fmt.Fprintf(&b, "    - [%s](/%s %q)\n", c.ID, systemComponentPath(c), c.ID)
 			}
 		}
 	}
