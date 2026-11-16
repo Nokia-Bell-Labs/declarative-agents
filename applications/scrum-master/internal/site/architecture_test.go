@@ -10,15 +10,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/program"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/timeline"
+	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker"
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/tracker/fake"
 )
 
 // architectureProgram is the status program with a registry of two teams:
 // po-1 owning grader, whose repository holds grader's component SRD, and
 // po-2 owning scorecard, whose repository holds none. The system's
-// ARCHITECTURE declares both components, the system's story cites grader,
-// and the timeline facts are written into the reports checkout.
+// ARCHITECTURE declares both components and control_layer, which no
+// subsystem SRD registers; the system's story cites grader, and the
+// timeline facts are written into the reports checkout.
 func architectureProgram(t *testing.T) (reports, system string, facts timeline.Facts) {
 	t.Helper()
 	in, system := statusProgram(t)
@@ -43,7 +46,7 @@ func architectureProgram(t *testing.T) (reports, system string, facts timeline.F
 	for p, s := range map[string]string{
 		"docs/specs/software-requirements/srd010-po-1.md": srd("srd010-po-1", "Product Owner, alice", "grader", "g/po-1"),
 		"docs/specs/software-requirements/srd011-po-2.md": srd("srd011-po-2", "Product Owner, bob", "scorecard", "g/po-2"),
-		"docs/ARCHITECTURE.md":                            "---\nid: architecture\ntitle: Architecture\n---\n\n<!-- field: components -->\n## Components\n\n<!-- component: grader -->\n### grader\n\nScores runs.\n\n<!-- component: scorecard -->\n### scorecard\n\nPublishes scorecards.\n",
+		"docs/ARCHITECTURE.md":                            "---\nid: architecture\ntitle: Architecture\n---\n\n<!-- field: components -->\n## Components\n\n<!-- component: grader -->\n### grader\n\nScores runs.\n\n<!-- component: scorecard -->\n### scorecard\n\nPublishes scorecards.\n\n<!-- component: control_layer -->\n### control_layer\n\nRuns the experiments; no subsystem SRD registers it.\n",
 	} {
 		write(p, s)
 		f.AddFile("g/system", "main", p, []byte(s))
@@ -214,5 +217,152 @@ func TestArchitectureLinksAreReciprocated(t *testing.T) {
 	srd := string(corpus[Dir+"/"+CorpusDir+"/specs/software-requirements/srd010-po-1.md"])
 	if !strings.Contains(srd, "[Its subsystem](../../../architecture/srd010-po-1.md)") {
 		t.Errorf("the subsystem SRD's copy does not close with its page:\n%s", srd)
+	}
+}
+
+// An issue's component is its component:: label, else the one component
+// the registry places in its project; a project holding several, or none,
+// gives none (GH-2928).
+func TestIssueComponent(t *testing.T) {
+	subs := program.Subsystems{
+		{ID: "srd010-po-1", Components: []program.Component{{Name: "grader", Repository: "https://gitlab.example.com/g/po-1"}}},
+		{ID: "srd011-po-2", Components: []program.Component{
+			{Name: "scorecard", Repository: "https://gitlab.example.com/g/po-2"},
+			{Name: "publisher", Repository: "https://gitlab.example.com/g/po-2"},
+		}},
+	}
+	for _, tc := range []struct {
+		name, project, want string
+		labels              []string
+	}{
+		{"the label wins", "g/po-1", "scorecard", []string{"plane::data", "component::scorecard"}},
+		{"the project's one component", "g/po-1", "grader", []string{"plane::data"}},
+		{"a project of several components", "g/po-2", "", nil},
+		{"a project of none", "g/other", "", nil},
+	} {
+		if got := issueComponent(tracker.Issue{Labels: tc.labels}, tc.project, subs); got != tc.want {
+			t.Errorf("%s: got %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
+// The facts carry each issue's component and the components the system's
+// ARCHITECTURE declares that no subsystem SRD registers, with their states
+// (GH-2928).
+func TestFactsCarryIssueAndSystemComponents(t *testing.T) {
+	_, _, f := architectureProgram(t)
+	if len(f.System) != 1 || f.System[0].ID != "control_layer" || f.System[0].State != "intended" {
+		t.Errorf("system components: %+v", f.System)
+	}
+	found := false
+	for _, it := range f.Items {
+		if it.Kind == timeline.KindIssue && it.Title == "Grade a trajectory" {
+			found = true
+			if it.Component != "grader" {
+				t.Errorf("the po-1 issue's component is %q, want grader, the one component g/po-1 holds", it.Component)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no issue item in the facts: %+v", f.Items)
+	}
+}
+
+// workFacts is a plan of a feature with one story under it, the story
+// citing grader and its issues landing in grader and scorecard, an issue
+// implementing no story landing in grader, and control_layer a system
+// component an epic cites.
+func workFacts() timeline.Facts {
+	return timeline.Facts{
+		Architecture: []timeline.SubsystemFact{
+			{ID: "srd010-po-1", Components: []timeline.ComponentFact{{ID: "grader", State: "in_transition"}}},
+			{ID: "srd011-po-2", Components: []timeline.ComponentFact{{ID: "scorecard", State: "intended"}, {ID: "publisher", State: "intended"}}},
+		},
+		System: []timeline.ComponentFact{{ID: "control_layer", State: "intended"}},
+		Items: []timeline.Item{
+			{ID: "ep001-control", Kind: "epic", Title: "Experiment control", Status: "active", Architecture: []string{"control_layer"}},
+			{ID: "ft001-grader", Kind: "feature", Title: "Grader", Status: "active"},
+			{ID: "st001-score", Kind: "story", Title: "Score trajectories", Parent: "ft001-grader", Status: "active", Points: 5, PointsDone: 2, Architecture: []string{"grader"}},
+			{ID: "g/po-1#2", Kind: timeline.KindIssue, Title: "Grade a run", Parent: "st001-score", Status: "done", URL: "https://gitlab.example.com/g/po-1/-/issues/2", Component: "grader"},
+			{ID: "g/po-2#3", Kind: timeline.KindIssue, Title: "Show the score", Parent: "st001-score", Status: "active", URL: "https://gitlab.example.com/g/po-2/-/issues/3", Component: "scorecard"},
+			{ID: "g/po-1#4", Kind: timeline.KindIssue, Title: "Tidy the grader", Status: "future", URL: "https://gitlab.example.com/g/po-1/-/issues/4", Component: "Grader"},
+		},
+	}
+}
+
+// A component's page lists the work landing in it: each story whose
+// issues carry it, with those issues beneath linked on the forge, then the
+// issues implementing no story; a component with none says so (GH-2928).
+func TestComponentPageListsWork(t *testing.T) {
+	f := workFacts()
+	grader := componentPage(f.Architecture[0], f.Architecture[0].Components[0], f)
+	for _, want := range []string{
+		"## Work",
+		`- <span class="kind kind-story">Story</span> [Score trajectories](../../hierarchy/st001-score.md): active, 2 of 5 points` + "\n  - [g/po-1#2 Grade a run](https://gitlab.example.com/g/po-1/-/issues/2): done",
+		"- Issues implementing no story the plan holds\n  - [g/po-1#4 Tidy the grader](https://gitlab.example.com/g/po-1/-/issues/4): future",
+	} {
+		if !strings.Contains(grader, want) {
+			t.Errorf("grader's page lacks %q:\n%s", want, grader)
+		}
+	}
+	if strings.Contains(grader, "Show the score") {
+		t.Errorf("grader's page lists scorecard's issue:\n%s", grader)
+	}
+	publisher := componentPage(f.Architecture[1], f.Architecture[1].Components[1], f)
+	if !strings.Contains(publisher, "No issue lands in it yet.") || !strings.Contains(publisher, "No planning document cites it yet.") {
+		t.Errorf("publisher's page does not say it has no work and no citation:\n%s", publisher)
+	}
+}
+
+// A component no subsystem SRD registers has a page of its own under
+// architecture/system, which the index, the citation links, and its
+// citing documents reach (GH-2928).
+func TestSystemComponentPage(t *testing.T) {
+	f := workFacts()
+	if p := ArchPages(f.Architecture, f.System)[program.ComponentKey("control_layer")]; p != "architecture/system/control_layer.md" {
+		t.Errorf("control_layer maps to %q", p)
+	}
+	page := systemComponentPage(f.System[0], f, func(p string) bool { return p == "ARCHITECTURE.md" })
+	for _, want := range []string{
+		"[Architecture](../../architecture/index.md) › System",
+		"# control_layer", "component · intended · declared by the system's ARCHITECTURE",
+		"[ARCHITECTURE](../../corpus/ARCHITECTURE.md): the system's, declaring it",
+		`<span class="kind kind-epic">Epic</span> [Experiment control](../../hierarchy/ep001-control.md): active`,
+		"No issue lands in it yet.",
+	} {
+		if !strings.Contains(page, want) {
+			t.Errorf("control_layer's page lacks %q:\n%s", want, page)
+		}
+	}
+	index := architectureIndex(f, func(string) bool { return false })
+	if !strings.Contains(index, "## System components") || !strings.Contains(index, "- [control_layer](system/control_layer.md): intended") {
+		t.Errorf("the index does not list control_layer:\n%s", index)
+	}
+	nav := sidebarPage(map[string]*Node{}, nil, nil, nil, nil, f.Architecture, f.System, false)
+	if !strings.Contains(nav, "  - System\n    - [control_layer](/architecture/system/control_layer.md \"control_layer\")") {
+		t.Errorf("the navigator does not list control_layer:\n%s", nav)
+	}
+}
+
+// A hierarchy page links the components its issues land in beside those
+// it cites, marked as inferred and each named once; a feature's page
+// reaches the issues of the stories under it (GH-2928).
+func TestHierarchyPageLinksInferredComponents(t *testing.T) {
+	f := workFacts()
+	nodes, tracked := hierarchyNodes(f)
+	arch := ArchPages(f.Architecture, f.System)
+	story := nodePage(nodes["st001-score"], nodes, tracked, func(string) bool { return false }, nil, nil, arch)
+	want := "## Components\n\n- [grader](../architecture/srd010-po-1/grader.md)\n- [scorecard](../architecture/srd011-po-2/scorecard.md) (from its issues)\n\n"
+	if !strings.Contains(story, want) {
+		t.Errorf("the story's components are not %q:\n%s", want, story)
+	}
+	feature := nodePage(nodes["ft001-grader"], nodes, tracked, func(string) bool { return false }, nil, nil, arch)
+	want = "## Components\n\n- [grader](../architecture/srd010-po-1/grader.md) (from its issues)\n- [scorecard](../architecture/srd011-po-2/scorecard.md) (from its issues)\n\n"
+	if !strings.Contains(feature, want) {
+		t.Errorf("the feature's components are not %q:\n%s", want, feature)
+	}
+	epic := nodePage(nodes["ep001-control"], nodes, tracked, func(string) bool { return false }, nil, nil, arch)
+	if !strings.Contains(epic, "- [control_layer](../architecture/system/control_layer.md)\n") {
+		t.Errorf("the epic does not link control_layer's system page:\n%s", epic)
 	}
 }

@@ -231,7 +231,8 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 					}
 				}
 				s.Issues = append(s.Issues, timeline.Issue{Ref: fmt.Sprintf("%s#%d", p, i.IID), Title: i.Title, Milestone: i.Milestone,
-					Story: implements, Created: i.CreatedAt, Closed: i.ClosedAt, URL: i.WebURL, DependsOn: deps})
+					Story: implements, Created: i.CreatedAt, Closed: i.ClosedAt, URL: i.WebURL, DependsOn: deps,
+					Component: issueComponent(i, p, s.Scrums)})
 				continue
 			}
 			s.Goals = append(s.Goals, timeline.Goal{Ref: fmt.Sprintf("%s#%d", p, i.IID), Title: i.Title, Release: m.Release,
@@ -239,6 +240,30 @@ func LoadSources(system string, t tracker.Tracker, today time.Time) (TimelineSou
 		}
 	}
 	return s, nil
+}
+
+// issueComponent is the component an issue's work lands in (GH-2928): its
+// component:: label, the one admission holds it to, else the one component
+// the registry places in its project; none when the project holds several
+// components or none.
+func issueComponent(i tracker.Issue, project string, subs program.Subsystems) string {
+	for _, l := range i.Labels {
+		if c, ok := strings.CutPrefix(l, "component::"); ok && c != "" {
+			return c
+		}
+	}
+	var found []string
+	for _, sub := range subs {
+		for _, c := range sub.Components {
+			if program.ProjectPath(c.Repository) == project && !slices.Contains(found, c.Name) {
+				found = append(found, c.Name)
+			}
+		}
+	}
+	if len(found) == 1 {
+		return found[0]
+	}
+	return ""
 }
 
 func mapped(ids []string, f func(string) string) []string {
@@ -363,8 +388,8 @@ func Facts(dir, asOf string, s TimelineSources) (timeline.Facts, error) {
 		if p := s.Lineage.Parent; p != "" {
 			f.Parent = &timeline.ProgramRef{Name: path.Base(program.ProjectPath(p)), Repository: program.ProjectPath(p), Site: s.Lineage.ParentSite}
 		}
-		arch, notes := architectureFacts(dir, s, f.Releases)
-		f.Architecture = arch
+		arch, system, notes := architectureFacts(dir, s, f.Releases)
+		f.Architecture, f.System = arch, system
 		f.Notes = append(f.Notes, notes...)
 		for _, repo := range s.Scrums.Repositories() {
 			if _, ok := checkout.Locate(dir, repo); !ok && !slices.Contains(f.Unread, repo) {
@@ -420,10 +445,12 @@ func documentLedgers(docs []*hierarchy.Doc, f *timeline.Facts) []string {
 // lifecycle state the backlog architecture rule gives it (srd045 R8.5) and
 // its contract, the component SRD its repository holds (design.md
 // component_srd). A contract or a repository that cannot be read is a
-// note, never skipped silently.
-func architectureFacts(system string, s TimelineSources, releases []timeline.Release) ([]timeline.SubsystemFact, []string) {
+// note, never skipped silently. The components the system's ARCHITECTURE
+// declares that no subsystem lists come back apart, with their states
+// (GH-2928).
+func architectureFacts(system string, s TimelineSources, releases []timeline.Release) ([]timeline.SubsystemFact, []timeline.ComponentFact, []string) {
 	if len(s.Scrums) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	var notes []string
 	states := map[string]backlog.ComponentStatus{}
@@ -510,7 +537,21 @@ func architectureFacts(system string, s TimelineSources, releases []timeline.Rel
 		}
 		out = append(out, fact)
 	}
-	return out, notes
+	registered := map[string]bool{}
+	for _, sub := range out {
+		for _, c := range sub.Components {
+			registered[program.ComponentKey(c.ID)] = true
+		}
+	}
+	var unregistered []timeline.ComponentFact
+	for _, c := range view.Components {
+		if registered[program.ComponentKey(c.ID)] {
+			continue
+		}
+		unregistered = append(unregistered, timeline.ComponentFact{ID: c.ID, State: c.State, Deferred: c.Deferred, Tag: c.Tag,
+			Release: landingRelease(c, releases)})
+	}
+	return out, unregistered, notes
 }
 
 // landingRelease is the release an in-transition component's work lands

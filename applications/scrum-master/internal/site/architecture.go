@@ -8,8 +8,10 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/Nokia-Bell-Labs/declarative-agents/applications/scrum-master/internal/backlog"
@@ -49,7 +51,19 @@ func ArchitecturePages(dir string) (map[string][]byte, error) {
 			pages[Dir+"/"+componentPath(sub, c)] = []byte(componentPage(sub, c, f))
 		}
 	}
+	for _, c := range f.System {
+		pages[Dir+"/"+systemComponentPath(c)] = []byte(systemComponentPage(c, f, corpus))
+	}
 	return pages, nil
+}
+
+// SystemComponentsDir is the folder, under the architecture's, of the
+// components the system's ARCHITECTURE declares that no subsystem SRD
+// registers (GH-2928).
+const SystemComponentsDir = "system"
+
+func systemComponentPath(c timeline.ComponentFact) string {
+	return ArchitectureDir + "/" + SystemComponentsDir + "/" + c.ID + ".md"
 }
 
 // subsystemPath is a subsystem's page under site/, componentPath a
@@ -64,14 +78,20 @@ func componentPath(sub timeline.SubsystemFact, c timeline.ComponentFact) string 
 
 // ArchPages maps each component, keyed as labels compare, to its page
 // under site/: what the hierarchy, scrum, and navigator links resolve a
-// citation against (R9.2).
-func ArchPages(arch []timeline.SubsystemFact) map[string]string {
+// citation against (R9.2). A registered component's page wins over a
+// system component's of the same name.
+func ArchPages(arch []timeline.SubsystemFact, system []timeline.ComponentFact) map[string]string {
 	out := map[string]string{}
 	for _, sub := range arch {
 		for _, c := range sub.Components {
 			if _, ok := out[program.ComponentKey(c.ID)]; !ok {
 				out[program.ComponentKey(c.ID)] = componentPath(sub, c)
 			}
+		}
+	}
+	for _, c := range system {
+		if _, ok := out[program.ComponentKey(c.ID)]; !ok {
+			out[program.ComponentKey(c.ID)] = systemComponentPath(c)
 		}
 	}
 	return out
@@ -185,6 +205,36 @@ func architectureIndex(f timeline.Facts, corpus func(string) bool) string {
 			fmt.Fprintf(&b, "  - [%s](%s/%s.md): %s\n", c.ID, sub.ID, c.ID, lifecycle(c))
 		}
 	}
+	if len(f.System) > 0 {
+		b.WriteString("\n## System components\n\nThe components the system's ARCHITECTURE declares that no subsystem SRD registers, so no scrum owns them yet.\n\n")
+		for _, c := range f.System {
+			fmt.Fprintf(&b, "- [%s](%s/%s.md): %s\n", c.ID, SystemComponentsDir, c.ID, lifecycle(c))
+		}
+	}
+	return b.String()
+}
+
+// systemComponentPage is the page of a component the system's ARCHITECTURE
+// declares that no subsystem SRD registers (GH-2928): its lifecycle state,
+// the ARCHITECTURE declaring it as its contract, and the documents citing
+// it and the work landing in it, as a registered component's page lists
+// them.
+func systemComponentPage(c timeline.ComponentFact, f timeline.Facts, corpus func(string) bool) string {
+	page := systemComponentPath(c)
+	var b strings.Builder
+	b.WriteString(generated("architecture", "the timeline facts"))
+	fmt.Fprintf(&b, `<div class="crumbs">`+"\n\n[Architecture](%s) › System\n\n</div>\n\n", relLink(page, ArchitectureDir+"/index.md"))
+	fmt.Fprintf(&b, "# %s\n\n", c.ID)
+	b.WriteString("component · " + lifecycle(c) + " · declared by the system's ARCHITECTURE\n\n")
+	fmt.Fprintf(&b, "## Up\n\n- [Architecture](%s): no subsystem SRD registers it, so no scrum owns it yet\n\n", relLink(page, ArchitectureDir+"/index.md"))
+	b.WriteString("## Contract\n\n")
+	if corpus("ARCHITECTURE.md") {
+		fmt.Fprintf(&b, "- [ARCHITECTURE](%s): the system's, declaring it\n\n", relLink(page, CorpusDir+"/ARCHITECTURE.md"))
+	} else {
+		b.WriteString("- docs/ARCHITECTURE.md in the system repository, declaring it\n\n")
+	}
+	b.WriteString(citedBy(page, c.ID, f))
+	b.WriteString(workSection(page, c.ID, f))
 	return b.String()
 }
 
@@ -223,8 +273,9 @@ func subsystemPage(sub timeline.SubsystemFact, corpus func(string) bool) string 
 
 // componentPage is one component's page: its lifecycle state with its tag
 // or release, the same states the architecture status page shows, its
-// subsystem, the scrum owning it, its contract, and the planning documents
-// whose architecture citations name it (R9.1).
+// subsystem, the scrum owning it, its contract, the planning documents
+// whose architecture citations name it (R9.1), and the work landing in it
+// (GH-2928).
 func componentPage(sub timeline.SubsystemFact, c timeline.ComponentFact, f timeline.Facts) string {
 	page := componentPath(sub, c)
 	var b strings.Builder
@@ -248,24 +299,87 @@ func componentPage(sub timeline.SubsystemFact, c timeline.ComponentFact, f timel
 	} else {
 		b.WriteString("Its repository holds no component SRD yet; its software requirements still sit in a subsystem SRD, which a story cites where they live.\n\n")
 	}
+	b.WriteString(citedBy(page, c.ID, f))
+	b.WriteString(workSection(page, c.ID, f))
+	return b.String()
+}
+
+// citedBy is a component page's planning documents whose architecture
+// citations name it (R9.1).
+func citedBy(page, component string, f timeline.Facts) string {
+	var b strings.Builder
 	b.WriteString("## Cited by\n\n")
 	cited := false
 	for _, it := range f.Items {
-		if !citesComponent(it, c.ID) {
+		if !citesComponent(it, component) {
 			continue
 		}
 		cited = true
-		line := fmt.Sprintf("- %s [%s](%s): %s", badge(it.Kind), it.Title, relLink(page, HierarchyDir+"/"+it.ID+".md"), it.Status)
-		if it.Points > 0 {
-			line += fmt.Sprintf(", %d of %d points", it.PointsDone, it.Points)
-		}
-		b.WriteString(line + "\n")
+		b.WriteString("- " + docLine(page, it) + "\n")
 	}
 	if !cited {
-		b.WriteString("No planning document cites it yet.\n")
+		b.WriteString("No planning document cites it yet.\n\n")
 	} else {
 		b.WriteString("\n")
 	}
+	return b.String()
+}
+
+// docLine is a planning document as a component page lists it: its chip,
+// its title linking its page, its state, and its points done over total.
+func docLine(page string, it timeline.Item) string {
+	line := fmt.Sprintf("%s [%s](%s): %s", badge(it.Kind), it.Title, relLink(page, HierarchyDir+"/"+it.ID+".md"), it.Status)
+	if it.Points > 0 {
+		line += fmt.Sprintf(", %d of %d points", it.PointsDone, it.Points)
+	}
+	return line
+}
+
+// workSection is the work landing in a component (GH-2928): each planning
+// document whose issues carry the component, with those issues beneath it
+// linked on the forge, then the issues implementing no document the plan
+// holds.
+func workSection(page, component string, f timeline.Facts) string {
+	docs := map[string]timeline.Item{}
+	for _, it := range f.Items {
+		if hierarchyKind(it.Kind) {
+			docs[it.ID] = it
+		}
+	}
+	byDoc := map[string][]timeline.Item{}
+	for _, it := range f.Items {
+		if it.Kind != timeline.KindIssue || it.Component == "" || program.ComponentKey(it.Component) != program.ComponentKey(component) {
+			continue
+		}
+		parent := it.Parent
+		if _, ok := docs[parent]; !ok {
+			parent = ""
+		}
+		byDoc[parent] = append(byDoc[parent], it)
+	}
+	var b strings.Builder
+	b.WriteString("## Work\n\n")
+	if len(byDoc) == 0 {
+		b.WriteString("No issue lands in it yet.\n")
+		return b.String()
+	}
+	issues := func(its []timeline.Item) {
+		for _, it := range its {
+			fmt.Fprintf(&b, "  - %s: %s\n", itemLink(it), it.Status)
+		}
+	}
+	for _, id := range slices.Sorted(maps.Keys(byDoc)) {
+		if id == "" {
+			continue
+		}
+		b.WriteString("- " + docLine(page, docs[id]) + "\n")
+		issues(byDoc[id])
+	}
+	if loose := byDoc[""]; len(loose) > 0 {
+		b.WriteString("- Issues implementing no story the plan holds\n")
+		issues(loose)
+	}
+	b.WriteString("\n")
 	return b.String()
 }
 

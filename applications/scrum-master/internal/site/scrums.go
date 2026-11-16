@@ -170,7 +170,7 @@ func ScrumPages(dir string) (map[string][]byte, error) {
 		index.WriteString("</div>\n")
 	}
 	pages[Dir+"/"+ScrumsDir+"/index.md"] = []byte(index.String())
-	arch := ArchPages(f.Architecture)
+	arch := ArchPages(f.Architecture, f.System)
 	for _, s := range scrums {
 		pages[Dir+"/"+s.Page] = []byte(scrumPage(s, nodes, head, arch))
 	}

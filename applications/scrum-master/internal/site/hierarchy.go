@@ -75,7 +75,7 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 			inits[tm.Initiative] = tm
 		}
 	}
-	arch := ArchPages(f.Architecture)
+	arch := ArchPages(f.Architecture, f.System)
 	pages = map[string][]byte{}
 	for _, n := range nodes {
 		pages[Dir+"/"+n.Page] = []byte(nodePage(n, nodes, tracked, corpus, f.Parent, inits, arch))
@@ -86,7 +86,7 @@ func HierarchyPages(dir string, repos []Repo) (pages, data, sprints map[string][
 		out = append(out, *nodes[id])
 	}
 	j, _ := json.MarshalIndent(out, "", "  ")
-	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams, f.Parent, f.Architecture, corpus("VISION.md"))), nil
+	return pages, map[string][]byte{Dir + "/data/hierarchy/hierarchy.json": append(j, '\n')}, SprintPages(f, nodes), []byte(sidebarPage(nodes, repos, sprintsOf(f), f.Teams, f.Parent, f.Architecture, f.System, corpus("VISION.md"))), nil
 }
 
 // hierarchyNodes gathers each hierarchy document with its children, the
@@ -182,6 +182,33 @@ func itemLink(it timeline.Item) string {
 		return fmt.Sprintf("[%s](%s)", label, it.URL)
 	}
 	return label
+}
+
+// issueComponents is the components the issues of a node and of every node
+// under it land in, each once, in the order the plan reaches them
+// (GH-2928).
+func issueComponents(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item) []string {
+	var out []string
+	seen, visited := map[string]bool{}, map[string]bool{}
+	var walk func(*Node)
+	walk = func(m *Node) {
+		if m == nil || visited[m.ID] {
+			return
+		}
+		visited[m.ID] = true
+		for _, id := range m.Issues {
+			c := tracked[id].Component
+			if c != "" && !seen[program.ComponentKey(c)] {
+				seen[program.ComponentKey(c)] = true
+				out = append(out, c)
+			}
+		}
+		for _, id := range m.Children {
+			walk(nodes[id])
+		}
+	}
+	walk(n)
+	return out
 }
 
 // points is a node's points done over total, or nothing without points.
@@ -300,14 +327,27 @@ func nodePage(n *Node, nodes map[string]*Node, tracked map[string]timeline.Item,
 	// The components its architecture citations name, each linked to its
 	// architecture page when the registry declares it, else named without
 	// a link (srd048 R9.2, R8.5). A citation by URL is another
-	// repository's component and stands as written.
-	if len(n.Architecture) > 0 {
+	// repository's component and stands as written. Then the components
+	// its issues land in, and those of the documents under it, marked as
+	// inferred (GH-2928).
+	inferred := issueComponents(n, nodes, tracked)
+	if len(n.Architecture) > 0 || len(inferred) > 0 {
 		b.WriteString("## Components\n\n")
-		for _, a := range n.Architecture {
-			if p, ok := arch[program.ComponentKey(a)]; ok && !strings.Contains(a, "://") {
-				fmt.Fprintf(&b, "- [%s](%s)\n", a, relLink(n.Page, p))
+		seen := map[string]bool{}
+		component := func(name, suffix string) {
+			if p, ok := arch[program.ComponentKey(name)]; ok && !strings.Contains(name, "://") {
+				fmt.Fprintf(&b, "- [%s](%s)%s\n", name, relLink(n.Page, p), suffix)
 			} else {
-				fmt.Fprintf(&b, "- %s\n", a)
+				fmt.Fprintf(&b, "- %s%s\n", name, suffix)
+			}
+		}
+		for _, a := range n.Architecture {
+			seen[program.ComponentKey(a)] = true
+			component(a, "")
+		}
+		for _, c := range inferred {
+			if !seen[program.ComponentKey(c)] {
+				component(c, " (from its issues)")
 			}
 		}
 		b.WriteString("\n")

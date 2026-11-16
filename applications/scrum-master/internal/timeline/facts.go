@@ -68,6 +68,10 @@ type Issue struct {
 	// DependsOn is the issues its Depends-on and Blocked-by lines name,
 	// as project#iid (GH-135).
 	DependsOn []string
+	// Component is the component its work lands in: its component:: label,
+	// else the one component the registry places in its repository
+	// (GH-2928).
+	Component string
 }
 
 // IssueRecord is one entry of a story's or epic's issues record (srd045 R4.4), as
@@ -93,6 +97,9 @@ type Item struct {
 	Parent       string   `json:"parent,omitempty"`
 	Status       string   `json:"status"`
 	Architecture []string `json:"architecture,omitempty"`
+	// Component is an issue's component, the one its work lands in
+	// (GH-2928).
+	Component string `json:"component,omitempty"`
 	// Cites is the requirement items the document cites, as its cites
 	// context item names them (srd045 R4.2): the SRD items a story proves.
 	Cites      []string `json:"cites,omitempty"`
@@ -171,6 +178,10 @@ type Facts struct {
 	// it (srd048 R9.1): each subsystem with its components, their lifecycle
 	// states, and their contracts. A tag's facts hold none.
 	Architecture []SubsystemFact `json:"architecture,omitempty"`
+	// System is the components the system's ARCHITECTURE declares that no
+	// subsystem SRD registers, each with its lifecycle state, so a citation
+	// of one still has a page to link (GH-2928). A tag's facts hold none.
+	System []ComponentFact `json:"system,omitempty"`
 	// Group is the program's forge group, the system repository's project
 	// path without its last segment: what each team's Name is named below
 	// (GH-2811).
@@ -490,7 +501,7 @@ func Make(in Input) Facts {
 		}
 	}
 	for _, i := range in.Issues {
-		it := Item{ID: i.Ref, Kind: KindIssue, Title: i.Title, Parent: i.Story, Status: Future, URL: i.URL, DependsOn: i.DependsOn}
+		it := Item{ID: i.Ref, Kind: KindIssue, Title: i.Title, Parent: i.Story, Status: Future, URL: i.URL, DependsOn: i.DependsOn, Component: i.Component}
 		if r, ok := byMilestone[i.Milestone]; ok {
 			it.Release, it.Tag, it.Planned = r.Version, r.Tag, r.Sprint
 		}
