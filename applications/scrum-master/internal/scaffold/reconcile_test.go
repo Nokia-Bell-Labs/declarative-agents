@@ -167,6 +167,73 @@ func TestReconcileSweepsTheGroupWhereTheHostListsIt(t *testing.T) {
 	}
 }
 
+// The group sweep counts as registered what the program declares beyond
+// the team SRDs: the system SRD's other implementation targets, the site
+// repository, and the non-program repositories control/program.md lists.
+// An undeclared project is still a finding (GH-2923).
+func TestReconcileGroupSweepSkipsDeclaredRepositories(t *testing.T) {
+	_, _, system := checkoutsProgram(t, "g/pods/p1/tpm")
+	if _, err := Checkouts(system, false); err != nil {
+		t.Fatal(err)
+	}
+	// The system SRD registers the system repository and the infrastructure
+	// repository that manages the group.
+	srd := `---
+id: srd001-system
+---
+<!-- field: context -->
+## Context
+
+- owner: o9
+
+<!-- field: implementation_targets -->
+## Components
+
+| name | repository | path |
+| --- | --- | --- |
+| system | git@example.com:g/program.git | / |
+| infrastructure | git@example.com:g/infrastructure.git | / |
+`
+	if err := os.WriteFile(filepath.Join(system, "docs", "specs", "software-requirements", "srd001-system.md"), []byte(srd), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// control/program.md declares the reports repository and the group's
+	// non-program projects.
+	lineage := `---
+id: program
+title: Program
+---
+
+<!-- field: site_repository -->
+## Site repository
+
+g/reports
+
+<!-- field: non_program_repositories -->
+## Non program repositories
+
+- g/mirrors/upstream
+- git@example.com:g/tools/starter.git
+`
+	os.MkdirAll(filepath.Join(system, "control"), 0o755)
+	if err := os.WriteFile(filepath.Join(system, "control", "program.md"), []byte(lineage), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := fake.New()
+	f.Projects["g"] = []string{"g/program", "g/pods/p1/tpm", "g/infrastructure", "g/reports", "g/mirrors/upstream", "g/tools/starter", "g/pods/p9/stray"}
+	r, err := Reconcile(f, system, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	group := byReconcileProject(t, r, "g")
+	if !hasFinding(group, "g/pods/p9/stray", "onboard", "non_program_repositories") {
+		t.Errorf("the undeclared project is not a finding: %+v", group.Findings)
+	}
+	if len(group.Findings) != 1 {
+		t.Errorf("the declared repositories are still findings: %+v", group.Findings)
+	}
+}
+
 // A dry run reports every finding and files nothing (GH-2822).
 func TestReconcileDryRunFilesNothing(t *testing.T) {
 	_, origins, system := checkoutsProgram(t, "g/pods/p1/tpm")

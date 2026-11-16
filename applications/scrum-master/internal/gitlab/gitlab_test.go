@@ -265,3 +265,21 @@ func TestABodySetsItsContentType(t *testing.T) {
 		t.Fatalf("args = %v, want %v", got, want)
 	}
 }
+
+// GroupProjects lists the group's projects and leaves archived ones out,
+// so reconcile's sweep does not report what the program cannot act on
+// (GH-2923).
+func TestGroupProjectsLeavesArchivedOut(t *testing.T) {
+	l := newLab()
+	l.group("g").projects = []map[string]any{
+		{"path_with_namespace": "g/live", "archived": false},
+		{"path_with_namespace": "g/old", "archived": true},
+	}
+	got, err := New(t.TempDir(), l.as("alice")).GroupProjects("g")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"g/live"}; !slices.Equal(got, want) {
+		t.Fatalf("projects = %v, want %v", got, want)
+	}
+}

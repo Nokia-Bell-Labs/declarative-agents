@@ -50,7 +50,10 @@ type ReconcileResult struct {
 // names another project, a parent or initiative pinned to what is not
 // there, and the repository's doctor drift, run dry. Where the tracking
 // system's host lists the group's projects, one the registry does not name
-// is a finding too, since membership is declared, never inferred. Each
+// is a finding too, since membership is declared, never inferred; what the
+// system SRD's implementation targets and control/program.md declare —
+// the site repository and the non-program repositories — counts as named
+// (GH-2923). Each
 // repository with findings gets one issue in the system repository, never
 // a second while one is open; the word changes no repository and never
 // creates, moves, or deletes one on the forge — the infrastructure tooling
@@ -96,6 +99,35 @@ func Reconcile(t tracker.Tracker, dir string, dryRun bool) (ReconcileResult, err
 	for _, repo := range repos {
 		known = append(known, repo.project)
 	}
+	// The system SRD can name repositories beside the system itself, the
+	// infrastructure repository that manages the group among them; Teams
+	// drops the SRD from the sweep, but what it names is registered
+	// (GH-2923).
+	for _, sub := range subs {
+		if !sub.IsSystemSRD(system) {
+			continue
+		}
+		for _, p := range sub.Repositories() {
+			if p != "" && !slices.Contains(known, p) {
+				known = append(known, p)
+			}
+		}
+	}
+	// control/program.md declares the site repository and the group's
+	// non-program repositories, which the registry does not list (GH-2923).
+	lineage, err := program.LineageIn(root)
+	if err != nil {
+		r.Notes = append(r.Notes, fmt.Sprintf("%s was not read, so the repositories it declares are not excused from the sweep: %v", program.LineageFile, err))
+	}
+	if p := checkout.ProjectPath(lineage.SiteRepository); p != "" && !slices.Contains(known, p) {
+		known = append(known, p)
+	}
+	var declared []string
+	for _, repo := range lineage.NonProgramRepositories {
+		if p := checkout.ProjectPath(repo); p != "" {
+			declared = append(declared, p)
+		}
+	}
 	open := openReconcileIssues(t, system)
 	for _, repo := range repos {
 		findings := reconcileRepository(root, system, repo, owner[repo.project], known, systemDocs)
@@ -120,7 +152,7 @@ func Reconcile(t tracker.Tracker, dir string, dryRun bool) (ReconcileResult, err
 		projects, err := gl.GroupProjects(group)
 		if err != nil {
 			r.Notes = append(r.Notes, fmt.Sprintf("%s: the group's projects are not listed, so unregistered repositories are not checked: %v", group, err))
-		} else if findings := unregistered(projects, known); len(findings) > 0 {
+		} else if findings := unregistered(projects, known, declared); len(findings) > 0 {
 			r.Repositories = append(r.Repositories, reconcileEntry(t, system, group, findings, open, policy, dryRun))
 		}
 	} else if !ok {
@@ -209,13 +241,15 @@ func pinFindings(root, dir string, known []string) []string {
 }
 
 // unregistered is the group-sweep finding: each project under the group
-// the registry does not name.
-func unregistered(projects, known []string) []string {
+// that neither the registry nor control/program.md names (GH-2923).
+func unregistered(projects, known, declared []string) []string {
 	var findings []string
 	for _, p := range projects {
-		if !slices.Contains(known, checkout.ProjectPath(p)) {
-			findings = append(findings, fmt.Sprintf("%s is in the group but the registry does not name it; onboard it where it joins the program — one that is not the program's, the reports repository among them, needs no row", p))
+		pp := checkout.ProjectPath(p)
+		if slices.Contains(known, pp) || slices.Contains(declared, pp) {
+			continue
 		}
+		findings = append(findings, fmt.Sprintf("%s is in the group but the registry does not name it; onboard it where it joins the program, or list it under non_program_repositories in %s where it is not the program's", p, program.LineageFile))
 	}
 	return findings
 }

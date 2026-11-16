@@ -46,6 +46,7 @@ type project struct {
 type group struct {
 	milestones []map[string]any
 	labels     []map[string]any
+	projects   []map[string]any
 }
 
 var nextMilestone = 100
@@ -176,6 +177,8 @@ func (c labClient) route(method string, seg []string, q url.Values, in map[strin
 					return m, nil
 				}
 			}
+		case seg[2] == "projects" && len(seg) == 3 && method == "GET":
+			return orEmpty(g.projects), nil
 		case seg[2] == "labels" && len(seg) == 3 && method == "GET":
 			return orEmpty(g.labels), nil
 		case seg[2] == "labels" && len(seg) == 3 && method == "POST":

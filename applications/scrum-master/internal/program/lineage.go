@@ -29,6 +29,11 @@ type Lineage struct {
 	// its site URL.
 	Parent     string `yaml:"parent,omitempty"`
 	ParentSite string `yaml:"parent_site,omitempty"`
+	// NonProgramRepositories are the group's repositories that are not the
+	// program's — shared utilities, mirrors, deprecated projects — each a
+	// project path or URL, so reconcile's group sweep does not report them
+	// (GH-2923).
+	NonProgramRepositories []string `yaml:"non_program_repositories,omitempty"`
 }
 
 // LineageIn reads the lineage of the system checkout at dir; a program
@@ -65,6 +70,9 @@ func ParseLineage(data []byte) (Lineage, error) {
 	}
 	for _, v := range []*string{&l.Site, &l.SiteRepository, &l.Parent, &l.ParentSite} {
 		*v = strings.TrimSpace(*v)
+	}
+	for i, v := range l.NonProgramRepositories {
+		l.NonProgramRepositories[i] = strings.TrimSpace(v)
 	}
 	return l, nil
 }
