@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 
@@ -35,8 +36,12 @@ const (
 	rigRelease   = "01.0"
 	rigTag       = "v0.1.0"
 	rigMilestone = "rig-01.0"
-	rigDue       = "2026-11-06"
 )
+
+// rigDue is the rig sprint's due date. It is relative to the run, as the
+// milestone's start date is, so the sprint covers whatever day the rig runs
+// (GH-2926).
+var rigDue = time.Now().AddDate(0, 0, 14).Format(time.DateOnly)
 
 // ObjectivesAudit proves the agent audit passes a well-formed objective document and the gate fails a malformed one (test-rel01.0-objectives).
 func (Integration) ObjectivesAudit() error {
