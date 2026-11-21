@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-002: an entry whose type is neither builtin nor exec.
+tools:
+  - name: ask
+    type: boundary
+    binary: agent

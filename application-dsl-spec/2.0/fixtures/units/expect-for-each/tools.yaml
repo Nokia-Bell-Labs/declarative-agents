@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The selection the per-element expect fixtures use.
+kind: tool-selection
+schema_version: 1
+tools: [plan_steps, apply_edit, run_tests, run_tests_bare]

@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-003: a chat dialect body referencing a param invoke_llm does not supply.
+unit: fixture-chat-dialect
+body:
+  messages: "{{ params.messages }}"
+  seed: "{{ params.random }}"

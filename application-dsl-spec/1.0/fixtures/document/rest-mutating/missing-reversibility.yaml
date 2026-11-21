@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-005: a POST operation declaring side effects but no reversibility.
+rest:
+  version: v1
+  clients:
+    github:
+      operations:
+        create_issue:
+          method: POST
+          path: /issues
+          success: {status: [201], signal: RESTResourceWritten}
+          side_effects:
+            - {kind: external_api, target: github.issue}

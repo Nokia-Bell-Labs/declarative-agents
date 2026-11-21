@@ -1,0 +1,93 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The planners and step handlers the for-each-dispatch fixtures select.
+kind: tool-declaration
+schema_version: 1
+unit: for-each-dispatch-tools
+imports: [types.yaml]
+tools:
+  - name: plan_steps
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: List the steps, each an edit, a test, or a review.
+    config: {path: vector, signal: Planned}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: Planned, message: builtin.Message<for-each-dispatch-types.Plan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: plan_narrow
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: List the steps, each an edit or a test.
+    config: {path: vector, signal: Planned}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: Planned, message: builtin.Message<for-each-dispatch-types.NarrowPlan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: plan_wide
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: List the steps, which may also be deploys.
+    config: {path: vector, signal: Planned}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: Planned, message: builtin.Message<for-each-dispatch-types.WidePlan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: apply_edit
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Apply one edit step.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<for-each-dispatch-types.Step>
+      emits:
+        - {signal: StepDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: run_tests
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Run one test step.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<for-each-dispatch-types.Step>
+      emits:
+        - {signal: StepDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: request_review
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Request one review.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<for-each-dispatch-types.Step>
+      emits:
+        - {signal: StepDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: escalate_review
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Request one review, escalating when it is contested.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<for-each-dispatch-types.Step>
+      emits:
+        - {signal: StepDone, message: builtin.Message<builtin.Text>}
+        - {signal: Escalated, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

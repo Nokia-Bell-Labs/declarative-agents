@@ -10,18 +10,26 @@ import (
 	"path/filepath"
 )
 
-// Clean removes rendered chapter output.
+// Clean removes rendered chapter output from every version directory.
 func Clean() error {
-	entries, err := os.ReadDir(renderOutputDir)
+	var errs []error
+	for _, version := range specVersions {
+		errs = append(errs, cleanRendered(version.renderOutputDir(".")))
+	}
+	return errors.Join(errs...)
+}
+
+func cleanRendered(outputDir string) error {
+	entries, err := os.ReadDir(outputDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
-		return fmt.Errorf("list %s: %w", renderOutputDir, err)
+		return fmt.Errorf("list %s: %w", outputDir, err)
 	}
 	var errs []error
 	for _, entry := range entries {
-		path := filepath.Join(renderOutputDir, entry.Name())
+		path := filepath.Join(outputDir, entry.Name())
 		fmt.Printf("rm %s\n", path)
 		if err := os.RemoveAll(path); err != nil && !os.IsNotExist(err) {
 			errs = append(errs, fmt.Errorf("remove %s: %w", path, err))

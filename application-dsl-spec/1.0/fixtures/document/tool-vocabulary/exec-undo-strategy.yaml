@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-003: an exec entry naming an undo strategy the exec interpreter does not support.
+tools:
+  - name: commit
+    binary: git
+    undo:
+      strategy: conversation_restore

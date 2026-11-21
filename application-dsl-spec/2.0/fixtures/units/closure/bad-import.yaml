@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Imports by an absolute path outside a library root.
+kind: tool-declaration
+schema_version: 1
+unit: closure-bad-import
+imports:
+  - /etc/closure/declarations.yaml
+tools: []

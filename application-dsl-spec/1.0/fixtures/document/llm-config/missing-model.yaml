@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-001: an invoke_llm config that names no model.
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    output:
+      schema: {type: string}
+    config:
+      provider_url: http://localhost:11434
+      manifest_state: Composing

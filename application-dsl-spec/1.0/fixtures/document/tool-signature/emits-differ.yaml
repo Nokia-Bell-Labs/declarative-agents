@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-005: an entry whose signature.emits and legacy emits differ.
+tools:
+  - name: flatten_chunks
+    type: builtin
+    init: array_transform
+    signature:
+      emits: [ChunksFlattened, CommandError]
+    emits: [ChunksFlattened]

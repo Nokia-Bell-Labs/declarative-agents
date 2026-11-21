@@ -1,0 +1,74 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The parse words and note tools the call-dispatch fixtures select.
+kind: tool-declaration
+schema_version: 1
+unit: parse-calls-tools
+imports: [types.yaml]
+tools:
+  - name: parse_note_calls
+    type: builtin
+    init: parse_calls
+    category: word
+    visibility: internal
+    description: Turn every call in the reply into the note call list.
+    config: {tools: [read_note, list_notes]}
+    signature:
+      input: builtin.Message<builtin.Text>
+      emits:
+        - {signal: CallsParsed, message: builtin.Message<parse-calls-types.NoteCalls>}
+        - {signal: TaskCompleted, message: builtin.Message<builtin.Text>}
+        - {signal: ParseFailed, message: builtin.Message<builtin.Text>}
+        - {signal: ArgumentsRejected, message: builtin.Message<builtin.Rejection>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: parse_more_calls
+    type: builtin
+    init: parse_calls
+    category: word
+    visibility: internal
+    description: Turn every call in the reply into a call list that may also write.
+    config: {tools: [read_note, list_notes, write_note]}
+    signature:
+      input: builtin.Message<builtin.Text>
+      emits:
+        - {signal: CallsParsed, message: builtin.Message<parse-calls-types.MoreCalls>}
+        - {signal: TaskCompleted, message: builtin.Message<builtin.Text>}
+        - {signal: ParseFailed, message: builtin.Message<builtin.Text>}
+        - {signal: ArgumentsRejected, message: builtin.Message<builtin.Rejection>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: read_note
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Read one note.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<parse-calls-types.NotePath>
+      emits:
+        - {signal: StepDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: list_notes
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: List the notes.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<builtin.Object>
+      emits:
+        - {signal: StepDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: write_note
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Write one note.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<parse-calls-types.NotePath>
+      emits:
+        - {signal: StepDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

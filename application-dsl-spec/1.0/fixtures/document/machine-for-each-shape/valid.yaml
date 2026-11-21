@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-016: a for_each over a prior step with a routed join.
+states: [Start, Iterating, Joined, Done, Failed]
+terminal_states: [Done, Failed]
+signals: [Seed, ItemsReady, ItemDone, CommandError, ItemsDone, ItemsEmpty]
+transitions:
+  - {state: Start, signal: Seed, next: Iterating, action: list, label: items}
+  - state: Iterating
+    signal: ItemsReady
+    next: Iterating
+    action: item
+    for_each:
+      items: $from(items).rows
+      as: row
+      continue_on: [ItemDone]
+      abort_on: [CommandError]
+      join:
+        next: Joined
+        label: rows_joined
+        signals: {all_success: ItemsDone, failed: CommandError, empty: ItemsEmpty}
+  - {state: Joined, signal: ItemsDone, next: Done}
+  - {state: Joined, signal: CommandError, next: Failed}
+  - {state: Joined, signal: ItemsEmpty, next: Done}

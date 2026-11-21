@@ -1,0 +1,20 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-009: a builtin declares outcomes, which are for exec tools.
+kind: tool-declaration
+schema_version: 1
+unit: exec-outcomes-example
+tools:
+  - name: count_item
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Count one item.
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: ToolDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+    outcomes:
+      - {default: ToolDone}

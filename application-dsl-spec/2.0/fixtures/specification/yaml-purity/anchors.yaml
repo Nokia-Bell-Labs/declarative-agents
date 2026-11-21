@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-INTRO-005: the same two endpoints share their block through a
+# YAML anchor, an alias, and a merge key, a reuse the language does not declare.
+kind: rest-definition
+schema_version: 1
+endpoints:
+  first: &shared
+    method: GET
+    timeout: 30s
+    response: {status: 200, content_type: application/json}
+  second:
+    <<: *shared

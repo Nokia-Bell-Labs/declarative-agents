@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-003: a resource carrying an RPC-shaped operation under its verb map.
+rest:
+  version: v1
+  clients:
+    github:
+      resources:
+        issue:
+          path: /repos/nokia/agents/issues
+          operations:
+            approve:
+              method: POST
+              success: {status: [200], signal: RESTResourceWritten}

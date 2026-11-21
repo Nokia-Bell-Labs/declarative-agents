@@ -1,0 +1,65 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-006: the coding-agent-demo topology; queue assignments, one topic events channel, delivery values all legal.
+kind: application-profile
+schema_version: 1
+application: coding-agent-demo
+ownership: composition-only
+capabilities:
+  runnable_module:
+    status: planned
+channels:
+  - {id: ready-item, schema: agents/channels/work-item.yaml}
+  - {id: specify-assignment, schema: agents/channels/assignment.yaml, delivery: queue}
+  - {id: plan-assignment, schema: agents/channels/assignment.yaml, delivery: queue}
+  - {id: implement-assignment, schema: agents/channels/assignment.yaml, delivery: queue}
+  - {id: reconcile-assignment, schema: agents/channels/assignment.yaml, delivery: queue}
+  - {id: candidate, schema: agents/channels/candidate.yaml}
+  - {id: closure, schema: agents/channels/closure.yaml}
+  - {id: control-events, schema: agents/channels/event.yaml, delivery: topic}
+services:
+  - id: launcher
+    ownership: local
+    source: agents/launcher/profile.yaml
+    consumes: [control-events]
+    launches: [specify-executor, plan-executor, implement-executor, reconcile-executor]
+  - id: tracker
+    ownership: local
+    source: agents/tracker/profile.yaml
+    consumes: [closure]
+    emits: [ready-item]
+  - id: dispatcher
+    ownership: local
+    source: agents/dispatcher/profile.yaml
+    consumes: [ready-item]
+    emits: [specify-assignment, plan-assignment, implement-assignment, reconcile-assignment]
+  - id: specify-executor
+    ownership: catalog
+    source: agents/executor/profile.yaml
+    consumes: [specify-assignment]
+    emits: [candidate]
+    instances: {min: 0, max: 3}
+  - id: plan-executor
+    ownership: catalog
+    source: agents/executor/profile.yaml
+    consumes: [plan-assignment]
+    emits: [candidate]
+    instances: {min: 0, max: 3}
+  - id: implement-executor
+    ownership: catalog
+    source: agents/executor/profile.yaml
+    consumes: [implement-assignment]
+    emits: [candidate]
+    instances: {min: 0, max: 3}
+  - id: reconcile-executor
+    ownership: catalog
+    source: agents/executor/profile.yaml
+    consumes: [reconcile-assignment]
+    emits: [candidate]
+    instances: {min: 1, max: 1}
+  - id: critic
+    ownership: catalog
+    source: agents/critic/profile.yaml
+    consumes: [candidate]
+    emits: [closure, control-events]
+    budget: 5

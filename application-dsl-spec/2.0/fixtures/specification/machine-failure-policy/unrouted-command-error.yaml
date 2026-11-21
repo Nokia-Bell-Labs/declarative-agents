@@ -1,0 +1,27 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-025: the machine requires its loop-signal routes, but
+# the state its side-effecting step enters does not route CommandError.
+kind: machine
+schema_version: 1
+name: applier
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 10}
+on_failure: {require_routes: true}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for work.}
+  - {name: Applying, meaning: The change is being applied.}
+  - {name: Done, meaning: The change is in place., run_status: succeeded}
+  - {name: Failed, meaning: The change failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A caller hands work over.}
+  - {name: Applied, trigger: The change is in place.}
+  - {name: CommandError, trigger: A word failed.}
+  - {name: BudgetExhausted, trigger: The budget is spent.}
+transitions:
+  - {state: Idle, signal: Seed, next: Applying, action: apply, label: change}
+  - {state: Idle, signal: CommandError, next: Failed}
+  - {state: Idle, signal: BudgetExhausted, next: Failed}
+  - {state: Applying, signal: Applied, next: Done}
+  - {state: Applying, signal: BudgetExhausted, next: Failed}

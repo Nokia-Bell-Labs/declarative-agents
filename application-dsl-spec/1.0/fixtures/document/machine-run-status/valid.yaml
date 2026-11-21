@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-007: every terminal state declaring a known run_status.
+states:
+  - Idle
+  - {name: Done, run_status: succeeded}
+  - {name: Failed, run_status: failed}
+terminal_states: [Done, Failed]

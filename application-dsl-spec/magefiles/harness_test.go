@@ -20,7 +20,7 @@ func coverageLanguage() languageFile {
 }
 
 func TestFixtureCoverageAcceptsBothVerdicts(t *testing.T) {
-	if err := checkFixtureCoverage(coverageLanguage()); err != nil {
+	if err := checkFixtureCoverage(coverageLanguage(), "document"); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -28,7 +28,7 @@ func TestFixtureCoverageAcceptsBothVerdicts(t *testing.T) {
 func TestFixtureCoverageRequiresBothVerdicts(t *testing.T) {
 	language := coverageLanguage()
 	language.Statements[0].Acceptance = language.Statements[0].Acceptance[:1]
-	err := checkFixtureCoverage(language)
+	err := checkFixtureCoverage(language, engineVersion.AuthoredTarget)
 	if err == nil || !strings.Contains(err.Error(), "no invalid-verdict fixture") {
 		t.Fatalf("coverage error = %v, want missing invalid fixture", err)
 	}
@@ -40,7 +40,7 @@ func TestFixtureCoverageIgnoresNonDocumentTargets(t *testing.T) {
 	language.Statements[0].Acceptance = []acceptanceEntry{
 		{Assertion: "rig", Path: "x_test.go", Test: "TestX"},
 	}
-	if err := checkFixtureCoverage(language); err != nil {
+	if err := checkFixtureCoverage(language, engineVersion.AuthoredTarget); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -134,7 +134,7 @@ func TestConstitutionCitations(t *testing.T) {
 // TestRepositoryConstitutionsCiteResolvableStatements gates the tracked
 // constitutions against the tracked language.
 func TestRepositoryConstitutionsCiteResolvableStatements(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,14 +146,14 @@ func TestRepositoryConstitutionsCiteResolvableStatements(t *testing.T) {
 // TestRepositoryFixtureSuitesAreCoveredAndOwned gates the tracked suites, so
 // a suite regression fails go test as well as mage audit.
 func TestRepositoryFixtureSuitesAreCoveredAndOwned(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := checkFixtureCoverage(language); err != nil {
+	if err := checkFixtureCoverage(language, engineVersion.AuthoredTarget); err != nil {
 		t.Error(err)
 	}
-	if err := checkFixtureOwnership("..", language); err != nil {
+	if err := checkFixtureOwnership(engineVersion.root(".."), language); err != nil {
 		t.Error(err)
 	}
 }

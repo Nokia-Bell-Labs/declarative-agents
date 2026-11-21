@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-001: a tool-declaration document carries a tools body.
+tools:
+  - name: build
+    binary: go
+    args: [build, ./...]

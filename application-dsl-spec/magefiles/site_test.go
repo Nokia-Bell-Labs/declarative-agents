@@ -92,12 +92,12 @@ func TestSiteSitemapCoversAllPagesAndIndex(t *testing.T) {
 // TestRepositorySiteBuilds proves the tracked chapters and language build a
 // complete site: render into a scratch directory, then generate the tree.
 func TestRepositorySiteBuilds(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
 	rendered := t.TempDir()
-	if err := renderChapters("..", rendered, language); err != nil {
+	if err := renderChapters(engineVersion.root(".."), rendered, repositoryRootOf(".."), language); err != nil {
 		t.Fatal(err)
 	}
 	site := t.TempDir()

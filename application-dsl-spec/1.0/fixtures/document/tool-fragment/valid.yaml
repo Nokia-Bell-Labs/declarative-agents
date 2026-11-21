@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-007: a fragment declares its unit, its params, and the body they fill.
+unit: embed-fragment
+params:
+  - {name: provider, type: string}
+tools:
+  - name: embed
+    binary: embed
+    args: [--provider, $param(provider)]

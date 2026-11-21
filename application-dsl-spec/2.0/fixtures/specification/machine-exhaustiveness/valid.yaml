@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-015: every declared emit routed, every awaited signal producible.
+kind: agent-profile
+schema_version: 1
+name: planner
+machine: ../../units/exhaustiveness/machine-valid.yaml
+tools: [../../units/exhaustiveness/tools.yaml]
+tool_declarations: [../../units/exhaustiveness/declarations.yaml]
+directory: .

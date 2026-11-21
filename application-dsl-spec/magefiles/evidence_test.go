@@ -22,6 +22,12 @@ func writeEvidenceFile(t *testing.T, dir, name, content string) string {
 	return path
 }
 
+// flatRoots resolves every kind of evidence against one directory, for tests
+// that exercise a single entry in isolation.
+func flatRoots(dir string) evidenceRoots {
+	return evidenceRoots{Version: dir, Module: dir, Repository: dir}
+}
+
 // TestFixtureCheckRejectsNonMappingRoot is the acceptance evidence for
 // R-INTRO-002: the processor obligation to reject a document whose root node
 // is not a mapping, exercised through the fixture check that enforces it.
@@ -49,7 +55,7 @@ func TestFixtureVerdictMismatchFails(t *testing.T) {
 		Check:     "yaml_mapping",
 		Verdict:   "invalid",
 	}
-	err := runAcceptanceEntry(dir, entry)
+	err := runAcceptanceEntry(flatRoots(dir), entry)
 	if err == nil || !strings.Contains(err.Error(), "declared invalid but passed") {
 		t.Fatalf("verdict mismatch error = %v, want declared invalid but passed", err)
 	}
@@ -66,7 +72,7 @@ func TestFixtureUnknownCheckFails(t *testing.T) {
 	}
 	// An unknown check reads as a failing check, which an invalid verdict would
 	// wrongly convert into passing evidence; the audit must not accept it.
-	if err := runAcceptanceEntry(dir, entry); err == nil {
+	if err := runAcceptanceEntry(flatRoots(dir), entry); err == nil {
 		t.Fatal("unknown fixture check produced passing evidence")
 	}
 }
@@ -78,7 +84,7 @@ func TestEvidencePathMayNotEscapeModule(t *testing.T) {
 		Check:     "yaml_mapping",
 		Verdict:   "valid",
 	}
-	err := runAcceptanceEntry(t.TempDir(), entry)
+	err := runAcceptanceEntry(flatRoots(t.TempDir()), entry)
 	if err == nil || !strings.Contains(err.Error(), "escapes the module") {
 		t.Fatalf("escape error = %v, want escapes the module", err)
 	}
@@ -94,16 +100,16 @@ func TestRigEvidenceResolvesDeclaredRepositoryTest(t *testing.T) {
 		Path:      "applications/x/magefiles/rig_test.go",
 		Test:      "TestRigProves",
 	}
-	if err := runAcceptanceEntry(module, entry); err != nil {
+	if err := runAcceptanceEntry(rootsFor(module, engineVersion), entry); err != nil {
 		t.Fatalf("rig reference failed: %v", err)
 	}
 	entry.Test = "TestRenamed"
-	if err := runAcceptanceEntry(module, entry); err == nil ||
+	if err := runAcceptanceEntry(rootsFor(module, engineVersion), entry); err == nil ||
 		!strings.Contains(err.Error(), "is not declared") {
 		t.Fatalf("renamed rig test error = %v, want is not declared", err)
 	}
 	entry.Path = "applications/x/magefiles/missing_test.go"
-	if err := runAcceptanceEntry(module, entry); err == nil {
+	if err := runAcceptanceEntry(rootsFor(module, engineVersion), entry); err == nil {
 		t.Fatal("missing rig file produced passing evidence")
 	}
 }
@@ -116,7 +122,7 @@ func TestRigEvidenceMayNotEscapeRepository(t *testing.T) {
 		Path:      "../outside_test.go",
 		Test:      "TestOutside",
 	}
-	err := runAcceptanceEntry(module, entry)
+	err := runAcceptanceEntry(rootsFor(module, engineVersion), entry)
 	if err == nil || !strings.Contains(err.Error(), "escapes the repository") {
 		t.Fatalf("escape error = %v, want escapes the repository", err)
 	}
@@ -137,16 +143,17 @@ func TestGoTestEvidenceRequiresDeclaredTest(t *testing.T) {
 // mage audit. go_test entries are exercised by the audit target itself; a
 // test that re-entered go test here would recurse.
 func TestRepositoryFixtureEvidencePasses(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
+	roots := rootsFor("..", engineVersion)
 	for _, statement := range language.Statements {
 		for _, entry := range statement.Acceptance {
 			if entry.Assertion != "fixture" {
 				continue
 			}
-			if err := runAcceptanceEntry("..", entry); err != nil {
+			if err := runAcceptanceEntry(roots, entry); err != nil {
 				t.Errorf("%s: %v", statement.ID, err)
 			}
 		}
@@ -198,73 +205,71 @@ func TestMachineExpansionShape(t *testing.T) {
 	}
 }
 
-func TestProfileExpansionShape(t *testing.T) {
+func TestProfileAdmitsNoExpansion(t *testing.T) {
 	tests := map[string]struct {
 		content string
 		valid   bool
 	}{
-		"no expansion at all": {
+		"profile written out in full": {
 			content: "name: worker\nmachine: machine.yaml\n",
 			valid:   true,
 		},
-		"one entry naming a blueprint": {
+		"profile expanding a blueprint": {
 			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n    args: {server: control}\n",
-			valid:   true,
-		},
-		"expansion without a name": {
-			content: "expand:\n  - fragment: b.yaml\n",
-			valid:   false,
-		},
-		"two expansion entries": {
-			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n  - fragment: c.yaml\n",
-			valid:   false,
-		},
-		"entry renames what it produces": {
-			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n    as: secondary\n",
 			valid:   false,
 		},
 	}
+	runShapeCases(t, "profile_admits_no_expansion", tests)
+}
+
+func TestProfileCarriesNoBlueprintKeynames(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		valid   bool
+	}{
+		"agent-profile keynames only": {
+			content: "name: worker\nmachine: machine.yaml\ntools: [tools.yaml]\n",
+			valid:   true,
+		},
+		"unit":    {content: "unit: b\nmachine: machine.yaml\n", valid: false},
+		"params":  {content: "params:\n  - {name: server, type: string}\nmachine: m.yaml\n", valid: false},
+		"profile": {content: "profile:\n  machine: machine.yaml\n", valid: false},
+	}
+	runShapeCases(t, "profile_carries_no_blueprint_keynames", tests)
+}
+
+func TestNameIsOptionalButTyped(t *testing.T) {
+	tests := map[string]struct {
+		check, content string
+		valid          bool
+	}{
+		"nameless profile":       {"profile_required_keynames", "machine: machine.yaml\n", true},
+		"profile with list name": {"profile_required_keynames", "name: [a]\nmachine: machine.yaml\n", false},
+		"nameless machine body":  {"machine_body_keynames", "states: [A]\ntransitions: []\n", true},
+		"machine with map name":  {"machine_body_keynames", "name: {a: b}\nstates: [A]\ntransitions: []\n", false},
+	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			path := writeEvidenceFile(t, t.TempDir(), "profile.yaml", test.content)
-			err := checkFixture("profile_expansion_shape", path)
-			if test.valid && err != nil {
-				t.Fatalf("check failed on a conforming document: %v", err)
-			}
-			if !test.valid && err == nil {
-				t.Fatal("check passed a non-conforming document")
+			path := writeEvidenceFile(t, t.TempDir(), "doc.yaml", test.content)
+			err := checkFixture(test.check, path)
+			if test.valid != (err == nil) {
+				t.Fatalf("check %s on %q: err = %v, want valid=%v", test.check, test.content, err, test.valid)
 			}
 		})
 	}
 }
 
-func TestBlueprintBodyShape(t *testing.T) {
-	tests := map[string]struct {
-		content string
-		valid   bool
-	}{
-		"blueprint declaring parameters and a body": {
-			content: "unit: b\nparams:\n  - {name: server, type: string}\nprofile:\n  name: $param(server)\n",
-			valid:   true,
-		},
-		"expanding document is not a blueprint": {
-			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n",
-			valid:   true,
-		},
-		"parameters without a body": {
-			content: "unit: b\nparams:\n  - {name: server, type: string}\n",
-			valid:   true,
-		},
-		"blueprint carrying an expansion": {
-			content: "unit: b\nparams:\n  - {name: server, type: string}\n" +
-				"expand:\n  - fragment: base.yaml\nprofile:\n  name: $param(server)\n",
-			valid: false,
-		},
-	}
+// runShapeCases applies one fixture check to each case and compares the
+// outcome with the declared validity.
+func runShapeCases(t *testing.T, check string, tests map[string]struct {
+	content string
+	valid   bool
+}) {
+	t.Helper()
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			path := writeEvidenceFile(t, t.TempDir(), "blueprint.yaml", test.content)
-			err := checkFixture("blueprint_body_shape", path)
+			path := writeEvidenceFile(t, t.TempDir(), "doc.yaml", test.content)
+			err := checkFixture(check, path)
 			if test.valid && err != nil {
 				t.Fatalf("check failed on a conforming document: %v", err)
 			}

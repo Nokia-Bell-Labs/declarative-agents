@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-002: a chat dialect names its unit, its provider, a rooted POST path, and an auth type.
+unit: fixture-chat-dialect
+provider_name: fixture
+method: POST
+path: /v1/chat
+auth:
+  type: none

@@ -1,0 +1,44 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan and step types the for-each-dispatch fixtures iterate: a step's kind
+# is an enum, in a matching, a narrower, and a wider variant.
+kind: tool-declaration
+schema_version: 1
+unit: for-each-dispatch-types
+types:
+  - name: Step
+    schema:
+      type: object
+      properties:
+        kind: {type: string, enum: [edit, test, review]}
+        target: {type: string}
+      required: [kind]
+  - name: Plan
+    schema:
+      type: object
+      properties:
+        steps: {type: array, items: {$type: for-each-dispatch-types.Step}}
+  - name: NarrowStep
+    schema:
+      type: object
+      properties:
+        kind: {type: string, enum: [edit, test]}
+        target: {type: string}
+      required: [kind]
+  - name: NarrowPlan
+    schema:
+      type: object
+      properties:
+        steps: {type: array, items: {$type: for-each-dispatch-types.NarrowStep}}
+  - name: WideStep
+    schema:
+      type: object
+      properties:
+        kind: {type: string, enum: [edit, test, review, deploy]}
+        target: {type: string}
+      required: [kind]
+  - name: WidePlan
+    schema:
+      type: object
+      properties:
+        steps: {type: array, items: {$type: for-each-dispatch-types.WideStep}}

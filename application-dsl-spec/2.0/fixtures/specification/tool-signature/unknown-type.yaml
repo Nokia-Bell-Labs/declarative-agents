@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-001: a message names a type no unit declares.
+kind: tool-declaration
+schema_version: 1
+unit: typed-example
+imports:
+  - ../../units/typed-example-types.yaml
+tools:
+  - name: count_item
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Count one item.
+    signature:
+      input: builtin.Message<typed-example-types.Invoice>
+      emits:
+        - {signal: Counted, message: builtin.Message<typed-example-types.Order>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: pass_through
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Pass the message on unchanged.
+    signature:
+      input: builtin.Message<$T>
+      emits:
+        - {signal: Passed, message: builtin.Message<$T>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

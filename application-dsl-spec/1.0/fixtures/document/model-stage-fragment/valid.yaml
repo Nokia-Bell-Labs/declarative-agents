@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-005: a stage-fragment declaring params and a stage body.
+unit: run-stage
+params:
+  - {name: prefix, type: string}
+  - {name: enter, type: string}
+stage:
+  states:
+    - {name: $param(prefix)Running, meaning: Run the bound word.}
+  signals: [$param(prefix)Done]
+  transitions:
+    - {state: Ready, signal: $param(enter), next: $param(prefix)Running, action: run}
+    - {state: $param(prefix)Running, signal: $param(prefix)Done, next: Done}

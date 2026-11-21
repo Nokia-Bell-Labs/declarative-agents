@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-001: an invoke_llm config naming both a legacy provider and a dialect.
+tools:
+  - name: invoke_llm
+    type: builtin
+    init: invoke_llm
+    visibility: internal
+    output:
+      schema: {type: string}
+    config:
+      model: command-a-03-2025
+      provider: cohere
+      dialect: /opt/providers/chat-dialect.yaml
+      manifest_state: Composing

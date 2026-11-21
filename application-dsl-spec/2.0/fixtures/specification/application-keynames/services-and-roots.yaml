@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-001: services and its older spelling roots side by side.
+kind: application-profile
+schema_version: 1
+application: example
+ownership: agent-owning
+capabilities: {}
+services:
+  - id: worker
+    ownership: local
+    source: agents/worker/profile.yaml
+roots:
+  - id: helper
+    ownership: local
+    source: agents/helper/profile.yaml

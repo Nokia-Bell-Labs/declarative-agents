@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-003: a chat dialect body splicing the conversation into text.
+unit: fixture-chat-dialect
+body:
+  model: "{{ params.model }}"
+  messages: "history: {{ params.messages }}"

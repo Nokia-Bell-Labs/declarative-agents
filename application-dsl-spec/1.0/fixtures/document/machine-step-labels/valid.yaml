@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-013: repeated transition labels and a runtime-seeded label.
+external_labels: [request, {name: profile, type: chat-types.Profile}]
+transitions:
+  - {state: Idle, signal: Seed, next: Working, action: read, label: source_document}
+  - {state: Working, signal: ToolDone, next: Done, action: read, label: source_document}

@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-011: a named action, a $tool action, and a no-action move.
+transitions:
+  - {state: Idle, signal: Seed, next: Choosing, action: lookup, report_output: $.address}
+  - {state: Choosing, signal: LLMResponded, next: Working, action: $tool, summary: true}
+  - {state: Working, signal: ToolDone, next: Done}

@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-003: a blueprint document, which is not an agent-profile document.
+unit: serve-agent-blueprint
+params:
+  - {name: agent, type: string}
+profile:
+  name: $param(agent)
+  machine: machine.yaml
+  tools: [tools.yaml]

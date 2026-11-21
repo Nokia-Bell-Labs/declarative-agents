@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The machine of the tool-variable-value fixture.
+kind: machine
+schema_version: 1
+name: step-runner
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 20}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for a plan request.}
+  - {name: Stepping, meaning: Running each planned step with its kind's tool.}
+  - {name: Reporting, meaning: Routing the joined outcome.}
+  - {name: Done, meaning: Every step ran., run_status: succeeded}
+  - {name: Failed, meaning: Planning or a step failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A caller hands a plan request over.}
+  - {name: Planned, trigger: The steps are listed.}
+  - {name: StepDone, trigger: One step ran.}
+  - {name: PlanDone, trigger: Every step ran or none was listed.}
+  - {name: PlanFailed, trigger: A step failed.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: Stepping, action: plan_steps, label: plan}
+  - state: Stepping
+    signal: Planned
+    next: Reporting
+    for_each:
+      items: $from(plan).body.steps
+      as: step
+      dispatch:
+        field: kind
+        actions: {edit: apply_edit, test: run_tests, review: $tool}
+      continue_on: [StepDone]
+      abort_on: [CommandError]
+      join: {next: Reporting, signals: {all_success: PlanDone, failed: PlanFailed, empty: PlanDone}}
+  - {state: Stepping, signal: CommandError, next: Failed}
+  - {state: Reporting, signal: PlanDone, next: Done}
+  - {state: Reporting, signal: PlanFailed, next: Failed}

@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-008: the profile declares a library root its closure imports from.
+kind: agent-profile
+schema_version: 1
+name: closure-example
+machine: ../../units/closure/machine.yaml
+tools: [../../units/closure/tools.yaml]
+tool_declarations: [../../units/closure/library-import.yaml]
+libraries: {demo-lib: ../../units/closure/lib}

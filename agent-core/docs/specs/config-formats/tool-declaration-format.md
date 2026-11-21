@@ -1336,33 +1336,6 @@ Omitted or empty env inherits the parent environment only. Builtin
 declarations cannot set env. Resolved values are not written to traces,
 metrics, or receipts.
 
-<!-- exec_field: includes -->
-### includes
-
-<!-- field: type -->
-#### Type
-
-[]string
-
-<!-- field: required | form: "scalar" -->
-#### Required
-
-false
-
-<!-- field: scope -->
-#### Scope
-
-file-level (not per-tool)
-
-<!-- field: description -->
-#### Description
-
-A file-level field on the tool declarations file (not on
-individual tool entries). Specifies paths to other tool files
-whose declarations are merged before the current file's tools.
-Included files load first. The including file may override a
-tool with the same name.
-
 <!-- field: parameter_extensions -->
 ## Parameter extensions
 

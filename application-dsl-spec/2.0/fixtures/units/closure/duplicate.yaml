@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Declares one tool name twice.
+kind: tool-declaration
+schema_version: 1
+unit: closure-duplicate
+tools:
+  - name: pass_through
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Once.
+    config: {path: vector, signal: Passed}
+    signature:
+      input: builtin.Message<$T>
+      emits:
+        - {signal: Passed, message: builtin.Message<$T>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: pass_through
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Twice.
+    config: {path: vector, signal: Passed}
+    signature:
+      input: builtin.Message<$T>
+      emits:
+        - {signal: Passed, message: builtin.Message<$T>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

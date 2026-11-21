@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-005: an irreversible operation that does not require confirmation.
+rest:
+  version: v1
+  clients:
+    github:
+      operations:
+        delete_issue:
+          method: DELETE
+          path: /issues/current
+          success: {status: [204], signal: RESTResourceDeleted}
+          side_effects:
+            - {kind: external_api, target: github.issue}
+          reversibility:
+            classification: irreversible

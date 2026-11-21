@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-002: an agent-profile written out in full.
+name: chatbot
+machine: machine.yaml
+tools: [tools.yaml]

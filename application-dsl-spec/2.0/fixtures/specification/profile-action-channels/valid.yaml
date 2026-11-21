@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-005: a review action moved onto a declared request-reply
+# channel, a child agent hosted in process, and a rate-limited model call.
+kind: agent-profile
+schema_version: 1
+name: executor
+machine: machine.yaml
+tools: [tools.yaml]
+action_channels:
+  - {action: review_item, transport: rest, channel: review}
+  - {action: run_planner, transport: function}
+  - {action: invoke_llm, transport: function, policy: {rate_limit: 5/s}}

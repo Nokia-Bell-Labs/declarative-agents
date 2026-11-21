@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-008: a budget with a positive iteration bound and command timeout.
+budget:
+  max_iterations: 20
+  max_tokens: 50000
+  max_duration: 10m
+  command_timeout: 2m

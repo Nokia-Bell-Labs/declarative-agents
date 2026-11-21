@@ -1,0 +1,18 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-010: ws is a language transport the engine does not run yet, refused at load as at boot.
+kind: application-profile
+schema_version: 1
+application: coding-agent-demo
+ownership: composition-only
+capabilities:
+  runnable_module:
+    status: planned
+channels:
+  - {id: candidate, schema: agents/channels/candidate.yaml, transport: ws, reliability: at-least-once, policy: {rate_limit: 10/s}}
+  - {id: review, schema: agents/channels/review.yaml}
+  - {id: closure, schema: agents/channels/closure.yaml}
+services:
+  - {id: executor, ownership: catalog, source: agents/executor/profile.yaml, consumes: [review], emits: [candidate]}
+  - {id: critic, ownership: catalog, source: agents/critic/profile.yaml, consumes: [candidate], emits: [review, closure], budget: 5}
+  - {id: planner, ownership: local, source: agents/planner/profile.yaml, consumes: [closure]}

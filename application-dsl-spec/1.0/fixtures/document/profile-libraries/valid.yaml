@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-005: an agent-profile document declares a kebab-named library root with a directory.
+name: rag-server
+machine: machine.yaml
+tools:
+  - tools.yaml
+libraries:
+  shared-units: ../../lib

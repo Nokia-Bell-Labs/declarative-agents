@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-004: a transition entry with a misspelled keyname and no next.
+transitions:
+  - {state: Idle, signal: Seed, acton: relay}

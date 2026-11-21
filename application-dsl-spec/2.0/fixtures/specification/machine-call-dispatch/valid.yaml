@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-019: each parsed call runs the tool it names, with its parameters as the step's body.
+kind: agent-profile
+schema_version: 1
+name: call-runner
+machine: ../../units/parse-calls/machine-valid.yaml
+tools: [../../units/parse-calls/tools.yaml]
+tool_declarations: [../../units/parse-calls/declarations.yaml]
+directory: .

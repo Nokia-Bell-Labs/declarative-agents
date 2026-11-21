@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-008: typed parameters with an enum and defaults that satisfy them.
+unit: embed-stage
+params:
+  - {name: provider, type: string, enum: [cohere, openai], default: cohere}
+  - {name: dimensions, type: integer, default: 1024}
+  - {name: timeout, type: number, default: 2.5}
+  - {name: batch, type: boolean, default: false, description: Send items in one request.}
+stage:
+  transitions:
+    - {state: Ready, signal: Seed, next: Done, action: embed_$param(provider)}

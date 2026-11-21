@@ -1,0 +1,17 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-005 (GH-805): a asks b over request-reply, and the run each request starts at b pokes a
+# one-way, so a asks again. The request is an edge, the cycle a -[ask]-> b -[poke]-> a has no budget.
+kind: application-profile
+schema_version: 1
+application: pingpong-probe
+ownership: composition-only
+capabilities:
+  runnable_module:
+    status: planned
+channels:
+  - {id: ask, schema: agents/channels/ball.yaml, pattern: request-reply}
+  - {id: poke, schema: agents/channels/ball.yaml}
+services:
+  - {id: a, ownership: local, source: agents/a/profile.yaml, emits: [ask], consumes: [poke]}
+  - {id: b, ownership: local, source: agents/b/profile.yaml, listens: [ask], consumes: [ask], emits: [poke]}

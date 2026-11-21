@@ -4,7 +4,6 @@
 package main
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -145,7 +144,7 @@ func TestBareNounBanPermitsBacktickedKeynames(t *testing.T) {
 // TestRepositoryLanguageFileIsValid gates the tracked language.yaml itself, so
 // a schema break fails go test as well as mage audit.
 func TestRepositoryLanguageFileIsValid(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}

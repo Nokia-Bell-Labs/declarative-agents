@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-002: a builtin entry names its factory and an untyped entry names its binary.
+tools:
+  - name: read
+    type: builtin
+    init: file_read
+    output:
+      schema: {type: string}
+  - name: build
+    binary: go

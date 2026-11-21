@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-005: an agent-profile document redeclares the implicit agent-core library root.
+name: rag-server
+machine: machine.yaml
+tools:
+  - tools.yaml
+libraries:
+  agent-core: ../../core

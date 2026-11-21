@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-006: auth profiles and a redirect policy drawn from their closed vocabularies.
+rest:
+  version: v1
+  auth:
+    github_app: {type: bearer, token_ref: github_token}
+    service: {type: header_token, token_ref: service_token}
+  limits:
+    public_api:
+      redirect: {mode: same_host}

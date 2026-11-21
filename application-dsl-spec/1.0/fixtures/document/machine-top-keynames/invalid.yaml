@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-003: a machine-profile carrying `imports`, which the loader rejects.
+name: relay
+imports: [units/relay-stage.yaml]
+initial_state: Idle
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed]
+transitions:
+  - {state: Idle, signal: Seed, next: Done, action: relay}

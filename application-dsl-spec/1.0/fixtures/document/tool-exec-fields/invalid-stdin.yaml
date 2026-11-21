@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-004: an exec entry whose stdin_source is not a (label).path selector.
+tools:
+  - name: consume
+    binary: wc
+    stdin_source: $.output

@@ -1,0 +1,17 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-005 (GH-805): a asks b and b's run asks a back, both over request-reply. Each
+# requester waits on its reply while the request comes back to it, so the cycle deadlocks whatever its budgets.
+kind: application-profile
+schema_version: 1
+application: pingpong-probe
+ownership: composition-only
+capabilities:
+  runnable_module:
+    status: planned
+channels:
+  - {id: ask, schema: agents/channels/ball.yaml, pattern: request-reply}
+  - {id: poke, schema: agents/channels/ball.yaml, pattern: request-reply}
+services:
+  - {id: a, ownership: local, source: agents/a/profile.yaml, listens: [poke], emits: [ask], consumes: [poke], budget: 3}
+  - {id: b, ownership: local, source: agents/b/profile.yaml, listens: [ask], consumes: [ask], emits: [poke], budget: 3}

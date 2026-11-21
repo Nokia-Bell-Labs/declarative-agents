@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-004: an operation mapping one status to two signals.
+rest:
+  version: v1
+  clients:
+    github:
+      operations:
+        search_issues:
+          method: GET
+          path: /search/issues
+          success: {status: [200], signal: RESTResponded}
+          failures:
+            - {status: [404, 422], signal: RESTNotFound}
+            - {status: [422, 500], signal: RESTFailed}

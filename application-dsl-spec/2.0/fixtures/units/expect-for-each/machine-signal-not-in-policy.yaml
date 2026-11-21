@@ -1,0 +1,47 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# StepSuspect is no outcome the fan-out's failure policy names.
+kind: machine
+schema_version: 1
+name: step-runner
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 20}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for a plan request.}
+  - {name: Stepping, meaning: Running each planned step with its kind's tool.}
+  - {name: Reporting, meaning: Routing the joined outcome.}
+  - {name: Done, meaning: The steps ran; some may be quarantined., run_status: succeeded}
+  - {name: Failed, meaning: Planning or every step failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A caller hands a plan request over.}
+  - {name: Planned, trigger: The steps are listed.}
+  - {name: StepDone, trigger: One step ran inside its expectation.}
+  - {name: StepSuspect, trigger: One step fell outside its expectation.}
+  - {name: PlanDone, trigger: Every step ran or none was listed.}
+  - {name: PlanPartial, trigger: Some steps failed or were quarantined.}
+  - {name: PlanFailed, trigger: Every step failed.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: Stepping, action: plan_steps, label: plan}
+  - state: Stepping
+    signal: Planned
+    next: Reporting
+    label: each_step
+    for_each:
+      items: $from(plan).body.steps
+      as: step
+      dispatch:
+        field: kind
+        actions: {edit: apply_edit, test: run_tests}
+      failure: collect_all
+      continue_on: [StepDone]
+      abort_on: [CommandError]
+      join: {next: Reporting, signals: {all_success: PlanDone, partial: PlanPartial, failed: PlanFailed, empty: PlanDone}}
+    expect:
+      where: {files: {max_items: 2}}
+      otherwise: {signal: StepSuspect, quarantine: true}
+  - {state: Stepping, signal: CommandError, next: Failed}
+  - {state: Reporting, signal: PlanDone, next: Done}
+  - {state: Reporting, signal: PlanPartial, next: Done}
+  - {state: Reporting, signal: PlanFailed, next: Failed}

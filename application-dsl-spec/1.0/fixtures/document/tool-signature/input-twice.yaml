@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-005: an entry stating its input through both signature.input and parameters.
+tools:
+  - name: flatten_chunks
+    type: builtin
+    init: array_transform
+    signature:
+      input: chat-types.Sources
+    parameters:
+      type: object

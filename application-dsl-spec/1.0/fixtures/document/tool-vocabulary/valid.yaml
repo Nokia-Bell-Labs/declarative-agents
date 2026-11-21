@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-003: an entry drawing visibility, reversibility, precondition, and undo strategy from their closed vocabularies.
+tools:
+  - name: commit
+    binary: git
+    args: [commit]
+    visibility: internal
+    precondition: git_repo
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: workspace_restore

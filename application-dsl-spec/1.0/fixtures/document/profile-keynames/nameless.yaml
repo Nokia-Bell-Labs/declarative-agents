@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-001: an agent-profile that references its machine and gives no name.
+machine: machine.yaml
+tools: tools.yaml

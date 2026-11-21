@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-001: no body of its own and two compose entries, so
+# neither template is adopted whole and no state exists to enter from.
+kind: machine
+schema_version: 1
+name: control
+compose:
+  - template: ../../units/control.yaml
+    args: {server: agent, exit_signal: ExitRequested}
+  - template: ../../units/review.yaml
+    args: {reviewer: critic}

@@ -1,0 +1,28 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The types unit the wrong-arity fixture imports: Order binds the generic
+# Batch with two arguments where it declares one parameter.
+kind: tool-declaration
+schema_version: 1
+unit: typed-example-arity-types
+types:
+  - name: Item
+    schema:
+      type: object
+      properties:
+        id: {type: string}
+        count: {type: integer}
+        tags: {type: array, items: {type: string}}
+        state: {type: string, enum: [open, closed]}
+      required: [id]
+  - name: Batch
+    params: [T]
+    schema:
+      type: object
+      properties:
+        entries: {type: array, items: {$type: $T}}
+  - name: Order
+    schema:
+      type: object
+      properties:
+        lines: {$type: "typed-example-arity-types.Batch<typed-example-arity-types.Item, builtin.Text>"}

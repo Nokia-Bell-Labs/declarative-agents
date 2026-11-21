@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-011: the schema a channel names, declaring channel-schema.
+kind: channel-schema
+schema_version: 1
+type: object
+required: [workspace_id]
+properties:
+  workspace_id: {type: string}
+  task: {type: string}

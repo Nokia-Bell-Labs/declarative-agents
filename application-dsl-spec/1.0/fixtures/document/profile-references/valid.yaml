@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-004: an agent-profile document selects tools and lists its declaration sources as sequences.
+name: generator
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - llm/default.yaml
+tool_config_dirs:
+  - ../../tools/builtin/filesystem
+rest_definitions:
+  - rest.yaml
+directory: ../workspace

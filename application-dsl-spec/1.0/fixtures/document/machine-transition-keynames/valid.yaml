@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-004: transition entries carrying state, signal, next, and known keynames.
+transitions:
+  - {state: Idle, signal: Seed, next: Working, action: relay, label: relayed}
+  - {state: Working, signal: Relayed, next: Done}

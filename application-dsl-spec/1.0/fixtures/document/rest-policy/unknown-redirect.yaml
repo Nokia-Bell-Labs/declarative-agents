@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-006: a limit profile whose redirect mode is outside none, same_host, and allowlist.
+rest:
+  version: v1
+  limits:
+    public_api:
+      redirect: {mode: anywhere}

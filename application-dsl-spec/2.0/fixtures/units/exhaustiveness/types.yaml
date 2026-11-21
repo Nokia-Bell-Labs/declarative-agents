@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan type the exhaustiveness fixtures carry on their custom signals.
+kind: tool-declaration
+schema_version: 1
+unit: exhaustiveness-types
+types:
+  - name: Step
+    schema:
+      type: object
+      properties:
+        kind: {type: string, enum: [edit, test, review]}
+  - name: Plan
+    schema:
+      type: object
+      properties:
+        steps: {type: array, items: {$type: exhaustiveness-types.Step}}
+        target: {type: string, enum: [staging, dev, prod]}
+      required: [steps, target]

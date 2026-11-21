@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-006: a machine-template whose `machine` body holds machine-profile keynames.
+unit: check-template
+params:
+  - {name: word, type: string}
+machine:
+  name: check
+  initial_state: Ready
+  budget: {command_timeout: 1m, max_iterations: 5}
+  states: [Ready, {name: Done, run_status: succeeded}]
+  terminal_states: [Done]
+  signals: [Seed]
+  transitions:
+    - {state: Ready, signal: Seed, next: Done, action: $param(word)}

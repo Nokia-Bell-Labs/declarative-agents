@@ -1,0 +1,46 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A machine that parses a reply into calls and runs each with its tool.
+kind: machine
+schema_version: 1
+name: call-runner
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 20}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for a model reply.}
+  - {name: Running, meaning: Running each call with its tool.}
+  - {name: Reporting, meaning: Routing the joined outcome.}
+  - {name: Done, meaning: Every call ran or the model finished., run_status: succeeded}
+  - {name: Failed, meaning: The reply or a call failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A model reply arrives.}
+  - {name: CallsParsed, trigger: The reply's calls are listed.}
+  - {name: TaskCompleted, trigger: The model finished.}
+  - {name: ParseFailed, trigger: The reply is not a call list.}
+  - {name: ArgumentsRejected, trigger: A call's arguments do not fit its tool.}
+  - {name: StepDone, trigger: One call ran.}
+  - {name: CallsDone, trigger: Every call ran or none was listed.}
+  - {name: CallsFailed, trigger: A call failed.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: Running, action: parse_note_calls, label: calls}
+  - state: Running
+    signal: CallsParsed
+    next: Reporting
+    for_each:
+      items: $from(calls).body.calls
+      as: call
+      body: $from(call).parameters
+      dispatch:
+        field: tool
+        actions: {read_note: read_note, list_notes: list_notes}
+      continue_on: [StepDone]
+      abort_on: [CommandError]
+      join: {next: Reporting, signals: {all_success: CallsDone, failed: CallsFailed, empty: CallsDone}}
+  - {state: Running, signal: TaskCompleted, next: Done}
+  - {state: Running, signal: ParseFailed, next: Failed}
+  - {state: Running, signal: ArgumentsRejected, next: Failed}
+  - {state: Running, signal: CommandError, next: Failed}
+  - {state: Reporting, signal: CallsDone, next: Done}
+  - {state: Reporting, signal: CallsFailed, next: Failed}

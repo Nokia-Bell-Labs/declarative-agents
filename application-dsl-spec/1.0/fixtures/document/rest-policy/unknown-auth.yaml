@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-006: an auth profile whose type is outside the supported set.
+rest:
+  version: v1
+  auth:
+    github_app: {type: magic_signature}

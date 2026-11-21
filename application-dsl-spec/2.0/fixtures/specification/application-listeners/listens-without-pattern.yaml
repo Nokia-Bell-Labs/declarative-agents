@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-016: the executor listens on assignments, a queue channel that declares no pattern.
+kind: application-profile
+schema_version: 1
+application: channel-patterns
+ownership: agent-owning
+module_status: implemented
+capabilities:
+  runnable_module:
+    status: implemented
+    evidence: [mage test]
+runtime:
+  mount_path: /profiles
+channels:
+  - {id: tracker-ops, schema: agents/channels/tracker-ops.yaml, pattern: request-reply}
+  - {id: tracker-changes, schema: agents/channels/tracker-changes.yaml, pattern: publish-subscribe}
+  - {id: launch-requests, schema: agents/channels/launch-requests.yaml, pattern: push-pull}
+  - {id: claim-leases, schema: agents/channels/claim-leases.yaml, pattern: survey}
+  - {id: assignments, schema: agents/channels/assignments.yaml}
+services:
+  # Every loop here comes back through the tracker, which answers requests
+  # and opens surveys; its budget bounds them (R-APP-005). The worked
+  # example names no depth, so four is a placeholder.
+  - {id: tracker, ownership: local, source: agents/tracker/profile.yaml, runtime_path: applications/channel-patterns/tracker/profile.yaml, listens: [tracker-ops, tracker-changes, claim-leases], consumes: [tracker-ops], emits: [tracker-changes, claim-leases], budget: 4}
+  - {id: launcher, ownership: local, source: agents/launcher/profile.yaml, runtime_path: applications/channel-patterns/launcher/profile.yaml, listens: [launch-requests], consumes: [launch-requests]}
+  - {id: dispatcher, ownership: local, source: agents/dispatcher/profile.yaml, runtime_path: applications/channel-patterns/dispatcher/profile.yaml, consumes: [tracker-changes], emits: [launch-requests, assignments]}
+  - {id: executor, ownership: local, source: agents/executor/profile.yaml, runtime_path: applications/channel-patterns/executor/profile.yaml, listens: [assignments], consumes: [claim-leases, assignments], emits: [tracker-ops]}
+  - {id: critic, ownership: local, source: agents/critic/profile.yaml, runtime_path: applications/channel-patterns/critic/profile.yaml, emits: [tracker-ops]}
+  - {id: chatbot, ownership: local, source: agents/chatbot/profile.yaml, runtime_path: applications/channel-patterns/chatbot/profile.yaml, emits: [tracker-ops]}
+  - {id: ux, ownership: local, source: agents/ux/profile.yaml, runtime_path: applications/channel-patterns/ux/profile.yaml, consumes: [tracker-changes]}

@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The machine the profile-closure fixtures run: it moves on Seed and runs nothing.
+kind: machine
+schema_version: 1
+name: closure-example
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 4}
+terminal_states: [Done]
+states:
+  - {name: Idle, meaning: Waiting.}
+  - {name: Done, meaning: Finished., run_status: succeeded}
+signals:
+  - {name: Seed, trigger: A caller starts the run.}
+transitions:
+  - {state: Idle, signal: Seed, next: Done}

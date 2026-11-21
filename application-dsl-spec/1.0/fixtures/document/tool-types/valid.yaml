@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-006: a type unit whose schemas stay inside the declaration type subset.
+unit: chat-types
+types:
+  - name: Chunk
+    schema:
+      type: object
+      description: a chunk
+      required: [text]
+      properties:
+        text: {type: string, enum: [a, b]}
+        counts: {type: array, items: {type: integer}}
+        source: {$type: chat-types.Source}

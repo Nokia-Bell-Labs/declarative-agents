@@ -13,8 +13,6 @@ import (
 	"strings"
 )
 
-const renderOutputDir = "generated-files"
-
 // citationPattern matches a statement citation placeholder. A citation is the
 // statement's definition site: the render expands it in place with a stable
 // anchor, and each statement has exactly one.
@@ -37,23 +35,25 @@ func Build() error {
 	return Render()
 }
 
-// Render expands every statement citation in every chapter and writes the
-// result under generated-files/. It fails when a citation names no statement,
-// when a statement is cited other than exactly once, or when no chapters
-// exist — the same invariants Audit enforces, so prose and statements cannot
-// drift apart.
+// Render expands every statement citation in the engine version's chapters
+// and writes the result under that version's generated-files/. It fails when
+// a citation names no statement, when a statement is cited other than exactly
+// once, or when no chapters exist — the same invariants Audit enforces, so
+// prose and statements cannot drift apart.
 func Render() error {
-	language, err := loadLanguage(languagePath)
+	language, err := loadLanguage(engineVersion.languagePath("."))
 	if err != nil {
 		return err
 	}
 	if err := validateLanguage(language); err != nil {
 		return err
 	}
-	return renderChapters(".", renderOutputDir, language)
+	return renderChapters(engineVersion.root("."), engineVersion.renderOutputDir("."), repositoryRootOf("."), language)
 }
 
-func renderChapters(sourceDir, outputDir string, language languageFile) error {
+// renderChapters renders the chapters under sourceDir into outputDir.
+// Keyname-table sources resolve against repositoryRoot.
+func renderChapters(sourceDir, outputDir, repositoryRoot string, language languageFile) error {
 	chapters, err := discoverChapters(sourceDir)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func renderChapters(sourceDir, outputDir string, language languageFile) error {
 		})
 		rendered = keynameTablePattern.ReplaceAllStringFunc(rendered, func(match string) string {
 			parts := keynameTablePattern.FindStringSubmatch(match)
-			table, err := renderKeynameTable(filepath.Join(sourceDir, ".."), parts[1], parts[2], parts[3])
+			table, err := renderKeynameTable(repositoryRoot, parts[1], parts[2], parts[3])
 			if err != nil {
 				findings = append(findings, fmt.Errorf("%s: keyname table %s: %w", chapter, parts[2], err))
 				return match

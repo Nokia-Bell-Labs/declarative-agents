@@ -1,0 +1,28 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan and step reports the per-element expect fixtures hold to an expectation.
+kind: tool-declaration
+schema_version: 1
+unit: expect-fan-types
+types:
+  - name: Step
+    schema:
+      type: object
+      properties:
+        kind: {type: string, enum: [edit, test]}
+      required: [kind]
+  - name: Plan
+    schema:
+      type: object
+      properties:
+        steps: {type: array, items: {$type: expect-fan-types.Step}}
+  - name: Report
+    schema:
+      type: object
+      properties:
+        files: {type: array, items: {type: string}}
+  - name: TestReport
+    schema:
+      type: object
+      properties:
+        passed: {type: integer}

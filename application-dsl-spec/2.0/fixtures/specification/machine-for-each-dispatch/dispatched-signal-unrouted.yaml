@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-018: the review row's tool emits Escalated, which continue_on, abort_on, and fail_on do not name.
+kind: agent-profile
+schema_version: 1
+name: step-runner
+machine: ../../units/for-each-dispatch/machine-dispatched-signal-unrouted.yaml
+tools: [../../units/for-each-dispatch/tools.yaml]
+tool_declarations: [../../units/for-each-dispatch/declarations.yaml]
+directory: .

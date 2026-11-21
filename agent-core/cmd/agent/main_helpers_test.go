@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,12 @@ import (
 
 func TestMain(m *testing.M) {
 	spec.SetAgentCoreInstallRoot(repoRootFromRuntime())
+	// A spec pin test re-executes this binary as the agent itself; that child
+	// runs main() and never reaches the test runner (spec_pin_process_test.go).
+	if args, ok := os.LookupEnv(specPinMainArgsEnv); ok {
+		os.Args = append([]string{"agent"}, strings.Split(args, "\x1f")...)
+		main()
+	}
 	os.Exit(m.Run())
 }
 

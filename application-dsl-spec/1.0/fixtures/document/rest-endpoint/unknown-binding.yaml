@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-007: an endpoint whose binding the runtime does not handle.
+rest:
+  version: v1
+  servers:
+    control:
+      address: 127.0.0.1:0
+      endpoints:
+        approve:
+          method: POST
+          path: /approve
+          binding: totally_bogus

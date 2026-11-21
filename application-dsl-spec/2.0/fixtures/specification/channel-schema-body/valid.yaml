@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-004: a channel's items are objects with typed properties,
+# some required.
+kind: channel-schema
+schema_version: 1
+type: object
+properties:
+  workspace_id: {type: string}
+  attempt: {type: integer}
+required: [workspace_id]

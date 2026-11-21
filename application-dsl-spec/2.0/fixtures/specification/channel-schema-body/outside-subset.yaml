@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-004: a channel-schema body uses a keyword outside the
+# declaration type subset.
+kind: channel-schema
+schema_version: 1
+type: object
+properties:
+  workspace_id: {type: string, pattern: "^ws-"}
+required: [workspace_id]

@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-001: a machine declaring its own body.
+kind: machine
+schema_version: 1
+name: worker
+initial_state: Idle
+terminal_states: [Done]
+states:
+  - {name: Idle, meaning: Waiting for work.}
+  - {name: Done, meaning: Work finished., run_status: succeeded}
+signals:
+  - {name: Seed, trigger: A caller hands work over.}
+transitions:
+  - {state: Idle, signal: Seed, next: Done}

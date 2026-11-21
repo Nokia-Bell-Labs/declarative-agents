@@ -1,0 +1,2251 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# =============================================================================
+# language.yaml
+# Application DSL Specification — normative statements
+# =============================================================================
+#
+# WHAT THIS FILE IS
+# -----------------
+# This is the machine-readable companion to the prose chapters in this
+# directory. Every requirement the specification makes is a statement here,
+# and nothing normative exists only in prose. The chapters cite statements
+# with `{{statement <id>}}` placeholders; the render target expands each
+# citation in place with a stable anchor, and the audit target fails when a
+# citation does not resolve, when a statement is never cited, or when a
+# statement's acceptance evidence is missing or failing.
+#
+# HOW TO READ EACH STATEMENT
+# --------------------------
+#   id          stable identifier, R-<CHAPTER TAG>-<NNN>. Identifiers are
+#               never renumbered or reused; constitutions, tests, and commits
+#               cite them.
+#   target      which conformance target the statement binds — one of the
+#               names under language.conformance_targets (chapter 01).
+#   level       RFC 2119 requirement level: MUST, MUST NOT, SHOULD,
+#               SHOULD NOT, or MAY.
+#   statement   the normative text itself.
+#   acceptance  at least one evidence entry proving the statement is checked:
+#                 assertion: fixture   a document under fixtures/ with the
+#                                      named check applied and an expected
+#                                      verdict (valid or invalid)
+#                 assertion: go_test   a named Go test that must exist and
+#                                      pass, path relative to the module
+#                                      root (application-dsl-spec/), where
+#                                      the shared harness lives
+#                 assertion: rig       a named Go test in the wider repository
+#                                      (path relative to the repository root)
+#                                      anchoring a runtime or population
+#                                      statement; the audit verifies the
+#                                      reference resolves to a declared test,
+#                                      and the repository's test and
+#                                      integration gates execute it
+#
+language:
+  id: application-dsl
+  title: "A Domain-Specific Language for Agents"
+  version: 1.0.0
+  conformance_targets:
+    - document
+    - processor
+    - runtime
+    - population
+
+statements:
+  - id: R-INTRO-001
+    target: document
+    level: MUST
+    statement: >-
+      A conforming document MUST be a single YAML document whose root node is
+      a mapping.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/root-mapping/valid.yaml
+        check: yaml_mapping
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/root-mapping/invalid.yaml
+        check: yaml_mapping
+        verdict: invalid
+
+  - id: R-INTRO-002
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject a document whose root node is not a
+      mapping.
+    acceptance:
+      - assertion: go_test
+        path: magefiles/evidence_test.go
+        test: TestFixtureCheckRejectsNonMappingRoot
+
+  - id: R-MODEL-001
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document MUST either declare both `states` and
+      `transitions`, or declare neither and carry exactly one expansion
+      entry.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/body.yaml
+        check: machine_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/template-instance.yaml
+        check: machine_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/no-body-no-expansion.yaml
+        check: machine_expansion_shape
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/machine-expansion/double-expansion.yaml
+        check: machine_expansion_shape
+        verdict: invalid
+
+  - id: R-LCM-001
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST bind an agent-instance to exactly one
+      workspace at instantiation and MUST release the binding when the
+      agent-instance terminates.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-LCM-002
+    target: runtime
+    level: MUST
+    statement: >-
+      Terminating an agent-instance MUST NOT decommission its workspace; a
+      later agent-instance MAY bind the same workspace and resume its
+      identity.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestCodingLoopStagesGenerateOnceAndPreserveExactWorkspace
+
+  - id: R-POP-001
+    target: population
+    level: MUST
+    statement: >-
+      Every agent-instance in a conforming population MUST realize an
+      agent-profile that a governing application-profile names among its
+      roots.
+    acceptance:
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/application_manifest_test.go
+        test: TestApplicationManifestDeclaresExactProductionRoots
+
+  - id: R-POP-002
+    target: population
+    level: MUST
+    statement: >-
+      In a conforming population, a deployment authority MUST rest with
+      exactly one agent-profile's instances, and an agent-instance that
+      decides operations MUST NOT hold the deployment authority those
+      operations act through.
+    acceptance:
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/creator_ingest_chart_test.go
+        test: TestCreatorCarriesTheIngestChromaAuthority
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/provisioning_workflow_orchestrator_state_test.go
+        test: TestCreatorStateReadIsProvisioningWorkflowOrchestratorFacing
+
+  - id: R-POP-003
+    target: population
+    level: MUST
+    statement: >-
+      A workspace MUST be bound by at most one agent-instance at any time.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-POP-004
+    target: population
+    level: MAY
+    statement: >-
+      A conforming population MAY contain orphan workspaces; a workspace with
+      no bound agent-instance is a legal state that only an explicit
+      decommission removes.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-APP-001
+    target: document
+    level: MUST
+    statement: >-
+      An application-profile document MUST carry the `schema_version`,
+      `application`, `ownership`, `capabilities`, and `roots` keynames, and
+      every `roots` entry MUST carry `id`, `ownership`, and `source`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-keynames/valid.yaml
+        check: application_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-keynames/invalid.yaml
+        check: application_required_keynames
+        verdict: invalid
+
+  - id: R-PROF-001
+    target: document
+    level: MUST
+    statement: >-
+      An agent-profile document MUST carry the `machine` keyname, a non-empty
+      string that references the machine-profile document the agent-instance
+      executes; the `name` keyname MAY accompany it, and when present MUST be
+      a string.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-keynames/valid.yaml
+        check: profile_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-keynames/nameless.yaml
+        check: profile_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-keynames/invalid.yaml
+        check: profile_required_keynames
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_errata_test.go
+        test: TestSpecPinProfileLoadsWithoutName
+  - id: R-PROF-002
+    target: document
+    level: MUST NOT
+    statement: >-
+      An agent-profile document MUST NOT carry the `expand` keyname: an
+      agent-profile is written out in full, and no expansion constructs one.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-expansion/valid.yaml
+        check: profile_admits_no_expansion
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-expansion/invalid.yaml
+        check: profile_admits_no_expansion
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_errata_test.go
+        test: TestSpecPinProfileRejectsBlueprintKeynames
+  - id: R-PROF-003
+    target: document
+    level: MUST NOT
+    statement: >-
+      An agent-profile document MUST NOT carry the `unit`, `params`, or
+      `profile` keynames; a document carrying them is not an agent-profile
+      document.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/blueprint-body/valid.yaml
+        check: profile_carries_no_blueprint_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/blueprint-body/invalid.yaml
+        check: profile_carries_no_blueprint_keynames
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_errata_test.go
+        test: TestSpecPinProfileRejectsBlueprintKeynames
+  - id: R-MACH-001
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document that declares its own body MUST carry its
+      `states` and `transitions` as sequences; the `name` keyname MAY
+      accompany them, and when present MUST be a string.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-keynames/valid.yaml
+        check: machine_body_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-keynames/nameless.yaml
+        check: machine_body_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-keynames/invalid.yaml
+        check: machine_body_keynames
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_errata_test.go
+        test: TestSpecPinMachineBodyLoadsWithoutName
+  - id: R-MACH-002
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document that declares no body MUST carry only the
+      `unit`, `name`, `purpose`, and `expand` keynames, and its expansion
+      entry MUST NOT carry the `as` keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-instance-header/valid.yaml
+        check: machine_instance_header
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-instance-header/invalid.yaml
+        check: machine_instance_header
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineInstanceCarriesOnlyItsHeader
+
+  - id: R-MODEL-003
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST select expansion behavior by the body kind
+      of each expansion target, replacing the expanding document's body for a
+      `machine` body and splicing for a `stage` body, and MUST reject a
+      machine-template that expands another machine-template.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestExpandTargetBodyKindSelectsReplaceOrSplice
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineTemplateCannotNestOrBeLoadedAsAMachine
+
+  - id: R-CONF-001
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST accept every fixture document whose
+      declared verdict is valid and MUST reject every fixture document whose
+      declared verdict is invalid.
+    acceptance:
+      - assertion: go_test
+        path: magefiles/evidence_test.go
+        test: TestRepositoryFixtureEvidencePasses
+
+  - id: R-MODEL-002
+    target: document
+    level: MUST
+    statement: >-
+      Every expansion entry in a document MUST name its source unit under the
+      fragment keyname; argument bindings MAY accompany the name under the
+      args keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/expansion-fragment/named.yaml
+        check: expansion_names_fragment
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/expansion-fragment/unnamed.yaml
+        check: expansion_names_fragment
+        verdict: invalid
+
+  - id: R-MACH-003
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document MUST carry only the keynames `unit`, `expand`,
+      `name`, `purpose`, `invariants`, `lifecycle`, `configuration`,
+      `metric_labels`, `pipeline_diagram`, `view_tags`, `initial_state`,
+      `summary_signal`, `resume_signal`, `states`, `terminal_states`,
+      `signals`, `transitions`, `budget`, and `external_labels`; in particular
+      it MUST NOT carry `imports`, because a machine-profile expands
+      stage-fragments rather than importing them.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-top-keynames/valid.yaml
+        check: machine_top_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-top-keynames/invalid.yaml
+        check: machine_top_keynames
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_machine_test.go
+        test: TestSpecPinMachineKeynamesAreAClosedSet
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_stage_test.go
+        test: TestMachineImportsAreRejectedWithTheReason
+
+  - id: R-MACH-004
+    target: document
+    level: MUST
+    statement: >-
+      Every `transitions` entry MUST carry `state`, `signal`, and `next` as
+      non-empty strings, and MAY carry only `action`, `label`, `report_output`,
+      `summary`, `for_each`, and `metric_labels` beside them.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-transition-keynames/valid.yaml
+        check: machine_transition_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-transition-keynames/invalid.yaml
+        check: machine_transition_keynames
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecRejectsUnknownTransitionField
+
+  - id: R-MACH-005
+    target: document
+    level: MUST
+    statement: >-
+      Each `states` entry MUST be either a state name or a mapping carrying
+      `name` and optionally `meaning`, `run_status`, and `tags`; each `signals`
+      entry MUST be either a signal name or a mapping carrying `name` and
+      optionally `trigger`. The two forms MAY be mixed in one list, and a name
+      MUST NOT repeat within its list.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-named-specs/valid.yaml
+        check: machine_named_specs
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-named-specs/invalid.yaml
+        check: machine_named_specs
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpec_RichStateAndSignalMetadata
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecRejectsUnknownNamedSpecFields
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecRejectsDuplicateGrammarEntries
+
+  - id: R-MACH-006
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile body MUST declare at least one state, one terminal
+      state, and one transition; `initial_state` MUST name a declared state;
+      every `terminal_states` entry MUST name a declared state and appear once;
+      every transition's `state` and `next` MUST name declared states and its
+      `signal` a declared signal; and no two transitions MAY share the same
+      `state` and `signal`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-graph/valid.yaml
+        check: machine_graph_references
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-graph/invalid.yaml
+        check: machine_graph_references
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecValidationErrors
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecRejectsDuplicateGrammarEntries
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_machine_test.go
+        test: TestSpecPinMachineRequiresAWellFormedGraph
+
+  - id: R-MACH-007
+    target: document
+    level: MUST
+    statement: >-
+      A state's `run_status`, when present, MUST be one of `succeeded`,
+      `failed`, `budget_exceeded`, `cancelled`, or `suspended`, and MUST appear
+      only on a state listed under `terminal_states`; every state listed under
+      `terminal_states` MUST declare its `run_status`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-run-status/valid.yaml
+        check: machine_run_status
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-run-status/invalid.yaml
+        check: machine_run_status
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecValidatesDeclaredRunStatus
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_policy_test.go
+        test: TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+
+  - id: R-MACH-008
+    target: document
+    level: MUST
+    statement: >-
+      A machine-profile document that an agent-profile executes MUST carry
+      `budget` with a positive integer `max_iterations` and a positive duration
+      `command_timeout`; `budget` MAY also carry `max_tokens`, `max_duration`,
+      and `max_consecutive_parse_errors`, a `max_duration` that is present MUST
+      be a positive duration, and `budget` MUST carry no other keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-budget/valid.yaml
+        check: machine_budget
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-budget/invalid.yaml
+        check: machine_budget
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_policy_test.go
+        test: TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecRejectsInvalidRuntimePolicy
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_machine_test.go
+        test: TestSpecPinMachineKeynamesAreAClosedSet
+      - assertion: fixture
+        path: fixtures/document/machine-budget/bad-max-duration.yaml
+        check: machine_budget
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_errata_test.go
+        test: TestSpecPinMachineRejectsAnUnparseableBudgetDuration
+  - id: R-MACH-009
+    target: document
+    level: MUST
+    statement: >-
+      `summary_signal` and `resume_signal`, when present, MUST each name a
+      declared signal, and a machine-profile whose `signals` declares
+      `AwaitApproval` MUST carry `resume_signal`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-policy-signals/valid.yaml
+        check: machine_policy_signals
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-policy-signals/invalid.yaml
+        check: machine_policy_signals
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecRejectsInvalidRuntimePolicy
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_policy_test.go
+        test: TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+
+  - id: R-MACH-010
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject, before dispatch, a machine-profile
+      whose `budget` sets `max_consecutive_parse_errors` unless the
+      agent-profile selects `report_parse_error`, a `ParseFailed` transition
+      runs that action, and the state it leads to routes `BudgetExhausted`.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/parse_retry_test.go
+        test: TestValidateParseRetryWiringReportsActionableProfileErrors
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/parse_retry_test.go
+        test: TestValidateParseRetryWiringRequiresExhaustionRouteFromReportDestination
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/parse_retry_test.go
+        test: TestValidateParseRetryWiringAcceptsExplicitRetryAndExhaustion
+
+  - id: R-MACH-011
+    target: document
+    level: MUST
+    statement: >-
+      A transition's `action`, when present, MUST be a tool name or the
+      dynamic-dispatch sentinel `$tool`; a transition without `action` is a
+      move that runs no command. `report_output` MUST be a `$.path` selector,
+      and `report_output` and a true `summary` MUST NOT appear on a transition
+      without `action`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-action-forms/valid.yaml
+        check: machine_action_forms
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-action-forms/invalid.yaml
+        check: machine_action_forms
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecRejectsInvalidRuntimePolicy
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_parsing_test.go
+        test: TestParseMachineSpecDeclarativeRuntimePolicy
+
+  - id: R-MACH-012
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject, before dispatch, a transition whose
+      named action is not a tool the agent-profile selects; a transition
+      without `action` and a `$tool` transition name no tool and are not
+      subject to this check.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/action_validation_test.go
+        test: TestValidateMachineActionsRejectsUnselectedLiteralActions
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/action_validation_test.go
+        test: TestValidateMachineActionsAcceptsSelectedAndSpecialActions
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_transition_test.go
+        test: TestBuildTransitionTable_UnknownAction
+
+  - id: R-MACH-013
+    target: document
+    level: MUST
+    statement: >-
+      A transition's `label` and every `external_labels` name MUST be a
+      non-empty command-state label containing no dot, parenthesis, whitespace,
+      or control character; transition labels MAY repeat, and `external_labels`
+      names MUST NOT.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-step-labels/valid.yaml
+        check: machine_step_labels
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-step-labels/invalid.yaml
+        check: machine_step_labels
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_machine_test.go
+        test: TestSpecPinMachineStepLabelGrammar
+
+  - id: R-MACH-014
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject, before dispatch, a
+      `$from(label).path` selector in a selected tool whose label is neither a
+      transition label, an executed command name, nor a runtime-seeded label of
+      the machine-profile, and MUST reject one whose path the label's declared
+      output type does not contain.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_tool_validation_test.go
+        test: TestRuntimeStartupRejectsUnresolvedSelectorLabel
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/selector_labels_test.go
+        test: TestValidateSelectorLabelsStrictNamesEveryUnresolvedReference
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/selector_paths_test.go
+        test: TestValidateSelectorPathsStrictNamesEveryMismatch
+
+  - id: R-MACH-015
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST resolve a `$from(label)` selector to the most
+      recent completed step whose label or executed command name equals the
+      label, scanning from newest to oldest.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/command_state_test.go
+        test: TestCommandStateViewDuplicateLabelMostRecentWins
+      - assertion: rig
+        path: agent-core/internal/runtime/core/command_state_test.go
+        test: TestCommandStateViewCommandNameFallbackAndAddressCollision
+
+  - id: R-MACH-016
+    target: document
+    level: MUST
+    statement: >-
+      A transition carrying `for_each` MUST name an action other than `$tool`;
+      `for_each.items` MUST be a `$from(label).path` selector, `for_each.as` a
+      command-state label, and `for_each.continue_on` a non-empty list of
+      declared signals; `abort_on` signals MUST be declared; `join.next` MUST
+      name a declared state; `join.signals` MUST map `all_success`, `failed`,
+      and `empty`, and MAY map `partial`, to declared signals; and when
+      `join.next` is not terminal, a transition MUST route each join signal
+      from it.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-for-each-shape/valid.yaml
+        check: machine_for_each_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-for-each-shape/invalid.yaml
+        check: machine_for_each_shape
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/iterator_spec_test.go
+        test: TestMachineSpecForEachValidation
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_machine_test.go
+        test: TestSpecPinForEachJoinAndFailurePolicy
+
+  - id: R-MACH-017
+    target: document
+    level: MUST
+    statement: >-
+      `for_each.mode`, when present, MUST be `sequential` or `parallel`;
+      `parallel` MUST carry a positive `max_concurrency`, which MUST NOT appear
+      otherwise; `for_each.failure`, when present, MUST be `fail_fast` or
+      `collect_all`; and `collect_all` MUST map `join.signals.partial`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/machine-for-each-policy/valid.yaml
+        check: machine_for_each_policy
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/machine-for-each-policy/invalid.yaml
+        check: machine_for_each_policy
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/iterator_spec_test.go
+        test: TestMachineSpecForEachValidation
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_machine_test.go
+        test: TestSpecPinForEachJoinAndFailurePolicy
+
+  - id: R-MACH-018
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST dispatch each `for_each` item as its own
+      command step, MUST run at most `max_concurrency` items at once in
+      parallel mode, MUST record item outcomes and the join entry in input
+      order, MUST emit the `empty` join signal for an empty array, and MUST
+      resume an interrupted iteration at the first undispatched item.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachDispatchesItemsInOrderAndJoins
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachEmptyCollectionJoinsDirectlyToTerminal
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachResumeContinuesAfterLastPersistedItem
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_parallel_test.go
+        test: TestLoopParallelForEachIsBoundedAndJoinsInInputOrder
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachCollectAllJoinsPartialInInputOrder
+
+  - id: R-MACH-019
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject, before dispatch, a machine-profile in
+      which a selected tool that a transition runs emits a signal the
+      machine-profile does not declare, or emits a signal that no transition
+      routes from the state the transition leads to, unless that state is
+      terminal; a `$tool` transition is checked against every tool it can
+      dispatch, and a `for_each` transition against its `continue_on` and
+      `abort_on` lists.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_from_stl_test.go
+        test: TestValidateToolEmitsUnknownSignal
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_from_stl_test.go
+        test: TestValidateToolEmitsMissingFollowupTransition
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_from_stl_test.go
+        test: TestValidateToolEmitsTerminalTargetSkipsFollowup
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_from_stl_test.go
+        test: TestValidateToolEmitsDynamicToolMissingFollowupTransition
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_from_stl_test.go
+        test: TestValidateToolEmitsForEachUsesIteratorOutcomes
+
+  - id: R-MACH-020
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject, before dispatch, a transition that
+      waits on a signal nothing entering its state can emit; the signals the
+      loop raises itself (`Seed`, `BudgetExhausted`, `CommandError`), the
+      declared `resume_signal` and `summary_signal`, signals a request signal
+      source injects, and `for_each` join signals count as emittable, and a
+      state that a human-boundary action leads to is exempt.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_tool_validation_test.go
+        test: TestRuntimeStartupRejectsADeadTransition
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessAcceptsJoinSignals
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessAcceptsExternallyInjectedSignals
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessAcceptsDeclaredResumeAndSummarySignals
+
+  - id: R-MACH-021
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST derive the tools a `$tool` transition may
+      dispatch from the transition table, admitting a tool only where every
+      signal it emits is routed from the transition's target state or that
+      state is terminal, and MUST reject, before dispatch, an agent-profile in
+      which a selected external tool derives no such state, an explicit tool
+      phase names an undeclared state, or the `invoke_llm` selector or
+      `parse_response` word on a path to a `$tool` transition declares a
+      `manifest_state` other than that transition's target.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_test.go
+        test: TestDeriveDynamicToolPhasesScopesExternalToolsByRoutableSignals
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/phase_validation_test.go
+        test: TestValidateToolPhasesRejectsWordScopedToNoState
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/phase_validation_test.go
+        test: TestValidateToolPhasesRejectsUnknownState
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/phase_validation_test.go
+        test: TestValidateToolPhasesRejectsActualSelectorStateDifferentFromDynamicTarget
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/phase_validation_test.go
+        test: TestValidateToolPhasesRejectsActualParserStateDifferentFromDynamicTarget
+
+  - id: R-MACH-022
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST refuse, before executing any command, a
+      model-chosen tool that is not available in the current state, and the
+      parse step MUST report it with `ParseFailed`, distinguishing it from an
+      unknown tool.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/llm/parse_response_test.go
+        test: TestParseResponseRejectsOutOfStateTool
+      - assertion: rig
+        path: agent-core/internal/tools/llm/parse_response_test.go
+        test: TestParseResponseUnknownToolStillReportsUnknown
+      - assertion: rig
+        path: agent-core/internal/tools/registry/dynamic_availability_test.go
+        test: TestDynamicToolActionAndParseResponseShareAvailabilityRule
+
+  - id: R-MODEL-004
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST splice a stage-fragment by appending the
+      states, signals, and transitions it produces to the expanding
+      machine-profile's own lists and MUST then validate the result as one
+      machine-profile, so that a produced name nothing declares, or a state
+      name produced twice, is rejected as it would be in a hand-written
+      machine-profile.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_stage_test.go
+        test: TestLoadMachineClosureSplicesAStageTwice
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_stage_test.go
+        test: TestSplicedStageIsValidatedAsOneMachine
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_stage_test.go
+        test: TestSplicingTheSamePrefixTwiceIsTheDuplicateStateError
+
+  - id: R-MODEL-005
+    target: document
+    level: MUST
+    statement: >-
+      A stage-fragment document MUST carry a non-empty `params` and a `stage`
+      body, MAY carry `unit`, and MUST carry nothing else; its `stage` body
+      MUST carry only `states`, `signals`, and `transitions`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/model-stage-fragment/valid.yaml
+        check: model_stage_fragment
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/model-stage-fragment/invalid.yaml
+        check: model_stage_fragment
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_stage_test.go
+        test: TestHalfDeclaredStageFragmentFails
+
+  - id: R-MODEL-006
+    target: document
+    level: MUST
+    statement: >-
+      A machine-template document MUST carry `params` and a `machine` body, MAY
+      carry `unit`, and MUST carry nothing else; its `machine` body holds
+      machine-profile keynames and MUST NOT carry `unit`, `imports`, or
+      `params`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/model-machine-template/valid.yaml
+        check: model_machine_template
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/model-machine-template/invalid.yaml
+        check: model_machine_template
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineTemplateBodyHoldsNoParamsUnitOrImports
+
+  - id: R-MODEL-007
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject a machine-profile expansion entry
+      whose target's body kind is neither `stage` nor `machine`, and MUST
+      reject a machine-template named where a machine-profile is expected,
+      whether loaded directly or referenced by an agent-profile's `machine`.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestExpandTargetBodyKindSelectsReplaceOrSplice
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineTemplateCannotNestOrBeLoadedAsAMachine
+      - assertion: rig
+        path: agent-core/internal/load/loader_template_test.go
+        test: TestLoadClosureRefusesAProfileNamingAMachineTemplate
+
+  - id: R-MODEL-008
+    target: document
+    level: MUST
+    statement: >-
+      Every `params` entry of a stage-fragment or machine-template MUST carry a
+      unique non-empty `name` and a `type` of `string`, `integer`, `number`, or
+      `boolean`, MAY carry only `enum`, `default`, and `description` beside
+      them, and a `default` MUST satisfy the parameter's type and `enum`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/model-fragment-params/valid.yaml
+        check: model_fragment_params
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/model-fragment-params/invalid.yaml
+        check: model_fragment_params
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/fragments/params_test.go
+        test: TestValidateParamsRejectsBadDeclarations
+
+  - id: R-MODEL-009
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject an expansion whose `args` name an
+      undeclared parameter, omit a parameter that has no `default`, or bind a
+      value that does not satisfy its parameter's type or `enum`, and the
+      diagnostic MUST name the parameter.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/fragments/params_test.go
+        test: TestResolveArgsNamesTheParameterOnEveryFault
+      - assertion: rig
+        path: agent-core/internal/fragments/params_test.go
+        test: TestResolveArgsAppliesDefaultsAndTypesEachValue
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_stage_test.go
+        test: TestStageArgumentFaultsNameFragmentAndParameter
+
+  - id: R-MODEL-010
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST substitute `$param(name)` references only
+      inside scalar values, giving a reference that is the whole scalar its
+      parameter's type and leaving a reference inside a longer scalar as text,
+      and MUST reject a reference to an undeclared parameter and any reference
+      that survives substitution, including one in a mapping key.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/fragments/substitute_test.go
+        test: TestSubstituteFillsScalarHolesWithTheirTypes
+      - assertion: rig
+        path: agent-core/internal/fragments/substitute_test.go
+        test: TestSubstituteLeavesMappingNamesAlone
+      - assertion: rig
+        path: agent-core/internal/fragments/substitute_test.go
+        test: TestSubstituteRejectsAnUndeclaredParameterWithItsLine
+      - assertion: rig
+        path: agent-core/internal/fragments/substitute_test.go
+        test: TestSubstituteIgnoresEnvironmentAndSelectorForms
+
+  - id: R-MODEL-011
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST resolve an expansion entry's `fragment` path
+      against the document that carries the entry, so stage-fragments a
+      machine-template expands resolve against the machine-template, and MUST
+      give a machine-profile expanded from a machine-template the expanding
+      document's `name` and `purpose` when it carries them.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineTemplateSplicesItsStagesRelativeToItself
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineInstanceCarriesOnlyItsHeader
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineTemplateInstanceEqualsTheHandWrittenMachine
+
+  - id: R-PROF-004
+    target: document
+    level: MUST
+    statement: >-
+      An agent-profile document MUST carry the `tools` keyname as a non-empty
+      sequence of tool-selection paths, and the `tool_declarations`,
+      `tool_config_dirs`, `rest_definitions`, and `rest_config_dirs` keynames,
+      when present, MUST each be a sequence of paths and `directory` a string.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-references/valid.yaml
+        check: profile_reference_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-references/empty-tools.yaml
+        check: profile_reference_keynames
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/profile-references/scalar-reference.yaml
+        check: profile_reference_keynames
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile_MissingTools
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile
+
+  - id: R-PROF-005
+    target: document
+    level: MUST
+    statement: >-
+      Each key under an agent-profile document's `libraries` keyname MUST be a
+      lowercase kebab root name other than `agent-core`, and each value MUST be
+      a non-empty directory path.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-libraries/valid.yaml
+        check: profile_library_roots
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-libraries/invalid.yaml
+        check: profile_library_roots
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/support/corepath/install_test.go
+        test: TestDeclaredLibraryRootsResolveScopedAndReadOnly
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinProfileLibraryRootNamesADirectory
+
+  - id: R-PROF-006
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST resolve a relative path in an agent-profile
+      document against that document's directory, MUST map a path under the
+      agent-core install prefix through the install root and a path under
+      `/opt/<name>/` through the root declared for `<name>` under `libraries`,
+      and MUST use any other absolute path as written.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile_AbsolutePaths
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/library_roots_test.go
+        test: TestProfileDeclaresLibraryRootsAndMapsItsOwnPaths
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_test.go
+        test: TestResolveProfilePathMapsInstalledCoreHome
+
+  - id: R-APP-002
+    target: document
+    level: MUST
+    statement: >-
+      An application-profile document MUST declare `schema_version` 1, a
+      lower-kebab `application` identifier, an `ownership` of `agent-owning` or
+      `composition-only`, and a `module_status` from the closed status set, and
+      MUST NOT carry a keyname outside the application-profile schema.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-identity/valid.yaml
+        check: application_identity
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-identity/unknown-ownership.yaml
+        check: application_identity
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/application-identity/unknown-keyname.yaml
+        check: application_identity
+        verdict: invalid
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsUnknownFieldsAndSymlinkedSources
+      - assertion: rig
+        path: magefiles/appmanifest/spec_pin_tools_test.go
+        test: TestSpecPinManifestModuleStatusAndRunnableModule
+
+  - id: R-APP-003
+    target: document
+    level: MUST
+    statement: >-
+      Each `capabilities` entry of an application-profile document MUST name a
+      known capability and a known status, an entry whose status is
+      `implemented`, `partial`, or `dependency_gated` MUST carry non-empty
+      `evidence`, the `runnable_module` capability MUST be declared and MUST
+      NOT be active in an `audit_only` module, and an active `helm_managed`
+      capability MUST be accompanied by an active `packaged` capability.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-capabilities/valid.yaml
+        check: application_capabilities
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-capabilities/evidence-missing.yaml
+        check: application_capabilities
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/application-capabilities/no-runnable-module.yaml
+        check: application_capabilities
+        verdict: invalid
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities
+      - assertion: rig
+        path: magefiles/appmanifest/spec_pin_tools_test.go
+        test: TestSpecPinManifestModuleStatusAndRunnableModule
+
+  - id: R-APP-004
+    target: document
+    level: MUST
+    statement: >-
+      Each `roots` entry of an application-profile document MUST carry a unique
+      lower-kebab `id`, an `ownership` of `catalog` or `local`, and a portable
+      relative `source` naming an agent-profile file below `agents/<actor>/`; a
+      `catalog` root MUST pin a `compatible_release` and a `local` root MUST
+      NOT carry one.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-roots/valid.yaml
+        check: application_roots
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-roots/local-compatible-release.yaml
+        check: application_roots
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/application-roots/source-outside-agents.yaml
+        check: application_roots
+        verdict: invalid
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities
+      - assertion: rig
+        path: magefiles/appmanifest/spec_pin_tools_test.go
+        test: TestSpecPinRootSourceNamesAProfileBelowAgents
+
+  - id: R-TOOL-001
+    target: document
+    level: MUST
+    statement: >-
+      A tool-declaration document MUST carry a `tools` sequence or a `types`
+      sequence and MUST NOT carry both; a document carrying `types` MUST
+      declare its `unit`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/valid.yaml
+        check: tool_declaration_body
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/types-unit.yaml
+        check: tool_declaration_body
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/both-bodies.yaml
+        check: tool_declaration_body
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/no-body.yaml
+        check: tool_declaration_body
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectInvalidSyntaxAndContracts
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinDeclarationCannotCarryToolsAndTypes
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinTypeAndFragmentUnitsDeclareUnit
+
+  - id: R-TOOL-002
+    target: document
+    level: MUST
+    statement: >-
+      Every entry under a tool-declaration document's `tools` keyname MUST
+      carry a non-empty `name` and a `type` of `builtin`, `exec`, or none; a
+      `builtin` entry MUST name its factory under `init`, and an `exec` or
+      untyped entry MUST name its executable under `binary`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-entry-kind/valid.yaml
+        check: tool_entry_kind
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-entry-kind/builtin-without-init.yaml
+        check: tool_entry_kind
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-entry-kind/unknown-type.yaml
+        check: tool_entry_kind
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefs_Errors
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinBuiltinToolRequiresInit
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinUnknownToolTypeIsRejected
+
+  - id: R-TOOL-003
+    target: document
+    level: MUST
+    statement: >-
+      A tool entry's `visibility` MUST be `internal` or `external`, its
+      `reversibility.classification` MUST be `reversible`, `compensatable`, or
+      `irreversible`, its `precondition` MUST be `git_repo`, and the
+      `undo.strategy` of an `exec` or untyped entry MUST be `noop`,
+      `workspace_restore`, `compensating_action`, or `irreversible`, whenever
+      each is present.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-vocabulary/valid.yaml
+        check: tool_contract_vocabulary
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-vocabulary/unknown-visibility.yaml
+        check: tool_contract_vocabulary
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-vocabulary/exec-undo-strategy.yaml
+        check: tool_contract_vocabulary
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefs_Errors
+
+  - id: R-TOOL-004
+    target: document
+    level: MUST NOT
+    statement: >-
+      A `builtin` tool entry MUST NOT carry the exec-only `env`,
+      `stdin_source`, `stdin_max_bytes`, or `output.mode` fields or the
+      `source`, `flag`, `positional`, or `position` parameter extensions; on an
+      exec entry, `stdin_source` MUST be a `$from(label).path` selector,
+      `stdin_max_bytes` MUST be positive and accompany `stdin_source`,
+      `output.mode` MUST be `raw` or `structured`, and a parameter `default`
+      MUST be a string and `position` an integer.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-exec-fields/valid.yaml
+        check: tool_exec_fields
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-exec-fields/builtin-env.yaml
+        check: tool_exec_fields
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-exec-fields/invalid-stdin.yaml
+        check: tool_exec_fields
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exec_io_test.go
+        test: TestParseToolDefsRejectsInvalidExecIO
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exec_io_test.go
+        test: TestParseToolDefsRejectsInvalidExecEnv
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefs_Errors
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinBuiltinToolRejectsExecInputAndOutputMode
+
+  - id: R-TOOL-005
+    target: document
+    level: MUST NOT
+    statement: >-
+      A tool entry MUST NOT state its input through both `signature.input` and
+      `parameters`, nor its output through both `signature.output` and
+      `output.schema`, and when it carries both `signature.emits` and `emits`
+      the two lists MUST be identical.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-signature/valid.yaml
+        check: tool_signature_single_source
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-signature/input-twice.yaml
+        check: tool_signature_single_source
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-signature/emits-differ.yaml
+        check: tool_signature_single_source
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureRejectsInputDeclaredTwice
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureRejectsOutputDeclaredTwice
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureRejectsConflictingEmits
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureAcceptsIdenticalLegacyEmits
+
+  - id: R-TOOL-006
+    target: document
+    level: MUST
+    statement: >-
+      Every entry under a tool-declaration document's `types` keyname MUST
+      carry a `name`, and its `schema` MUST use only the `type`, `properties`,
+      `required`, `items`, `description`, and `enum` keywords with `type` one
+      of `object`, `array`, `string`, `number`, `integer`, or `boolean`, at
+      every depth; a `$type` reference MUST carry no sibling keyword.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-types/valid.yaml
+        check: tool_type_subset
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-types/keyword-outside-subset.yaml
+        check: tool_type_subset
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-types/reference-with-sibling.yaml
+        check: tool_type_subset
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsKeywordNestedInProperties
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsKeywordNestedInItems
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsTypeOutsideSubset
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsReferenceWithSiblingKeyword
+      - assertion: rig
+        path: agent-core/internal/typesys/spec_pin_tools_test.go
+        test: TestSpecPinDeclaredTypeIsNamed
+
+  - id: R-TOOL-007
+    target: document
+    level: MUST
+    statement: >-
+      A tool-declaration document carrying `params` is a fragment and MUST
+      declare its `unit` and a `tools` or `types` body and MUST NOT carry an
+      expansion; a tool-declaration document without `params` MUST NOT contain
+      a `$param(` reference.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-fragment/valid.yaml
+        check: tool_fragment_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-fragment/param-without-params.yaml
+        check: tool_fragment_shape
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-fragment/nested-expansion.yaml
+        check: tool_fragment_shape
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestHalfDeclaredFragmentFails
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestFragmentCannotNest
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinTypeAndFragmentUnitsDeclareUnit
+
+  - id: R-TOOL-008
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor loading a tool-declaration closure MUST reject a
+      keyname outside the declaration schema at any nesting level, an import
+      cycle, two units sharing a name, two imports supplying the same tool
+      name, a fragment named under `imports` or a plain unit named under
+      `expand`, an absolute import outside every library root, and an
+      `override` from a file inside a library root.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefsRejectsNestedUnknownFields
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectCycleAndUnitCollision
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectSiblingDuplicateWithSources
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestFragmentUnderImportsIsRejected
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestPlainUnitCannotBeExpanded
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectAbsolutePath
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/library_imports_test.go
+        test: TestToolFragmentOutsideALibraryRootIsRejected
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/library_roots_test.go
+        test: TestLibraryFileCannotOverrideAnImport
+
+  - id: R-TOOL-009
+    target: document
+    level: MUST
+    statement: >-
+      A tool-selection document MUST carry only the `tools` keyname, a sequence
+      of tool names.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-selection/valid.yaml
+        check: tool_selection_names
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-selection/declaration-entry.yaml
+        check: tool_selection_names
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestLoadToolSelection
+
+  - id: R-TOOL-010
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject an agent-profile whose selected tool
+      name matches no tool declared by its `tool_config_dirs` and
+      `tool_declarations`, MUST merge the names of several selection documents
+      without duplicates, and MUST let a later declaration of a tool name
+      replace an earlier one across those sources.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestSelectTools
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestLoadToolSelections
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestLoadToolDeclarations_Merge
+
+  - id: R-REST-001
+    target: document
+    level: MUST
+    statement: >-
+      A REST definition document MUST hold one `rest` mapping that carries
+      `version` and only the `clients`, `servers`, `openapi`, `auth`, `limits`,
+      `retry_policies`, and `response_mappings` families beside it, and MUST
+      NOT carry the reserved `document_resources` family.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-root/valid.yaml
+        check: rest_definition_root
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-root/missing-version.yaml
+        check: rest_definition_root
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-root/document-resources.yaml
+        check: rest_definition_root
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_behavior_test.go
+        test: TestRESTDocumentResourcesConfigConformance
+
+  - id: R-REST-002
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject a REST definition document carrying a
+      keyname unknown to the definition schema at any nesting level, and, when
+      loading a REST closure, MUST reject an import cycle, two units sharing a
+      name, a name defined twice in one map family, an absolute import outside
+      every library root, and a fragment named under `imports`.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition_test.go
+        test: TestParseDefinitionRejectsUnknownFieldsAtEveryStructLevel
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/imports_test.go
+        test: TestLoadDefinitionClosureRejectsUnitCollisionAndCycle
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/imports_test.go
+        test: TestLoadDefinitionClosureRejectsEveryMapFamilyCollision
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/imports_test.go
+        test: TestLoadDefinitionClosureRejectsAbsoluteImport
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/fragments_test.go
+        test: TestRESTFragmentUnderImportsIsRejected
+
+  - id: R-REST-003
+    target: document
+    level: MUST
+    statement: >-
+      A REST resource's `operations` map MUST use only the `get`, `set`,
+      `create`, and `delete` verbs, and a resource MUST NOT carry the reserved
+      `id_field` or `version_field` keynames.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-resource/valid.yaml
+        check: rest_resource_operations
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-resource/rpc-verb.yaml
+        check: rest_resource_operations
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-resource/reserved-field.yaml
+        check: rest_resource_operations
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsReservedResourceMetadataFields
+
+  - id: R-REST-004
+    target: document
+    level: MUST
+    statement: >-
+      Within one REST operation, each HTTP status MUST appear in at most one of
+      the `success` and `failures` status mappings, and at most once within it.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-status/valid.yaml
+        check: rest_status_owners
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-status/overlapping.yaml
+        check: rest_status_owners
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsAmbiguousStatusMappings
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateStatusMappingsEveryHTTPCodeHasOneOwner
+
+  - id: R-REST-005
+    target: document
+    level: MUST
+    statement: >-
+      A mutating REST operation — one whose method is POST, PUT, PATCH, or
+      DELETE, or a resource `set`, `create`, or `delete` — MUST declare
+      non-empty `side_effects` and a `reversibility.classification`; an
+      `irreversible` one MUST set `requires_confirmation`, and a
+      `compensatable` one MUST name its compensating operation under
+      `compensation.operation`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-mutating/valid.yaml
+        check: rest_mutating_contract
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-mutating/missing-reversibility.yaml
+        check: rest_mutating_contract
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-mutating/irreversible-unconfirmed.yaml
+        check: rest_mutating_contract
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_compensation_test.go
+        test: TestValidateDefinitionRejectsInvalidCompensationTargets
+      - assertion: rig
+        path: agent-core/internal/tools/rest/spec_pin_tools_test.go
+        test: TestSpecPinIrreversibleOperationRequiresConfirmation
+
+  - id: R-REST-006
+    target: document
+    level: MUST
+    statement: >-
+      A REST auth profile's `type` MUST be `none`, `basic`, `bearer`,
+      `header_token`, or `query_token`, and a limit profile's `redirect.mode`,
+      when present, MUST be `none`, `same_host`, or `allowlist`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-policy/valid.yaml
+        check: rest_policy_vocabulary
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-policy/unknown-auth.yaml
+        check: rest_policy_vocabulary
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-policy/unknown-redirect.yaml
+        check: rest_policy_vocabulary
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+
+  - id: R-REST-007
+    target: document
+    level: MUST
+    statement: >-
+      Every REST server endpoint MUST name a `binding` the runtime handles, an
+      `emit_dynamic_signal` endpoint MUST declare non-empty `allowed_signals`,
+      and a server whose `address` binds every interface MUST reference a limit
+      profile whose `network.allow_public_listener` is true.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/valid.yaml
+        check: rest_server_endpoints
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/unknown-binding.yaml
+        check: rest_server_endpoints
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/dynamic-without-allowlist.yaml
+        check: rest_server_endpoints
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/public-listener.yaml
+        check: rest_server_endpoints
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/endpoint_binding_test.go
+        test: TestValidateEndpointRejectsUnknownBinding
+      - assertion: rig
+        path: agent-core/internal/tools/rest/endpoint_binding_test.go
+        test: TestValidateEndpointRejectsEmptyBinding
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+
+  - id: R-REST-008
+    target: document
+    level: MUST
+    statement: >-
+      A REST endpoint whose binding is `machine_request` MUST name the
+      agent-profile or machine-profile it runs under `machine_request.profile`
+      or `machine_request.machine`, MUST declare `machine_request.timeout`,
+      MUST map outcomes under `response.terminal_states` or
+      `response.terminal_signals`, and MUST NOT carry
+      `machine_request.document_resources`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-machine-request/valid.yaml
+        check: rest_machine_request
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-machine-request/missing-timeout.yaml
+        check: rest_machine_request
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-machine-request/no-response-map.yaml
+        check: rest_machine_request
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_terminal_state_test.go
+        test: TestMachineRequestEndpointAcceptsEitherResponseMap
+      - assertion: rig
+        path: agent-core/internal/tools/rest/spec_pin_tools_test.go
+        test: TestSpecPinMachineRequestRequiresTargetAndTimeout
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_behavior_test.go
+        test: TestRESTDocumentResourcesConfigConformance
+
+  - id: R-LLM-001
+    target: document
+    level: MUST
+    statement: >-
+      The `config` of a tool entry whose `init` is `invoke_llm` MUST name a
+      non-empty `model` and `manifest_state`, and MUST NOT name both a
+      `provider` and a `dialect`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-config/valid.yaml
+        check: llm_invoke_config
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-config/provider-and-dialect.yaml
+        check: llm_invoke_config
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-config/missing-model.yaml
+        check: llm_invoke_config
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/invoke_dialect_test.go
+        test: TestInvokeLLMRejectsProviderAndDialect
+      - assertion: rig
+        path: agent-core/internal/tools/llm/spec_pin_tools_test.go
+        test: TestSpecPinInvokeLLMConfigRequiresModelAndManifestState
+
+  - id: R-LLM-002
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document MUST name a lowercase kebab `unit`, a non-empty
+      `provider_name`, a `path` beginning with `/`, and an `auth.type`, and its
+      `method`, when present, MUST be POST.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-header/valid.yaml
+        check: llm_dialect_header
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-header/get-method.yaml
+        check: llm_dialect_header
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-header/relative-path.yaml
+        check: llm_dialect_header
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectLoadsStrictly
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsUnknownField
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/spec_pin_tools_test.go
+        test: TestSpecPinChatDialectHeader
+
+  - id: R-LLM-003
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document's `body` MUST be non-empty, MUST reference only
+      the `messages`, `model`, `temperature`, `seed`, and `num_ctx` params as
+      `{{ params.<name> }}` tokens, and MUST place `{{ params.messages }}`
+      exactly once, as a whole scalar.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-body/valid.yaml
+        check: llm_dialect_body
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-body/messages-inside-string.yaml
+        check: llm_dialect_body
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-body/unsupplied-param.yaml
+        check: llm_dialect_body
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsMessagesInsideString
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsInvalidDeclarations
+
+  - id: R-LLM-004
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document MUST select its reply under `response.text` with
+      a `$.` selector, and any `response.input_tokens` or
+      `response.output_tokens` likewise; its `failures` MUST be non-empty, and
+      each entry MUST map one or more 4xx or 5xx statuses, none mapped twice,
+      to `ProviderUnauthorized`, `ProviderThrottled`, or `ProviderUnavailable`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-reply/valid.yaml
+        check: llm_dialect_reply
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-reply/success-status.yaml
+        check: llm_dialect_reply
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-reply/foreign-signal.yaml
+        check: llm_dialect_reply
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsInvalidDeclarations
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectLoadsStrictly
+
+  - id: R-LLM-005
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document's `auth` MUST name credentials only by
+      environment-variable reference: an auth type of `none` MUST carry no
+      reference, `basic` MUST carry `username_ref` and `password_ref`, any
+      other type MUST carry `token_ref`, and every reference MUST be an
+      upper-case environment-variable name.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-auth/valid.yaml
+        check: llm_dialect_auth
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-auth/credential-literal.yaml
+        check: llm_dialect_auth
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-auth/none-with-credential.yaml
+        check: llm_dialect_auth
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsCredentialLiteral
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsInvalidDeclarations
+
+  - id: R-LCM-003
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime that resumes an agent-instance from a checkpoint
+      MUST re-enter the same machine-instance at the persisted position with
+      the persisted execution log and accumulated cost, MUST deliver the resume
+      signal as the first transition's signal in place of any request seed, and
+      MUST fail without entering the run loop when no checkpoint is persisted;
+      a checkpoint whose run already reached a terminal state MUST be reported
+      with its recorded outcome without re-entering the run loop.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/resume_port_test.go
+        test: TestResumeReentersLoopFromTypedPort
+      - assertion: rig
+        path: agent-core/internal/runtime/core/resume_port_test.go
+        test: TestLoadResumeExposesTypedSnapshotForDomainRestore
+      - assertion: rig
+        path: agent-core/cmd/agent/main_lifecycle_test.go
+        test: TestResumeLoadOverridesRequestSeed
+      - assertion: rig
+        path: agent-core/cmd/agent/main_lifecycle_test.go
+        test: TestResumeWithoutPersistentBackendReportsNoCheckpoint
+      - assertion: rig
+        path: agent-core/internal/runtime/core/resume_port_test.go
+        test: TestResumeFinalizedCheckpointReturnsWithoutReenteringLoop
+
+  - id: R-LCM-004
+    target: runtime
+    level: MUST
+    statement: >-
+      When a dispatch yields the `AwaitApproval` signal, a conforming runtime
+      MUST save the checkpoint through the configured checkpoint port before it
+      reports the run suspended, and MUST report the run failed, never
+      suspended, when that save fails.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_suspend_persist_test.go
+        test: TestLoop_SuspendFailsWhenCheckpointSaveFails
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_suspend_persist_test.go
+        test: TestLoop_SuspendSucceedsWhenCheckpointSaveSucceeds
+      - assertion: rig
+        path: agent-core/cmd/agent/main_lifecycle_test.go
+        test: TestApprovalLifecycleProfileSuspendsThroughCheckpointPort
+
+  - id: R-LCM-005
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST perform rollback as a lifecycle tool dispatch
+      that first rewinds the persisted state to the target step and then
+      reverses the external effect of each rewound entry, from the latest entry
+      back to the earliest, by handing that entry's receipt unchanged to the
+      undo of the tool that produced it, skipping entries declared
+      irreversible; the runtime MUST NOT interpret a receipt's contents. When
+      the rewind fails, the runtime MUST leave the persisted state unchanged
+      and MUST NOT reverse any effect.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/checkpoint_compensation_test.go
+        test: TestCheckpointRollbackRestoresFileViaPersistedReceipt
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/receipt_rollback_test.go
+        test: TestUndoEntryDeclaredIrreversibleStillSkips
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/checkpoint_rollback_test.go
+        test: TestCheckpointRollbackRevertFailurePreservesStateAndSkipsUndo
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/spec_pin_runtime_test.go
+        test: TestSpecPinRollbackWalksReceiptsInReverseUnchanged
+  - id: R-LCM-006
+    target: runtime
+    level: MUST NOT
+    statement: >-
+      A conforming runtime MUST NOT expose history or rollback as mode-specific
+      commands or flags of the runtime process; history and rollback run as
+      ordinary agent-profile runs that dispatch the `checkpoint_history` and
+      `checkpoint_rollback` tools through the same startup sequence as any
+      other agent-profile.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestRootCommandHasNoLifecycleSubcommands
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestRootCommandHasNoLifecycleOnlyFlags
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/checkpoint_history_test.go
+        test: TestCheckpointHistoryExecuteFormatsExecutionLog
+
+  - id: R-RUN-001
+    target: runtime
+    level: MUST
+    statement: >-
+      Before the first dispatch, a conforming runtime MUST check the loaded
+      machine-instance against the agent-profile's tool selection -- every
+      named transition action is a selected tool, every phase a selected tool
+      declares is a state the machine-instance declares, every signal a
+      selected tool declares it emits is declared and routed from the action's
+      target state, every transition can fire, and every operation timeout lies
+      strictly below the command timeout -- and MUST refuse to start the run
+      when any check fails.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_action_validation_test.go
+        test: TestValidateConfigRejectsDeclaredButUnselectedMachineAction
+      - assertion: rig
+        path: agent-core/cmd/agent/main_tool_validation_test.go
+        test: TestRuntimeStartupValidatesWiringNotFullContractCompleteness
+      - assertion: rig
+        path: agent-core/cmd/agent/main_tool_validation_test.go
+        test: TestRuntimeStartupRejectsADeadTransition
+      - assertion: rig
+        path: agent-core/cmd/agent/profileaudit_startup_test.go
+        test: TestStartupEnforcesProfileTimeoutClosureForRunAndValidation
+      - assertion: rig
+        path: agent-core/internal/startupcheck/spec_pin_errata_test.go
+        test: TestSpecPinStartupRejectsAToolPhaseTheMachineLacks
+  - id: R-RUN-002
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST apply the startup checks to every
+      machine-instance the agent-profile's closure reaches -- the
+      machine-instances of child agent-profiles and of nested in-process runs
+      included -- and MUST refuse to start when any reached machine-instance
+      fails them.
+    acceptance:
+      - assertion: rig
+        path: agent-core/pkg/profileaudit/profileaudit_reach_test.go
+        test: TestReachedMachinesIncludeTheChildAndThePointMachine
+      - assertion: rig
+        path: agent-core/internal/startupcheck/spec_pin_runtime_test.go
+        test: TestStartupBoundaryRejectsAFaultInAReachedChildMachine
+
+  - id: R-RUN-003
+    target: runtime
+    level: MUST
+    statement: >-
+      On a run that is not a resumption, a conforming runtime MUST start the
+      machine-instance in its initial state with the `Seed` signal and, when a
+      request file is supplied, MUST deliver the file's exact bytes as the seed
+      result's output; an unreadable request file MUST refuse the start.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestSeedRequestSuppliesUniversalRequestPayload
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestSeedRequestRejectsUnreadableFile
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_RunsToCompletion
+
+  - id: R-RUN-004
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST select each transition by the pair of the
+      current state and the last result's signal; a pair the machine-instance
+      does not declare MUST end the run with the failed status without
+      dispatching a tool, and a run that reaches a terminal state MUST report
+      that state's declared `run_status`, or the failed status when the state
+      declares none.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/state_test.go
+        test: TestStateMachineStepUnhandledPairFallsBackToFailed
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_UnhandledTransitionPreservesOriginalFailure
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoopUsesDeclaredStatusForArbitrarilyNamedTerminal
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_OmittedTerminalStatusFailsClosed
+
+  - id: R-RUN-005
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST check the iteration and token budgets before
+      each transition and, when either is exhausted, MUST inject the
+      `BudgetExhausted` signal for the machine-instance to route; when the
+      wall-clock budget is exhausted or the run is cancelled, the runtime MUST
+      end the run with the cancelled status without routing any further
+      transition.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_BudgetExhausted
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_TokenBudgetExhausted
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_runtime_test.go
+        test: TestLoop_WallClockBudgetTerminatesAsCancelled
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_ActiveDispatchCancellation
+
+  - id: R-RUN-006
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST convert a dispatch that panics or exceeds the
+      command timeout into a result carrying the `CommandError` signal, and
+      MUST route that signal through the machine-instance like any other
+      result.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/dispatch_test.go
+        test: TestSafeExecute_RecoversPanicAndForcesCommandError
+      - assertion: rig
+        path: agent-core/internal/runtime/core/dispatch_test.go
+        test: TestSafeExecute_TimeoutAndIndefiniteWait
+      - assertion: rig
+        path: agent-core/cmd/agent/machine_policy_test.go
+        test: TestMachineCommandTimeoutRoutesRecoveryAndContinues
+
+  - id: R-RUN-007
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST record one step-log entry per dispatch, naming
+      the tool, its result signal, and its from and to states, and MUST save
+      the position and the step log through the configured checkpoint port
+      after each dispatch; a failed save MUST end the run with the failed
+      status, and the unsaved step MUST NOT be persisted as resumable.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_DispatchesNamedActionTargetingTerminalState
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_checkpoint_test.go
+        test: TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_checkpoint_test.go
+        test: TestLoop_PeriodicSaveFailureStopsAtUnpersistedStep
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_checkpoint_test.go
+        test: TestLoop_TerminalFinalizationFailureIsNotReportedAsSuccess
+
+  - id: R-RUN-008
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime process MUST exit 0 when the run ends succeeded or
+      suspended, MUST exit 2 when it ends failed, budget-exceeded, or
+      cancelled, and MUST exit 1 when a startup or runtime error prevents a
+      completed outcome; on a completed outcome it MUST write the labeled
+      `terminal state:` and `final machine state:` lines to standard error.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_exit_code_test.go
+        test: TestExitCodeForStatus
+      - assertion: rig
+        path: agent-core/cmd/agent/main_exit_code_test.go
+        test: TestExitCodesAreDistinct
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestRunPreparedPrintsSummaryFinalStateAndMappedExit
+      - assertion: rig
+        path: agent-core/cmd/agent/checkpoint_lifecycle_test.go
+        test: TestRunPreparedMachineFailureUsesMachineExitCode
+      - assertion: rig
+        path: agent-core/cmd/agent/spec_pin_process_test.go
+        test: TestSpecPinRunErrorExitsOne
+  - id: R-RUN-009
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime process MUST write a terminal summary to standard
+      output only when the machine-instance declares the signal whose result
+      supplies it, and MUST bound that summary to 1 MiB including its
+      truncation marker.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestCLIResultReporterDoesNotInventUndeclaredSummary
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestCLIResultReporterBoundsDeclaredMachineSummary
+
+  - id: R-RUN-010
+    target: runtime
+    level: MUST
+    statement: >-
+      Until a prepared run begins, a conforming runtime process MUST leave
+      SIGINT and SIGTERM at their operating-system disposition, so a signal
+      during startup ends the process; once the prepared run begins, it MUST
+      treat SIGINT and SIGTERM as cancellation of the run: the active dispatch
+      is cancelled, owned resources are closed, and the run's trace is
+      published before the process exits.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/signal_shutdown_test.go
+        test: TestRuntimeSignalCancelsDispatchAndPublishesTrace
+      - assertion: rig
+        path: agent-core/cmd/agent/checkpoint_lifecycle_test.go
+        test: TestPreparedRunCloseCancelsBeforeCheckpointAndTelemetry
+      - assertion: rig
+        path: agent-core/cmd/agent/spec_pin_process_test.go
+        test: TestSpecPinPreRunSignalKeepsOSDefault
+  - id: R-RUN-011
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST start a child agent-instance from a child
+      agent-profile path alone, passing it only that path and the runtime data
+      channels (workspace directory, request, output, and telemetry), never a
+      child machine-profile or tool-selection path, and MUST reject at
+      registration a child-invoking tool whose configuration names no
+      agent-profile; a nested in-process run MUST name its machine-profile,
+      tool selection, and tool declarations in its tool configuration.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/support/execute/execute_test.go
+        test: TestBuildArgs_ProfileOnly
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/config_validation_from_stl_test.go
+        test: TestValidateChildAgentConfigRequiresFields
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/config_validation_from_stl_test.go
+        test: TestValidateRunPointConfigRequiresFields
+
+  - id: R-RUN-012
+    target: runtime
+    level: MUST NOT
+    statement: >-
+      A conforming runtime MUST NOT select behavior by the name of an
+      agent-profile, a mode, or a specific tool in its interpreter or
+      composition code; workflow choice MUST come only from the machine-profile
+      and the tools the agent-profile selects.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/engine_guard_test.go
+        test: TestCoreSourceDoesNotEmbedModeOrToolPolicyNames
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestMainRuntimeDoesNotBranchOnAgentModeNames
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_declarative_test.go
+        test: TestLoop_DeclarativeInit_MachineNameDoesNotChangeEngineBehavior
+
+  - id: R-POP-005
+    target: population
+    level: MUST
+    statement: >-
+      A conforming population authority MUST realize each declared `Agent`
+      resource as agent-instances that all run the one agent-profile the
+      resource names, as many as the resource's replica count declares and one
+      when it declares none, and MUST own the workload and the service that
+      realize it.
+    acceptance:
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileCreatesDeploymentAndService
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileRollsOnSpecChange
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcilePassesArgsServiceAccountAndClaim
+
+  - id: R-POP-006
+    target: population
+    level: MUST NOT
+    statement: >-
+      A conforming population authority MUST NOT start agent-instances for an
+      agent-profile that is missing or fails the runtime's startup checks; it
+      MUST report the declaration not ready and retry rather than schedule.
+    acceptance:
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileReportsProfileInvalid
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileReportsMissingProfile
+      - assertion: rig
+        path: agent-core/pkg/profileservers/profileservers_test.go
+        test: TestValidateAppliesTheStartupBoundary
+
+  - id: R-POP-007
+    target: population
+    level: MUST
+    statement: >-
+      A conforming population authority MUST derive the endpoints, ports, and
+      readiness checks of the agent-instances it realizes from the
+      agent-profile's declarations, and MUST carry a change to the
+      agent-profile through to those agent-instances.
+    acceptance:
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileDerivesPortsFromTheProfile
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileFollowsAProfileChange
+
+  - id: R-LLM-006
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST refuse to build an `invoke_llm` tool whose
+      config names a `dialect`, or a `provider` other than `ollama`, without a
+      `provider_url`; a config that names neither a `provider` nor a `dialect`
+      MUST default to the `ollama` provider at `http://localhost:11434`.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/llm/invoke_cohere_test.go
+        test: TestInvokeLLMProviderSelection
+      - assertion: rig
+        path: agent-core/internal/tools/llm/invoke_dialect_test.go
+        test: TestInvokeLLMRejectsProviderAndDialect

@@ -1,0 +1,23 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-012: states and signals mix the short and long forms, and each
+# terminal state carries its run_status.
+kind: machine
+schema_version: 1
+name: worker
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 10}
+terminal_states: [Done, Failed]
+states:
+  - Idle
+  - {name: Working, meaning: Doing the work.}
+  - {name: Done, meaning: Work finished., run_status: succeeded}
+  - {name: Failed, meaning: Work failed., run_status: failed}
+signals:
+  - Seed
+  - {name: Worked, trigger: The work is done.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: Working, action: work, label: result}
+  - {state: Working, signal: Worked, next: Done}
+  - {state: Working, signal: CommandError, next: Failed}

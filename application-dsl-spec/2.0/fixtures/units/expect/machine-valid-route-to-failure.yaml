@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A suspect plan fails the run instead of being planned again.
+kind: machine
+schema_version: 1
+name: planner
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 20}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for a plan request.}
+  - {name: Reviewing, meaning: Routing the plan or the report of what was wrong with it.}
+  - {name: Done, meaning: A plan inside the expectation is ready., run_status: succeeded}
+  - {name: Failed, meaning: Planning failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A caller asks for a plan.}
+  - {name: PlanReady, trigger: A plan is listed.}
+  - {name: PlanSuspect, trigger: The plan falls outside its expectation.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - state: Idle
+    signal: Seed
+    next: Reviewing
+    action: plan_steps
+    label: plan
+    expect:
+      where: {steps: {min_items: 1, max_items: 20}, target: {enum: [staging, dev]}}
+      otherwise: {signal: PlanSuspect, quarantine: true}
+  - {state: Reviewing, signal: PlanReady, next: Done}
+  - {state: Reviewing, signal: PlanSuspect, next: Failed}
+  - {state: Reviewing, signal: CommandError, next: Failed}

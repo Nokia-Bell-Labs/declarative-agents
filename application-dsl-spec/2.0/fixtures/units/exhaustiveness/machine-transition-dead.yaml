@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Planning waits on PlanVetted, which nothing entering Planning emits.
+kind: machine
+schema_version: 1
+name: planner
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 20}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for a plan request.}
+  - {name: Planning, meaning: Routing the listed plan.}
+  - {name: Done, meaning: A plan is ready., run_status: succeeded}
+  - {name: Failed, meaning: Planning failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A caller asks for a plan.}
+  - {name: PlanReady, trigger: A plan is listed.}
+  - {name: PlanVetted, trigger: A plan passed vetting.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: Planning, action: probe_plan, label: plan}
+  - {state: Planning, signal: PlanReady, next: Done}
+  - {state: Planning, signal: PlanVetted, next: Done}
+  - {state: Planning, signal: CommandError, next: Failed}

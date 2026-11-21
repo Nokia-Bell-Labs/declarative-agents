@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-006: a transition whose next state is not declared.
+initial_state: Idle
+states: [Idle, Done]
+terminal_states: [Done]
+signals: [Seed]
+transitions:
+  - {state: Idle, signal: Seed, next: Working, action: relay}
