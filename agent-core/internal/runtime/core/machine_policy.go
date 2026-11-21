@@ -25,13 +25,23 @@ func validateMachinePolicy(spec MachineSpec, signals map[string]bool) []string {
 			errs = append(errs, fmt.Sprintf("%s %q not in signals list", field, signal))
 		}
 	}
-	if spec.BudgetSpec != nil && spec.BudgetSpec.CommandTimeout != "" {
-		timeout, err := time.ParseDuration(spec.BudgetSpec.CommandTimeout)
-		if err != nil || timeout <= 0 {
-			errs = append(errs, fmt.Sprintf(
-				"budget.command_timeout: invalid positive duration %q",
-				spec.BudgetSpec.CommandTimeout,
-			))
+	if spec.BudgetSpec != nil {
+		// A duration that does not parse would otherwise drop its bound
+		// silently: ToBudget keeps only durations that parse, so an
+		// unparseable max_duration left a run with no wall-clock limit.
+		for _, field := range []struct{ name, value string }{
+			{"command_timeout", spec.BudgetSpec.CommandTimeout},
+			{"max_duration", spec.BudgetSpec.MaxDuration},
+		} {
+			if field.value == "" {
+				continue
+			}
+			duration, err := time.ParseDuration(field.value)
+			if err != nil || duration <= 0 {
+				errs = append(errs, fmt.Sprintf(
+					"budget.%s: invalid positive duration %q", field.name, field.value,
+				))
+			}
 		}
 	}
 	return errs

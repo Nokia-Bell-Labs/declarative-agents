@@ -479,7 +479,8 @@ statements:
       A machine-profile document that an agent-profile executes MUST carry
       `budget` with a positive integer `max_iterations` and a positive duration
       `command_timeout`; `budget` MAY also carry `max_tokens`, `max_duration`,
-      and `max_consecutive_parse_errors`, and MUST carry no other keyname.
+      and `max_consecutive_parse_errors`, a `max_duration` that is present MUST
+      be a positive duration, and `budget` MUST carry no other keyname.
     acceptance:
       - assertion: fixture
         path: fixtures/document/machine-budget/valid.yaml
@@ -498,7 +499,13 @@ statements:
       - assertion: rig
         path: agent-core/internal/runtime/core/spec_pin_machine_test.go
         test: TestSpecPinMachineKeynamesAreAClosedSet
-
+      - assertion: fixture
+        path: fixtures/document/machine-budget/bad-max-duration.yaml
+        check: machine_budget
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_errata_test.go
+        test: TestSpecPinMachineRejectsAnUnparseableBudgetDuration
   - id: R-MACH-009
     target: document
     level: MUST
@@ -2226,3 +2233,19 @@ statements:
       - assertion: rig
         path: operator/internal/controller/agent_controller_test.go
         test: TestReconcileFollowsAProfileChange
+
+  - id: R-LLM-006
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST refuse to build an `invoke_llm` tool whose
+      config names a `dialect`, or a `provider` other than `ollama`, without a
+      `provider_url`; a config that names neither a `provider` nor a `dialect`
+      MUST default to the `ollama` provider at `http://localhost:11434`.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/llm/invoke_cohere_test.go
+        test: TestInvokeLLMProviderSelection
+      - assertion: rig
+        path: agent-core/internal/tools/llm/invoke_dialect_test.go
+        test: TestInvokeLLMRejectsProviderAndDialect

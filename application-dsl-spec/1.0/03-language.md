@@ -231,6 +231,12 @@ provider name, so naming both is an error.
 
 {{statement R-LLM-001}}
 
+The base URL is checked when the tool is built, not when its config is read:
+decoding fills the Ollama default, and building refuses a call that would have
+no address to send to.
+
+{{statement R-LLM-006}}
+
 A chat dialect, shipped as `chat-dialect.yaml` in a provider library, fills the
 provider-specific steps of an inference call using the REST grammar for its
 body, failure map, and auth profile. Its header names the library and the

@@ -250,6 +250,12 @@ func checkMachineBudget(path string) error {
 	if err != nil || timeout <= 0 {
 		return errors.New("budget.command_timeout is absent or not a positive duration")
 	}
+	if raw, present := budget["max_duration"]; present {
+		duration, err := time.ParseDuration(machString(raw))
+		if err != nil || duration <= 0 {
+			return errors.New("budget.max_duration is not a positive duration")
+		}
+	}
 	for _, keyname := range []string{"max_tokens", "max_consecutive_parse_errors"} {
 		if raw, present := budget[keyname]; present {
 			if value, ok := raw.(int); !ok || value < 0 {

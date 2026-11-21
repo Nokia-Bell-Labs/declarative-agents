@@ -76,13 +76,14 @@ string
 <!-- field: required | form: "scalar" -->
 #### Required
 
-true
+false
 
 <!-- field: description -->
 #### Description
 
-Unique agent identifier. Used in logging, metrics, and
-cross-references between agents.
+Agent identifier, used in logging, metrics, and cross-references
+between agents. The loader keeps it as a label and never requires it
+(application-dsl-spec 1.0 R-MACH-001).
 
 <!-- schema_entry: purpose -->
 ### purpose
@@ -386,7 +387,9 @@ duration string
 
 Wall-clock time limit (e.g. "5m0s"). Enforced via
 context.WithTimeout — when elapsed, the loop terminates
-with StatusCancelled (not BudgetExhausted).
+with StatusCancelled (not BudgetExhausted). A value that
+does not parse as a positive duration is a load error,
+as for command_timeout (application-dsl-spec 1.0 R-MACH-008).
 
 <!-- sub_field_entry: command_timeout -->
 ##### command_timeout
@@ -1069,7 +1072,6 @@ states:
 Validation occurs in two phases at startup:
 
 Phase 1 — validateSpec() during ParseMachineSpec():
-- name is required (non-empty)
 - initial_state is required
 - At least one state, one terminal state, and one transition must exist
 - Every state in transitions must exist in the states list

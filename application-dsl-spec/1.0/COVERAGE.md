@@ -110,7 +110,7 @@ Table 6: cfg-llm-config-format.
 
 | Area | Verdict | Where |
 |---|---|---|
-| Schema | covered | R-LLM-001, R-LLM-002, R-LLM-003, R-LLM-004, R-LLM-005 |
+| Schema | covered | R-LLM-001, R-LLM-002, R-LLM-003, R-LLM-004, R-LLM-005, R-LLM-006 |
 | Provider behavior | detail | engine policy: provider adapters behind one grammar |
 | Parse response config | detail | engine policy: parse_response configuration and parser-profile resolution |
 | Per model pattern | detail | authoring guidance: per-model file layout |
@@ -163,23 +163,3 @@ Table 9: the agent operator (`operator/api`, `operator/internal/controller`).
 | Profile validation before scheduling (srd009 R2.4) | covered | R-POP-006 |
 | Status reporting (srd009 R3.1) and CRD installation (internal/crd) | detail | observability: Ready condition shape and CRD installation mechanics |
 | One Agent resource per agent service across an application-profile | gap | no test asserts exactly one Agent resource per agent service; R-POP-005 states the per-resource half. Tracked in #2689 |
-
-## Where a reference and the engine differ
-
-The engine is normative for 1.0, so a statement records what the engine does.
-These differences were found while building the map. The reference text is the
-one to correct.
-
-- `machine-format.md` says a machine-profile requires `name`. The loader does
-  not check it; only the document rule R-MACH-001 binds it.
-- `machine-format.md` implies a `max_duration` that does not parse is rejected.
-  The engine ignores it.
-- `runtime-contract.md` says the latest non-empty output is written as the
-  terminal summary. The engine writes a summary only when the machine-profile
-  declares `summary_signal` (R-RUN-009).
-- `tool-declaration-format.md` documents an exec `includes` field. The code has
-  none, and the loader rejects it.
-- `llm-config-format.md` says `provider_url` is required with a dialect. The
-  loader does not enforce it.
-- `agent-profile-format.md` describes blueprints. The profile loader rejects
-  the blueprint keynames (#2938).

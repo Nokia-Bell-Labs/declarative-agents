@@ -165,12 +165,13 @@ server spans.
 <!-- field: process_result_contract -->
 ## Process result contract
 
-On a completed run, cmd/agent writes the latest non-empty machine
-Result.Output to stdout as the terminal summary. The summary is capped at
-1 MiB including the "... [terminal summary truncated]" marker. It is an
-explicit program output channel, not a secret-redaction boundary; profiles
-must keep sensitive values out of Result.Output. A run with no non-empty
-result writes no summary.
+On a completed run whose machine declares `summary_signal`, cmd/agent
+writes the output of the result that carried that signal to stdout as the
+terminal summary (application-dsl-spec 1.0 R-RUN-009). A machine that
+declares no summary signal gets no summary, whatever its results held. The
+summary is capped at 1 MiB including the "... [terminal summary truncated]"
+marker. It is an explicit program output channel, not a secret-redaction
+boundary; profiles must keep sensitive values out of the summary result.
 
 cmd/agent writes "terminal state: <run-status>" and
 "final machine state: <state-name>" to stderr. Success and deliberate
