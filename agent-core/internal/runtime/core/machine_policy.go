@@ -25,26 +25,21 @@ func validateMachinePolicy(spec MachineSpec, signals map[string]bool) []string {
 			errs = append(errs, fmt.Sprintf("%s %q not in signals list", field, signal))
 		}
 	}
-	if spec.BudgetSpec != nil {
-		// A duration that does not parse would otherwise drop its bound
-		// silently: ToBudget keeps only durations that parse, so an
-		// unparseable max_duration left a run with no wall-clock limit.
-		for _, field := range []struct{ name, value string }{
-			{"command_timeout", spec.BudgetSpec.CommandTimeout},
-			{"max_duration", spec.BudgetSpec.MaxDuration},
-		} {
-			if field.value == "" {
-				continue
-			}
-			duration, err := time.ParseDuration(field.value)
-			if err != nil || duration <= 0 {
-				errs = append(errs, fmt.Sprintf(
-					"budget.%s: invalid positive duration %q", field.name, field.value,
-				))
-			}
+	// ToBudget keeps only durations that parse, so an unparseable bound is
+	// refused here rather than silently dropped.
+	for _, field := range spec.BudgetSpec.durationFields() {
+		if d, err := time.ParseDuration(field[1]); field[1] != "" && (err != nil || d <= 0) {
+			errs = append(errs, fmt.Sprintf("budget.%s: invalid positive duration %q", field[0], field[1]))
 		}
 	}
 	return errs
+}
+
+func (bs *BudgetSpec) durationFields() [][2]string {
+	if bs == nil {
+		return nil
+	}
+	return [][2]string{{"command_timeout", bs.CommandTimeout}, {"max_duration", bs.MaxDuration}}
 }
 
 // ValidateRequiredMachinePolicy rejects runtime profiles that omit policy the

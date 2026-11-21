@@ -44,7 +44,7 @@ pkg:internal/planning/plan files=3 loc=140
 pkg:internal/runtime files=1 loc=7
 pkg:internal/runtime/checkpoint files=2 loc=132
 pkg:internal/runtime/checkpoint/dolt files=2 loc=1216
-pkg:internal/runtime/core files=35 loc=6317
+pkg:internal/runtime/core files=35 loc=6322
 pkg:internal/startupcheck files=1 loc=125
 pkg:internal/support files=1 loc=7
 pkg:internal/support/corepath files=1 loc=262
