@@ -61,8 +61,8 @@ Table 2: cfg-agent-profile-format.
 |---|---|---|
 | Schema | covered | R-PROF-001, R-PROF-004, R-PROF-005 |
 | Path resolution | covered | R-PROF-006 |
-| Blueprints | gap | document shape is R-PROF-002 and R-PROF-003; no blueprint loader exists. Tracked in #2938 |
-| `name` required on a profile | gap | R-PROF-001 states it; the profile loader does not require it. Tracked in #2938 |
+| Blueprints | covered | R-PROF-002, R-PROF-003 |
+| `name` optional on a profile | covered | R-PROF-001 |
 
 Table 3: cfg-tool-declaration-format.
 

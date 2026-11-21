@@ -140,54 +140,54 @@ func runFixtureCheck(path string, entry acceptanceEntry) error {
 // fixtureChecks registers every document check a fixture entry may name.
 // Grammar chapters add checks as their statements land.
 var fixtureChecks = map[string]func(string) error{
-	"yaml_mapping":                  checkYAMLMapping,
-	"machine_expansion_shape":       checkMachineExpansionShape,
-	"expansion_names_fragment":      checkExpansionNamesFragment,
-	"application_required_keynames": checkApplicationRequiredKeynames,
-	"profile_required_keynames":     checkProfileRequiredKeynames,
-	"profile_expansion_shape":       checkProfileExpansionShape,
-	"blueprint_body_shape":          checkBlueprintBodyShape,
-	"machine_body_keynames":         checkMachineBodyKeynames,
-	"machine_instance_header":       checkMachineInstanceHeader,
-	"profile_reference_keynames":    checkProfileReferenceKeynames,
-	"profile_library_roots":         checkProfileLibraryRoots,
-	"application_identity":          checkApplicationIdentity,
-	"application_capabilities":      checkApplicationCapabilities,
-	"application_roots":             checkApplicationRoots,
-	"tool_declaration_body":         checkToolDeclarationBody,
-	"tool_entry_kind":               checkToolEntryKind,
-	"tool_contract_vocabulary":      checkToolContractVocabulary,
-	"tool_exec_fields":              checkToolExecFields,
-	"tool_signature_single_source":  checkToolSignatureSingleSource,
-	"tool_type_subset":              checkToolTypeSubset,
-	"tool_fragment_shape":           checkToolFragmentShape,
-	"tool_selection_names":          checkToolSelectionNames,
-	"rest_definition_root":          checkRESTDefinitionRoot,
-	"rest_resource_operations":      checkRESTResourceOperations,
-	"rest_status_owners":            checkRESTStatusOwners,
-	"rest_mutating_contract":        checkRESTMutatingContract,
-	"rest_policy_vocabulary":        checkRESTPolicyVocabulary,
-	"rest_server_endpoints":         checkRESTServerEndpoints,
-	"rest_machine_request":          checkRESTMachineRequest,
-	"llm_invoke_config":             checkLLMInvokeConfig,
-	"llm_dialect_header":            checkLLMDialectHeader,
-	"llm_dialect_body":              checkLLMDialectBody,
-	"llm_dialect_reply":             checkLLMDialectReply,
-	"llm_dialect_auth":              checkLLMDialectAuth,
-	"machine_top_keynames":          checkMachineTopKeynames,
-	"machine_transition_keynames":   checkMachineTransitionKeynames,
-	"machine_named_specs":           checkMachineNamedSpecs,
-	"machine_graph_references":      checkMachineGraphReferences,
-	"machine_run_status":            checkMachineRunStatus,
-	"machine_budget":                checkMachineBudget,
-	"machine_policy_signals":        checkMachinePolicySignals,
-	"machine_action_forms":          checkMachineActionForms,
-	"machine_step_labels":           checkMachineStepLabels,
-	"machine_for_each_shape":        checkMachineForEachShape,
-	"machine_for_each_policy":       checkMachineForEachPolicy,
-	"model_stage_fragment":          checkModelStageFragment,
-	"model_machine_template":        checkModelMachineTemplate,
-	"model_fragment_params":         checkModelFragmentParams,
+	"yaml_mapping":                          checkYAMLMapping,
+	"machine_expansion_shape":               checkMachineExpansionShape,
+	"expansion_names_fragment":              checkExpansionNamesFragment,
+	"application_required_keynames":         checkApplicationRequiredKeynames,
+	"profile_required_keynames":             checkProfileRequiredKeynames,
+	"profile_admits_no_expansion":           checkProfileAdmitsNoExpansion,
+	"profile_carries_no_blueprint_keynames": checkProfileCarriesNoBlueprintKeynames,
+	"machine_body_keynames":                 checkMachineBodyKeynames,
+	"machine_instance_header":               checkMachineInstanceHeader,
+	"profile_reference_keynames":            checkProfileReferenceKeynames,
+	"profile_library_roots":                 checkProfileLibraryRoots,
+	"application_identity":                  checkApplicationIdentity,
+	"application_capabilities":              checkApplicationCapabilities,
+	"application_roots":                     checkApplicationRoots,
+	"tool_declaration_body":                 checkToolDeclarationBody,
+	"tool_entry_kind":                       checkToolEntryKind,
+	"tool_contract_vocabulary":              checkToolContractVocabulary,
+	"tool_exec_fields":                      checkToolExecFields,
+	"tool_signature_single_source":          checkToolSignatureSingleSource,
+	"tool_type_subset":                      checkToolTypeSubset,
+	"tool_fragment_shape":                   checkToolFragmentShape,
+	"tool_selection_names":                  checkToolSelectionNames,
+	"rest_definition_root":                  checkRESTDefinitionRoot,
+	"rest_resource_operations":              checkRESTResourceOperations,
+	"rest_status_owners":                    checkRESTStatusOwners,
+	"rest_mutating_contract":                checkRESTMutatingContract,
+	"rest_policy_vocabulary":                checkRESTPolicyVocabulary,
+	"rest_server_endpoints":                 checkRESTServerEndpoints,
+	"rest_machine_request":                  checkRESTMachineRequest,
+	"llm_invoke_config":                     checkLLMInvokeConfig,
+	"llm_dialect_header":                    checkLLMDialectHeader,
+	"llm_dialect_body":                      checkLLMDialectBody,
+	"llm_dialect_reply":                     checkLLMDialectReply,
+	"llm_dialect_auth":                      checkLLMDialectAuth,
+	"machine_top_keynames":                  checkMachineTopKeynames,
+	"machine_transition_keynames":           checkMachineTransitionKeynames,
+	"machine_named_specs":                   checkMachineNamedSpecs,
+	"machine_graph_references":              checkMachineGraphReferences,
+	"machine_run_status":                    checkMachineRunStatus,
+	"machine_budget":                        checkMachineBudget,
+	"machine_policy_signals":                checkMachinePolicySignals,
+	"machine_action_forms":                  checkMachineActionForms,
+	"machine_step_labels":                   checkMachineStepLabels,
+	"machine_for_each_shape":                checkMachineForEachShape,
+	"machine_for_each_policy":               checkMachineForEachPolicy,
+	"model_stage_fragment":                  checkModelStageFragment,
+	"model_machine_template":                checkModelMachineTemplate,
+	"model_fragment_params":                 checkModelFragmentParams,
 }
 
 // checkApplicationRequiredKeynames enforces R-APP-001: the application-profile
@@ -223,83 +223,69 @@ func checkApplicationRequiredKeynames(path string) error {
 }
 
 // checkProfileRequiredKeynames enforces R-PROF-001: an agent-profile document
-// names itself and references its machine-profile.
+// references its machine-profile; a name is optional, and a string when given.
 func checkProfileRequiredKeynames(path string) error {
 	doc, err := readYAMLMapping(path)
 	if err != nil {
 		return err
 	}
-	for _, keyname := range []string{"name", "machine"} {
-		value, _ := doc[keyname].(string)
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("keyname %q is absent or not a string", keyname)
+	if value, _ := doc["machine"].(string); strings.TrimSpace(value) == "" {
+		return errors.New(`keyname "machine" is absent or not a string`)
+	}
+	return checkOptionalString(doc, "name")
+}
+
+// checkOptionalString accepts an absent keyname and rejects one present with
+// a non-string value.
+func checkOptionalString(doc map[string]any, keyname string) error {
+	value, present := doc[keyname]
+	if !present {
+		return nil
+	}
+	if _, ok := value.(string); !ok {
+		return fmt.Errorf("keyname %q is present but not a string", keyname)
+	}
+	return nil
+}
+
+// checkProfileAdmitsNoExpansion enforces R-PROF-002: an agent-profile
+// document is written out in full and carries no expansion.
+func checkProfileAdmitsNoExpansion(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	if _, expands := doc["expand"]; expands {
+		return errors.New(`an agent-profile document carries "expand"`)
+	}
+	return nil
+}
+
+// checkProfileCarriesNoBlueprintKeynames enforces R-PROF-003: the blueprint
+// keynames are not agent-profile keynames.
+func checkProfileCarriesNoBlueprintKeynames(path string) error {
+	doc, err := readYAMLMapping(path)
+	if err != nil {
+		return err
+	}
+	for _, keyname := range []string{"unit", "params", "profile"} {
+		if _, present := doc[keyname]; present {
+			return fmt.Errorf("an agent-profile document carries %q", keyname)
 		}
 	}
 	return nil
 }
 
-// checkProfileExpansionShape enforces R-PROF-002: an agent-profile document
-// that expands a blueprint names itself and applies the blueprint once, under
-// the blueprint's own produced names. A document with no expansion satisfies
-// the statement vacuously.
-func checkProfileExpansionShape(path string) error {
-	doc, err := readYAMLMapping(path)
-	if err != nil {
-		return err
-	}
-	entries, ok := doc["expand"]
-	if !ok {
-		return nil
-	}
-	if name, _ := doc["name"].(string); strings.TrimSpace(name) == "" {
-		return errors.New(`keyname "name" is absent or not a string`)
-	}
-	list, ok := entries.([]any)
-	if !ok {
-		return errors.New("expand must be a sequence")
-	}
-	if len(list) != 1 {
-		return fmt.Errorf("expanding a blueprint takes exactly one expansion entry, got %d", len(list))
-	}
-	entry, ok := list[0].(map[string]any)
-	if !ok {
-		return errors.New("expand[0] must be a mapping")
-	}
-	if _, renamed := entry["as"]; renamed {
-		return errors.New(`expand[0] carries "as", which a blueprint expansion may not`)
-	}
-	return nil
-}
-
-// checkBlueprintBodyShape enforces R-PROF-003: a blueprint holds unfilled
-// parameter references until its arguments arrive, so it may not expand.
-func checkBlueprintBodyShape(path string) error {
-	doc, err := readYAMLMapping(path)
-	if err != nil {
-		return err
-	}
-	_, declaresParams := doc["params"]
-	_, declaresBody := doc["profile"]
-	if !declaresParams || !declaresBody {
-		return nil
-	}
-	if _, expands := doc["expand"]; expands {
-		return errors.New("a blueprint carries an expansion")
-	}
-	return nil
-}
-
 // checkMachineBodyKeynames enforces R-MACH-001: a machine-profile document
-// that declares its own body names itself and carries states and transitions
-// as sequences.
+// that declares its own body carries states and transitions as sequences; a
+// name is optional, and a string when given.
 func checkMachineBodyKeynames(path string) error {
 	doc, err := readYAMLMapping(path)
 	if err != nil {
 		return err
 	}
-	name, _ := doc["name"].(string)
-	if strings.TrimSpace(name) == "" {
-		return errors.New(`keyname "name" is absent or not a string`)
+	if err := checkOptionalString(doc, "name"); err != nil {
+		return err
 	}
 	for _, keyname := range []string{"states", "transitions"} {
 		if _, ok := doc[keyname].([]any); !ok {

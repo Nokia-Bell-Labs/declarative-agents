@@ -17,7 +17,7 @@ We bind the agent-core runtime and its document processors to the specification 
 ### Processing
 
 - The profile and machine loaders realize the processor target. They reject a document whose root node is not a mapping (R-INTRO-002) and validate an expanded machine-profile exactly as a hand-written one, enforcing the expansion shape (R-MODEL-001), named fragments (R-MODEL-002), and the header a bodiless machine-profile carries (R-MACH-002). They select expansion behavior by the body kind of the target and refuse a nested machine-template (R-MODEL-003).
-- Loaded agent-profiles carry their binding keynames (R-PROF-001), and machine-profile bodies carry name, states, and transitions as the grammar requires (R-MACH-001).
+- Loaded agent-profiles carry their binding keynames (R-PROF-001), and machine-profile bodies carry states and transitions as the grammar requires (R-MACH-001).
 
 <!-- field: activation -->
 ### Activation

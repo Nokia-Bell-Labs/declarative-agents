@@ -205,73 +205,71 @@ func TestMachineExpansionShape(t *testing.T) {
 	}
 }
 
-func TestProfileExpansionShape(t *testing.T) {
+func TestProfileAdmitsNoExpansion(t *testing.T) {
 	tests := map[string]struct {
 		content string
 		valid   bool
 	}{
-		"no expansion at all": {
+		"profile written out in full": {
 			content: "name: worker\nmachine: machine.yaml\n",
 			valid:   true,
 		},
-		"one entry naming a blueprint": {
+		"profile expanding a blueprint": {
 			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n    args: {server: control}\n",
-			valid:   true,
-		},
-		"expansion without a name": {
-			content: "expand:\n  - fragment: b.yaml\n",
-			valid:   false,
-		},
-		"two expansion entries": {
-			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n  - fragment: c.yaml\n",
-			valid:   false,
-		},
-		"entry renames what it produces": {
-			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n    as: secondary\n",
 			valid:   false,
 		},
 	}
+	runShapeCases(t, "profile_admits_no_expansion", tests)
+}
+
+func TestProfileCarriesNoBlueprintKeynames(t *testing.T) {
+	tests := map[string]struct {
+		content string
+		valid   bool
+	}{
+		"agent-profile keynames only": {
+			content: "name: worker\nmachine: machine.yaml\ntools: [tools.yaml]\n",
+			valid:   true,
+		},
+		"unit":    {content: "unit: b\nmachine: machine.yaml\n", valid: false},
+		"params":  {content: "params:\n  - {name: server, type: string}\nmachine: m.yaml\n", valid: false},
+		"profile": {content: "profile:\n  machine: machine.yaml\n", valid: false},
+	}
+	runShapeCases(t, "profile_carries_no_blueprint_keynames", tests)
+}
+
+func TestNameIsOptionalButTyped(t *testing.T) {
+	tests := map[string]struct {
+		check, content string
+		valid          bool
+	}{
+		"nameless profile":       {"profile_required_keynames", "machine: machine.yaml\n", true},
+		"profile with list name": {"profile_required_keynames", "name: [a]\nmachine: machine.yaml\n", false},
+		"nameless machine body":  {"machine_body_keynames", "states: [A]\ntransitions: []\n", true},
+		"machine with map name":  {"machine_body_keynames", "name: {a: b}\nstates: [A]\ntransitions: []\n", false},
+	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			path := writeEvidenceFile(t, t.TempDir(), "profile.yaml", test.content)
-			err := checkFixture("profile_expansion_shape", path)
-			if test.valid && err != nil {
-				t.Fatalf("check failed on a conforming document: %v", err)
-			}
-			if !test.valid && err == nil {
-				t.Fatal("check passed a non-conforming document")
+			path := writeEvidenceFile(t, t.TempDir(), "doc.yaml", test.content)
+			err := checkFixture(test.check, path)
+			if test.valid != (err == nil) {
+				t.Fatalf("check %s on %q: err = %v, want valid=%v", test.check, test.content, err, test.valid)
 			}
 		})
 	}
 }
 
-func TestBlueprintBodyShape(t *testing.T) {
-	tests := map[string]struct {
-		content string
-		valid   bool
-	}{
-		"blueprint declaring parameters and a body": {
-			content: "unit: b\nparams:\n  - {name: server, type: string}\nprofile:\n  name: $param(server)\n",
-			valid:   true,
-		},
-		"expanding document is not a blueprint": {
-			content: "name: chatbot\nexpand:\n  - fragment: b.yaml\n",
-			valid:   true,
-		},
-		"parameters without a body": {
-			content: "unit: b\nparams:\n  - {name: server, type: string}\n",
-			valid:   true,
-		},
-		"blueprint carrying an expansion": {
-			content: "unit: b\nparams:\n  - {name: server, type: string}\n" +
-				"expand:\n  - fragment: base.yaml\nprofile:\n  name: $param(server)\n",
-			valid: false,
-		},
-	}
+// runShapeCases applies one fixture check to each case and compares the
+// outcome with the declared validity.
+func runShapeCases(t *testing.T, check string, tests map[string]struct {
+	content string
+	valid   bool
+}) {
+	t.Helper()
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			path := writeEvidenceFile(t, t.TempDir(), "blueprint.yaml", test.content)
-			err := checkFixture("blueprint_body_shape", path)
+			path := writeEvidenceFile(t, t.TempDir(), "doc.yaml", test.content)
+			err := checkFixture(check, path)
 			if test.valid && err != nil {
 				t.Fatalf("check failed on a conforming document: %v", err)
 			}

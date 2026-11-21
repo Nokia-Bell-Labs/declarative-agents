@@ -199,69 +199,86 @@ statements:
     target: document
     level: MUST
     statement: >-
-      An agent-profile document MUST carry the `name` and `machine` keynames,
-      each a non-empty string; `machine` references the machine-profile
-      document the agent-instance executes.
+      An agent-profile document MUST carry the `machine` keyname, a non-empty
+      string that references the machine-profile document the agent-instance
+      executes; the `name` keyname MAY accompany it, and when present MUST be
+      a string.
     acceptance:
       - assertion: fixture
         path: fixtures/document/profile-keynames/valid.yaml
         check: profile_required_keynames
         verdict: valid
       - assertion: fixture
+        path: fixtures/document/profile-keynames/nameless.yaml
+        check: profile_required_keynames
+        verdict: valid
+      - assertion: fixture
         path: fixtures/document/profile-keynames/invalid.yaml
         check: profile_required_keynames
         verdict: invalid
-
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_errata_test.go
+        test: TestSpecPinProfileLoadsWithoutName
   - id: R-PROF-002
     target: document
-    level: MUST
+    level: MUST NOT
     statement: >-
-      An agent-profile document that expands a blueprint MUST carry the
-      `name` keyname and exactly one expansion entry, and that entry MUST NOT
-      carry the `as` keyname.
+      An agent-profile document MUST NOT carry the `expand` keyname: an
+      agent-profile is written out in full, and no expansion constructs one.
     acceptance:
       - assertion: fixture
         path: fixtures/document/profile-expansion/valid.yaml
-        check: profile_expansion_shape
+        check: profile_admits_no_expansion
         verdict: valid
       - assertion: fixture
         path: fixtures/document/profile-expansion/invalid.yaml
-        check: profile_expansion_shape
+        check: profile_admits_no_expansion
         verdict: invalid
-
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_errata_test.go
+        test: TestSpecPinProfileRejectsBlueprintKeynames
   - id: R-PROF-003
     target: document
     level: MUST NOT
     statement: >-
-      A blueprint MUST NOT carry an expansion; a document carrying the
-      `params` and `profile` keynames is a blueprint, and is not itself an
-      agent-profile document.
+      An agent-profile document MUST NOT carry the `unit`, `params`, or
+      `profile` keynames; a document carrying them is not an agent-profile
+      document.
     acceptance:
       - assertion: fixture
         path: fixtures/document/blueprint-body/valid.yaml
-        check: blueprint_body_shape
+        check: profile_carries_no_blueprint_keynames
         verdict: valid
       - assertion: fixture
         path: fixtures/document/blueprint-body/invalid.yaml
-        check: blueprint_body_shape
+        check: profile_carries_no_blueprint_keynames
         verdict: invalid
-
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_errata_test.go
+        test: TestSpecPinProfileRejectsBlueprintKeynames
   - id: R-MACH-001
     target: document
     level: MUST
     statement: >-
-      A machine-profile document that declares its own body MUST carry the
-      `name` keyname, and its `states` and `transitions` MUST be sequences.
+      A machine-profile document that declares its own body MUST carry its
+      `states` and `transitions` as sequences; the `name` keyname MAY
+      accompany them, and when present MUST be a string.
     acceptance:
       - assertion: fixture
         path: fixtures/document/machine-keynames/valid.yaml
         check: machine_body_keynames
         verdict: valid
       - assertion: fixture
+        path: fixtures/document/machine-keynames/nameless.yaml
+        check: machine_body_keynames
+        verdict: valid
+      - assertion: fixture
         path: fixtures/document/machine-keynames/invalid.yaml
         check: machine_body_keynames
         verdict: invalid
-
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_errata_test.go
+        test: TestSpecPinMachineBodyLoadsWithoutName
   - id: R-MACH-002
     target: document
     level: MUST
