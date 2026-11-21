@@ -1878,10 +1878,12 @@ statements:
     statement: >-
       A conforming runtime MUST perform rollback as a lifecycle tool dispatch
       that first rewinds the persisted state to the target step and then
-      reverses the external effect of each rewound entry through that entry's
-      tool-owned receipt, skipping entries declared irreversible; when the
-      rewind fails, the runtime MUST leave the persisted state unchanged and
-      MUST NOT reverse any effect.
+      reverses the external effect of each rewound entry, from the latest entry
+      back to the earliest, by handing that entry's receipt unchanged to the
+      undo of the tool that produced it, skipping entries declared
+      irreversible; the runtime MUST NOT interpret a receipt's contents. When
+      the rewind fails, the runtime MUST leave the persisted state unchanged
+      and MUST NOT reverse any effect.
     acceptance:
       - assertion: rig
         path: agent-core/internal/tools/lifecycle/checkpoint_compensation_test.go
@@ -1892,7 +1894,9 @@ statements:
       - assertion: rig
         path: agent-core/internal/tools/lifecycle/checkpoint_rollback_test.go
         test: TestCheckpointRollbackRevertFailurePreservesStateAndSkipsUndo
-
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/spec_pin_runtime_test.go
+        test: TestSpecPinRollbackWalksReceiptsInReverseUnchanged
   - id: R-LCM-006
     target: runtime
     level: MUST NOT
@@ -1919,11 +1923,12 @@ statements:
     statement: >-
       Before the first dispatch, a conforming runtime MUST check the loaded
       machine-instance against the agent-profile's tool selection -- every
-      named transition action is a selected tool, every signal a selected tool
-      declares it emits is declared and routed from the action's target state,
-      every transition can fire, and every operation timeout lies strictly
-      below the command timeout -- and MUST refuse to start the run when any
-      check fails.
+      named transition action is a selected tool, every phase a selected tool
+      declares is a state the machine-instance declares, every signal a
+      selected tool declares it emits is declared and routed from the action's
+      target state, every transition can fire, and every operation timeout lies
+      strictly below the command timeout -- and MUST refuse to start the run
+      when any check fails.
     acceptance:
       - assertion: rig
         path: agent-core/cmd/agent/main_action_validation_test.go
@@ -1937,7 +1942,9 @@ statements:
       - assertion: rig
         path: agent-core/cmd/agent/profileaudit_startup_test.go
         test: TestStartupEnforcesProfileTimeoutClosureForRunAndValidation
-
+      - assertion: rig
+        path: agent-core/internal/startupcheck/spec_pin_errata_test.go
+        test: TestSpecPinStartupRejectsAToolPhaseTheMachineLacks
   - id: R-RUN-002
     target: runtime
     level: MUST
@@ -2086,7 +2093,9 @@ statements:
       - assertion: rig
         path: agent-core/cmd/agent/checkpoint_lifecycle_test.go
         test: TestRunPreparedMachineFailureUsesMachineExitCode
-
+      - assertion: rig
+        path: agent-core/cmd/agent/spec_pin_process_test.go
+        test: TestSpecPinRunErrorExitsOne
   - id: R-RUN-009
     target: runtime
     level: MUST
@@ -2107,10 +2116,12 @@ statements:
     target: runtime
     level: MUST
     statement: >-
-      Once a prepared run begins, a conforming runtime process MUST treat
-      SIGINT and SIGTERM as cancellation of the run: the active dispatch is
-      cancelled, owned resources are closed, and the run's trace is published
-      before the process exits.
+      Until a prepared run begins, a conforming runtime process MUST leave
+      SIGINT and SIGTERM at their operating-system disposition, so a signal
+      during startup ends the process; once the prepared run begins, it MUST
+      treat SIGINT and SIGTERM as cancellation of the run: the active dispatch
+      is cancelled, owned resources are closed, and the run's trace is
+      published before the process exits.
     acceptance:
       - assertion: rig
         path: agent-core/cmd/agent/signal_shutdown_test.go
@@ -2118,7 +2129,9 @@ statements:
       - assertion: rig
         path: agent-core/cmd/agent/checkpoint_lifecycle_test.go
         test: TestPreparedRunCloseCancelsBeforeCheckpointAndTelemetry
-
+      - assertion: rig
+        path: agent-core/cmd/agent/spec_pin_process_test.go
+        test: TestSpecPinPreRunSignalKeepsOSDefault
   - id: R-RUN-011
     target: runtime
     level: MUST

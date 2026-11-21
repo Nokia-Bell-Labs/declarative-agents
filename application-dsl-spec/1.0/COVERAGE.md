@@ -83,7 +83,7 @@ Table 3: cfg-tool-declaration-format.
 | Structured output strategy | covered | R-TOOL-004 |
 | Mode local overrides | covered | R-TOOL-010 |
 | Target grouped layout | detail | repository layout: planned layout migration |
-| `phases` checked against the machine-profile at startup | gap | no test pins it. Tracked in #2939 |
+| `phases` checked against the machine-profile at startup | covered | R-RUN-001 |
 
 Table 4: cfg-tool-selection-format.
 
@@ -150,10 +150,10 @@ Table 8: cfg-runtime-contract.
 | Invariants | covered | R-RUN-001, R-RUN-002, R-RUN-012, R-LCM-006 |
 | Runtime safety boundary | covered | R-RUN-005, R-RUN-006, R-LCM-004, R-RUN-012 |
 | Engine policy audit | detail | engine policy: inventory of engine policy symbols; its normative content is the safety boundary row |
-| Default SIGINT and SIGTERM before the run starts | gap | no test pins the pre-run half. Tracked in #2939 |
-| Receipts never interpreted by the engine or the checkpoint adapters | gap | no test fails if the engine reads a receipt. Tracked in #2939 |
-| Reverse order of the rollback walk | gap | R-LCM-005 states no order because no test pins it. Tracked in #2939 |
-| Exit code 1 for a run error | gap | set in `main()`, which no test runs. Tracked in #2939 |
+| Default SIGINT and SIGTERM before the run starts | covered | R-RUN-010 |
+| Receipts handed unchanged to the producing tool's undo | covered | R-LCM-005 |
+| Reverse order of the rollback walk | covered | R-LCM-005 |
+| Exit code 1 for a run error | covered | R-RUN-008 |
 
 Table 9: the agent operator (`operator/api`, `operator/internal/controller`).
 
