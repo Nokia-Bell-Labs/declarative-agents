@@ -17,25 +17,14 @@ import (
 )
 
 // specPinMainArgsEnv carries the argument list a re-executed test binary
-// hands to main(). These tests pin process behaviour that only main() has:
-// the exit-code mapping and the signal disposition before the run is bound.
+// hands to main(). TestMain reads it before any test runs, so the child is the
+// agent process itself. These tests pin process behaviour that only main()
+// has: the exit-code mapping and the signal disposition before the run binds.
 const specPinMainArgsEnv = "AGENT_CORE_SPEC_PIN_MAIN_ARGS"
-
-// TestSpecPinMainHelper is not a test of its own: re-executed with
-// specPinMainArgsEnv set, it runs main() with those arguments and never
-// returns, so the parent observes the real process outcome.
-func TestSpecPinMainHelper(t *testing.T) {
-	encoded, ok := os.LookupEnv(specPinMainArgsEnv)
-	if !ok {
-		t.Skip("helper process for the spec pin tests")
-	}
-	os.Args = append([]string{"agent"}, strings.Split(encoded, "\x1f")...)
-	main()
-}
 
 func specPinMainCommand(t *testing.T, args ...string) *exec.Cmd {
 	t.Helper()
-	command := exec.Command(os.Args[0], "-test.run=^TestSpecPinMainHelper$")
+	command := exec.Command(os.Args[0], "-test.run=^$")
 	command.Env = append(os.Environ(), specPinMainArgsEnv+"="+strings.Join(args, "\x1f"))
 	return command
 }
