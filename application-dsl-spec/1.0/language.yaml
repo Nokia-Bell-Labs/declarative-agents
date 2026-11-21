@@ -1805,3 +1805,392 @@ statements:
       - assertion: rig
         path: agent-core/internal/tools/llm/dialect/dialect_test.go
         test: TestChatDialectRejectsInvalidDeclarations
+
+  - id: R-LCM-003
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime that resumes an agent-instance from a checkpoint
+      MUST re-enter the same machine-instance at the persisted position with
+      the persisted execution log and accumulated cost, MUST deliver the resume
+      signal as the first transition's signal in place of any request seed, and
+      MUST fail without entering the run loop when no checkpoint is persisted;
+      a checkpoint whose run already reached a terminal state MUST be reported
+      with its recorded outcome without re-entering the run loop.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/resume_port_test.go
+        test: TestResumeReentersLoopFromTypedPort
+      - assertion: rig
+        path: agent-core/internal/runtime/core/resume_port_test.go
+        test: TestLoadResumeExposesTypedSnapshotForDomainRestore
+      - assertion: rig
+        path: agent-core/cmd/agent/main_lifecycle_test.go
+        test: TestResumeLoadOverridesRequestSeed
+      - assertion: rig
+        path: agent-core/cmd/agent/main_lifecycle_test.go
+        test: TestResumeWithoutPersistentBackendReportsNoCheckpoint
+      - assertion: rig
+        path: agent-core/internal/runtime/core/resume_port_test.go
+        test: TestResumeFinalizedCheckpointReturnsWithoutReenteringLoop
+
+  - id: R-LCM-004
+    target: runtime
+    level: MUST
+    statement: >-
+      When a dispatch yields the `AwaitApproval` signal, a conforming runtime
+      MUST save the checkpoint through the configured checkpoint port before it
+      reports the run suspended, and MUST report the run failed, never
+      suspended, when that save fails.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_suspend_persist_test.go
+        test: TestLoop_SuspendFailsWhenCheckpointSaveFails
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_suspend_persist_test.go
+        test: TestLoop_SuspendSucceedsWhenCheckpointSaveSucceeds
+      - assertion: rig
+        path: agent-core/cmd/agent/main_lifecycle_test.go
+        test: TestApprovalLifecycleProfileSuspendsThroughCheckpointPort
+
+  - id: R-LCM-005
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST perform rollback as a lifecycle tool dispatch
+      that first rewinds the persisted state to the target step and then
+      reverses the external effect of each rewound entry through that entry's
+      tool-owned receipt, skipping entries declared irreversible; when the
+      rewind fails, the runtime MUST leave the persisted state unchanged and
+      MUST NOT reverse any effect.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/checkpoint_compensation_test.go
+        test: TestCheckpointRollbackRestoresFileViaPersistedReceipt
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/receipt_rollback_test.go
+        test: TestUndoEntryDeclaredIrreversibleStillSkips
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/checkpoint_rollback_test.go
+        test: TestCheckpointRollbackRevertFailurePreservesStateAndSkipsUndo
+
+  - id: R-LCM-006
+    target: runtime
+    level: MUST NOT
+    statement: >-
+      A conforming runtime MUST NOT expose history or rollback as mode-specific
+      commands or flags of the runtime process; history and rollback run as
+      ordinary agent-profile runs that dispatch the `checkpoint_history` and
+      `checkpoint_rollback` tools through the same startup sequence as any
+      other agent-profile.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestRootCommandHasNoLifecycleSubcommands
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestRootCommandHasNoLifecycleOnlyFlags
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/checkpoint_history_test.go
+        test: TestCheckpointHistoryExecuteFormatsExecutionLog
+
+  - id: R-RUN-001
+    target: runtime
+    level: MUST
+    statement: >-
+      Before the first dispatch, a conforming runtime MUST check the loaded
+      machine-instance against the agent-profile's tool selection -- every
+      named transition action is a selected tool, every signal a selected tool
+      declares it emits is declared and routed from the action's target state,
+      every transition can fire, and every operation timeout lies strictly
+      below the command timeout -- and MUST refuse to start the run when any
+      check fails.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_action_validation_test.go
+        test: TestValidateConfigRejectsDeclaredButUnselectedMachineAction
+      - assertion: rig
+        path: agent-core/cmd/agent/main_tool_validation_test.go
+        test: TestRuntimeStartupValidatesWiringNotFullContractCompleteness
+      - assertion: rig
+        path: agent-core/cmd/agent/main_tool_validation_test.go
+        test: TestRuntimeStartupRejectsADeadTransition
+      - assertion: rig
+        path: agent-core/cmd/agent/profileaudit_startup_test.go
+        test: TestStartupEnforcesProfileTimeoutClosureForRunAndValidation
+
+  - id: R-RUN-002
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST apply the startup checks to every
+      machine-instance the agent-profile's closure reaches -- the
+      machine-instances of child agent-profiles and of nested in-process runs
+      included -- and MUST refuse to start when any reached machine-instance
+      fails them.
+    acceptance:
+      - assertion: rig
+        path: agent-core/pkg/profileaudit/profileaudit_reach_test.go
+        test: TestReachedMachinesIncludeTheChildAndThePointMachine
+      - assertion: rig
+        path: agent-core/internal/startupcheck/spec_pin_runtime_test.go
+        test: TestStartupBoundaryRejectsAFaultInAReachedChildMachine
+
+  - id: R-RUN-003
+    target: runtime
+    level: MUST
+    statement: >-
+      On a run that is not a resumption, a conforming runtime MUST start the
+      machine-instance in its initial state with the `Seed` signal and, when a
+      request file is supplied, MUST deliver the file's exact bytes as the seed
+      result's output; an unreadable request file MUST refuse the start.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestSeedRequestSuppliesUniversalRequestPayload
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestSeedRequestRejectsUnreadableFile
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_RunsToCompletion
+
+  - id: R-RUN-004
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST select each transition by the pair of the
+      current state and the last result's signal; a pair the machine-instance
+      does not declare MUST end the run with the failed status without
+      dispatching a tool, and a run that reaches a terminal state MUST report
+      that state's declared `run_status`, or the failed status when the state
+      declares none.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/state_test.go
+        test: TestStateMachineStepUnhandledPairFallsBackToFailed
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_UnhandledTransitionPreservesOriginalFailure
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoopUsesDeclaredStatusForArbitrarilyNamedTerminal
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_OmittedTerminalStatusFailsClosed
+
+  - id: R-RUN-005
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST check the iteration and token budgets before
+      each transition and, when either is exhausted, MUST inject the
+      `BudgetExhausted` signal for the machine-instance to route; when the
+      wall-clock budget is exhausted or the run is cancelled, the runtime MUST
+      end the run with the cancelled status without routing any further
+      transition.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_BudgetExhausted
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_TokenBudgetExhausted
+      - assertion: rig
+        path: agent-core/internal/runtime/core/spec_pin_runtime_test.go
+        test: TestLoop_WallClockBudgetTerminatesAsCancelled
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_ActiveDispatchCancellation
+
+  - id: R-RUN-006
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST convert a dispatch that panics or exceeds the
+      command timeout into a result carrying the `CommandError` signal, and
+      MUST route that signal through the machine-instance like any other
+      result.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/dispatch_test.go
+        test: TestSafeExecute_RecoversPanicAndForcesCommandError
+      - assertion: rig
+        path: agent-core/internal/runtime/core/dispatch_test.go
+        test: TestSafeExecute_TimeoutAndIndefiniteWait
+      - assertion: rig
+        path: agent-core/cmd/agent/machine_policy_test.go
+        test: TestMachineCommandTimeoutRoutesRecoveryAndContinues
+
+  - id: R-RUN-007
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST record one step-log entry per dispatch, naming
+      the tool, its result signal, and its from and to states, and MUST save
+      the position and the step log through the configured checkpoint port
+      after each dispatch; a failed save MUST end the run with the failed
+      status, and the unsaved step MUST NOT be persisted as resumable.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_DispatchesNamedActionTargetingTerminalState
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_checkpoint_test.go
+        test: TestLoop_SavesSnapshotAfterDispatchWithConfiguredAdapter
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_checkpoint_test.go
+        test: TestLoop_PeriodicSaveFailureStopsAtUnpersistedStep
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_checkpoint_test.go
+        test: TestLoop_TerminalFinalizationFailureIsNotReportedAsSuccess
+
+  - id: R-RUN-008
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime process MUST exit 0 when the run ends succeeded or
+      suspended, MUST exit 2 when it ends failed, budget-exceeded, or
+      cancelled, and MUST exit 1 when a startup or runtime error prevents a
+      completed outcome; on a completed outcome it MUST write the labeled
+      `terminal state:` and `final machine state:` lines to standard error.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_exit_code_test.go
+        test: TestExitCodeForStatus
+      - assertion: rig
+        path: agent-core/cmd/agent/main_exit_code_test.go
+        test: TestExitCodesAreDistinct
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestRunPreparedPrintsSummaryFinalStateAndMappedExit
+      - assertion: rig
+        path: agent-core/cmd/agent/checkpoint_lifecycle_test.go
+        test: TestRunPreparedMachineFailureUsesMachineExitCode
+
+  - id: R-RUN-009
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime process MUST write a terminal summary to standard
+      output only when the machine-instance declares the signal whose result
+      supplies it, and MUST bound that summary to 1 MiB including its
+      truncation marker.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestCLIResultReporterDoesNotInventUndeclaredSummary
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestCLIResultReporterBoundsDeclaredMachineSummary
+
+  - id: R-RUN-010
+    target: runtime
+    level: MUST
+    statement: >-
+      Once a prepared run begins, a conforming runtime process MUST treat
+      SIGINT and SIGTERM as cancellation of the run: the active dispatch is
+      cancelled, owned resources are closed, and the run's trace is published
+      before the process exits.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/signal_shutdown_test.go
+        test: TestRuntimeSignalCancelsDispatchAndPublishesTrace
+      - assertion: rig
+        path: agent-core/cmd/agent/checkpoint_lifecycle_test.go
+        test: TestPreparedRunCloseCancelsBeforeCheckpointAndTelemetry
+
+  - id: R-RUN-011
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST start a child agent-instance from a child
+      agent-profile path alone, passing it only that path and the runtime data
+      channels (workspace directory, request, output, and telemetry), never a
+      child machine-profile or tool-selection path, and MUST reject at
+      registration a child-invoking tool whose configuration names no
+      agent-profile; a nested in-process run MUST name its machine-profile,
+      tool selection, and tool declarations in its tool configuration.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/support/execute/execute_test.go
+        test: TestBuildArgs_ProfileOnly
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/config_validation_from_stl_test.go
+        test: TestValidateChildAgentConfigRequiresFields
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/config_validation_from_stl_test.go
+        test: TestValidateRunPointConfigRequiresFields
+
+  - id: R-RUN-012
+    target: runtime
+    level: MUST NOT
+    statement: >-
+      A conforming runtime MUST NOT select behavior by the name of an
+      agent-profile, a mode, or a specific tool in its interpreter or
+      composition code; workflow choice MUST come only from the machine-profile
+      and the tools the agent-profile selects.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/engine_guard_test.go
+        test: TestCoreSourceDoesNotEmbedModeOrToolPolicyNames
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestMainRuntimeDoesNotBranchOnAgentModeNames
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_declarative_test.go
+        test: TestLoop_DeclarativeInit_MachineNameDoesNotChangeEngineBehavior
+
+  - id: R-POP-005
+    target: population
+    level: MUST
+    statement: >-
+      A conforming population authority MUST realize each declared `Agent`
+      resource as agent-instances that all run the one agent-profile the
+      resource names, as many as the resource's replica count declares and one
+      when it declares none, and MUST own the workload and the service that
+      realize it.
+    acceptance:
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileCreatesDeploymentAndService
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileRollsOnSpecChange
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcilePassesArgsServiceAccountAndClaim
+
+  - id: R-POP-006
+    target: population
+    level: MUST NOT
+    statement: >-
+      A conforming population authority MUST NOT start agent-instances for an
+      agent-profile that is missing or fails the runtime's startup checks; it
+      MUST report the declaration not ready and retry rather than schedule.
+    acceptance:
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileReportsProfileInvalid
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileReportsMissingProfile
+      - assertion: rig
+        path: agent-core/pkg/profileservers/profileservers_test.go
+        test: TestValidateAppliesTheStartupBoundary
+
+  - id: R-POP-007
+    target: population
+    level: MUST
+    statement: >-
+      A conforming population authority MUST derive the endpoints, ports, and
+      readiness checks of the agent-instances it realizes from the
+      agent-profile's declarations, and MUST carry a change to the
+      agent-profile through to those agent-instances.
+    acceptance:
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileDerivesPortsFromTheProfile
+      - assertion: rig
+        path: operator/internal/controller/agent_controller_test.go
+        test: TestReconcileFollowsAProfileChange
