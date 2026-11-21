@@ -29,5 +29,5 @@ We bind every application module to the specification (application-dsl-spec/): w
 <!-- field: references -->
 ## References
 
-- application-dsl-spec/language.yaml
-- application-dsl-spec/03-language.md
+- application-dsl-spec/1.0/language.yaml
+- application-dsl-spec/1.0/03-language.md

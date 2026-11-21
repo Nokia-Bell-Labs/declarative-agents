@@ -28,7 +28,7 @@ func TestRenderExpandsCitationsWithStableAnchors(t *testing.T) {
 	output := t.TempDir()
 	writeChapter(t, source, "01-introduction.md", "# Intro\n\n{{statement R-INTRO-001}}\n")
 
-	if err := renderChapters(source, output, renderLanguage()); err != nil {
+	if err := renderChapters(source, output, filepath.Join(source, ".."), renderLanguage()); err != nil {
 		t.Fatal(err)
 	}
 	rendered, err := os.ReadFile(filepath.Join(output, "01-introduction.md"))
@@ -50,7 +50,7 @@ func TestRenderRejectsUnresolvedCitation(t *testing.T) {
 	source := t.TempDir()
 	writeChapter(t, source, "01-introduction.md",
 		"{{statement R-INTRO-001}}\n{{statement R-GHOST-999}}\n")
-	err := renderChapters(source, t.TempDir(), renderLanguage())
+	err := renderChapters(source, t.TempDir(), filepath.Join(source, ".."), renderLanguage())
 	if err == nil || !strings.Contains(err.Error(), "R-GHOST-999 names no statement") {
 		t.Fatalf("render error = %v, want unresolved R-GHOST-999", err)
 	}
@@ -59,7 +59,7 @@ func TestRenderRejectsUnresolvedCitation(t *testing.T) {
 func TestRenderRejectsUncitedStatement(t *testing.T) {
 	source := t.TempDir()
 	writeChapter(t, source, "01-introduction.md", "# Intro without citations\n")
-	err := renderChapters(source, t.TempDir(), renderLanguage())
+	err := renderChapters(source, t.TempDir(), filepath.Join(source, ".."), renderLanguage())
 	if err == nil || !strings.Contains(err.Error(), "R-INTRO-001 is not cited") {
 		t.Fatalf("render error = %v, want uncited R-INTRO-001", err)
 	}
@@ -69,14 +69,14 @@ func TestRenderRejectsDuplicateDefinitionSites(t *testing.T) {
 	source := t.TempDir()
 	writeChapter(t, source, "01-introduction.md", "{{statement R-INTRO-001}}\n")
 	writeChapter(t, source, "02-terminology.md", "{{statement R-INTRO-001}}\n")
-	err := renderChapters(source, t.TempDir(), renderLanguage())
+	err := renderChapters(source, t.TempDir(), filepath.Join(source, ".."), renderLanguage())
 	if err == nil || !strings.Contains(err.Error(), "cited 2 times") {
 		t.Fatalf("render error = %v, want duplicate citation", err)
 	}
 }
 
 func TestRenderRequiresChapters(t *testing.T) {
-	err := renderChapters(t.TempDir(), t.TempDir(), renderLanguage())
+	err := renderChapters(t.TempDir(), t.TempDir(), t.TempDir(), renderLanguage())
 	if err == nil || !strings.Contains(err.Error(), "no [0-9][0-9]-*.md chapter files") {
 		t.Fatalf("render error = %v, want no chapters", err)
 	}
@@ -85,11 +85,11 @@ func TestRenderRequiresChapters(t *testing.T) {
 // TestRepositoryChaptersRender proves the tracked chapters and language.yaml
 // agree: every citation resolves and every statement has its definition site.
 func TestRepositoryChaptersRender(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := renderChapters("..", t.TempDir(), language); err != nil {
+	if err := renderChapters(engineVersion.root(".."), t.TempDir(), repositoryRootOf(".."), language); err != nil {
 		t.Fatal(err)
 	}
 }

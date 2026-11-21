@@ -113,7 +113,7 @@ schema:
 	writeChapter(t, source, "05-grammar.md",
 		"{{statement R-INTRO-001}}\n\n{{keyname-table yaml:specs/format.yaml}}\n")
 	output := t.TempDir()
-	if err := renderChapters(source, output, renderLanguage()); err != nil {
+	if err := renderChapters(source, output, filepath.Join(source, ".."), renderLanguage()); err != nil {
 		t.Fatal(err)
 	}
 	rendered, err := os.ReadFile(filepath.Join(output, "05-grammar.md"))
@@ -133,7 +133,7 @@ func TestRenderRejectsUnresolvableKeynameTable(t *testing.T) {
 	}
 	writeChapter(t, source, "05-grammar.md",
 		"{{statement R-INTRO-001}}\n\n{{keyname-table yaml:specs/missing.yaml}}\n")
-	err := renderChapters(source, t.TempDir(), renderLanguage())
+	err := renderChapters(source, t.TempDir(), filepath.Join(source, ".."), renderLanguage())
 	if err == nil || !strings.Contains(err.Error(), "keyname table specs/missing.yaml") {
 		t.Fatalf("render error = %v, want unresolved keyname table", err)
 	}

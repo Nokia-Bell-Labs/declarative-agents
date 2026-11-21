@@ -19,15 +19,15 @@ import (
 )
 
 // runAcceptanceEvidence executes every acceptance entry of every statement and
-// reports the first failures joined. moduleRoot is the application-dsl-spec
-// directory; all evidence paths resolve relative to it and may not escape it.
-func runAcceptanceEvidence(moduleRoot string, language languageFile) error {
+// reports the failures joined. Each path resolves against its root in roots
+// and may not escape it.
+func runAcceptanceEvidence(roots evidenceRoots, language languageFile) error {
 	var findings []error
 	entries := 0
 	for _, statement := range language.Statements {
 		for _, entry := range statement.Acceptance {
 			entries++
-			if err := runAcceptanceEntry(moduleRoot, entry); err != nil {
+			if err := runAcceptanceEntry(roots, entry); err != nil {
 				findings = append(findings, fmt.Errorf("%s: %w", statement.ID, err))
 			}
 		}
@@ -40,20 +40,24 @@ func runAcceptanceEvidence(moduleRoot string, language languageFile) error {
 	return nil
 }
 
-func runAcceptanceEntry(moduleRoot string, entry acceptanceEntry) error {
-	// A rig entry references the wider repository, so it resolves against the
-	// module's parent rather than the module.
-	if entry.Assertion == "rig" {
-		return runRigEvidence(filepath.Join(moduleRoot, ".."), entry)
-	}
-	path, err := resolveModulePath(moduleRoot, entry.Path)
-	if err != nil {
-		return err
-	}
+// runAcceptanceEntry runs one entry. A fixture belongs to its version
+// directory, a go_test to the module's shared harness, and a rig test to the
+// wider repository, so each resolves against its own root.
+func runAcceptanceEntry(roots evidenceRoots, entry acceptanceEntry) error {
 	switch entry.Assertion {
+	case "rig":
+		return runRigEvidence(roots.Repository, entry)
 	case "fixture":
+		path, err := resolveModulePath(roots.Version, entry.Path)
+		if err != nil {
+			return err
+		}
 		return runFixtureCheck(path, entry)
 	case "go_test":
+		path, err := resolveModulePath(roots.Module, entry.Path)
+		if err != nil {
+			return err
+		}
 		return runGoTestEvidence(path, entry.Test)
 	default:
 		return fmt.Errorf("unknown acceptance assertion %q", entry.Assertion)

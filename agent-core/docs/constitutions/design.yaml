@@ -97,7 +97,7 @@ articles:
 
     possibly empty). Merging or splitting SRDs retires the old ids with
 
-    pointers. This is the rule application-dsl-spec/language.yaml already
+    pointers. This is the rule application-dsl-spec/1.0/language.yaml already
 
     states for statements, applied to the corpus.
 

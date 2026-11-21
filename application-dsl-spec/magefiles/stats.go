@@ -31,11 +31,13 @@ func Stats() error {
 	if err != nil {
 		return err
 	}
-	language, err := loadLanguage(languagePath)
-	if err != nil {
-		return err
+	for _, version := range specVersions {
+		language, err := loadLanguage(version.languagePath("."))
+		if err != nil {
+			return err
+		}
+		rec.Statements += len(language.Statements)
 	}
-	rec.Statements = len(language.Statements)
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(rec)
@@ -84,7 +86,7 @@ func specCollectStats(root string) (specStatsOutput, error) {
 // specification's own YAML so conformance-suite growth is visible.
 func specCategoryBucket(rec *specStatsOutput, path, slug string) *specFileStats {
 	switch {
-	case strings.HasPrefix(slug, "fixtures/"):
+	case strings.HasPrefix(slug, "fixtures/") || strings.Contains(slug, "/fixtures/"):
 		return &rec.Fixtures
 	case strings.HasSuffix(path, ".md"):
 		return &rec.Markdown

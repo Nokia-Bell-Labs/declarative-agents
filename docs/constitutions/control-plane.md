@@ -28,5 +28,5 @@ We bind the components that change a running population — the deciding orchest
 <!-- field: references -->
 ## References
 
-- application-dsl-spec/language.yaml
-- application-dsl-spec/04-lifecycle-and-population.md
+- application-dsl-spec/1.0/language.yaml
+- application-dsl-spec/1.0/04-lifecycle-and-population.md

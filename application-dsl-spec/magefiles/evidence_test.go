@@ -22,6 +22,12 @@ func writeEvidenceFile(t *testing.T, dir, name, content string) string {
 	return path
 }
 
+// flatRoots resolves every kind of evidence against one directory, for tests
+// that exercise a single entry in isolation.
+func flatRoots(dir string) evidenceRoots {
+	return evidenceRoots{Version: dir, Module: dir, Repository: dir}
+}
+
 // TestFixtureCheckRejectsNonMappingRoot is the acceptance evidence for
 // R-INTRO-002: the processor obligation to reject a document whose root node
 // is not a mapping, exercised through the fixture check that enforces it.
@@ -49,7 +55,7 @@ func TestFixtureVerdictMismatchFails(t *testing.T) {
 		Check:     "yaml_mapping",
 		Verdict:   "invalid",
 	}
-	err := runAcceptanceEntry(dir, entry)
+	err := runAcceptanceEntry(flatRoots(dir), entry)
 	if err == nil || !strings.Contains(err.Error(), "declared invalid but passed") {
 		t.Fatalf("verdict mismatch error = %v, want declared invalid but passed", err)
 	}
@@ -66,7 +72,7 @@ func TestFixtureUnknownCheckFails(t *testing.T) {
 	}
 	// An unknown check reads as a failing check, which an invalid verdict would
 	// wrongly convert into passing evidence; the audit must not accept it.
-	if err := runAcceptanceEntry(dir, entry); err == nil {
+	if err := runAcceptanceEntry(flatRoots(dir), entry); err == nil {
 		t.Fatal("unknown fixture check produced passing evidence")
 	}
 }
@@ -78,7 +84,7 @@ func TestEvidencePathMayNotEscapeModule(t *testing.T) {
 		Check:     "yaml_mapping",
 		Verdict:   "valid",
 	}
-	err := runAcceptanceEntry(t.TempDir(), entry)
+	err := runAcceptanceEntry(flatRoots(t.TempDir()), entry)
 	if err == nil || !strings.Contains(err.Error(), "escapes the module") {
 		t.Fatalf("escape error = %v, want escapes the module", err)
 	}
@@ -94,16 +100,16 @@ func TestRigEvidenceResolvesDeclaredRepositoryTest(t *testing.T) {
 		Path:      "applications/x/magefiles/rig_test.go",
 		Test:      "TestRigProves",
 	}
-	if err := runAcceptanceEntry(module, entry); err != nil {
+	if err := runAcceptanceEntry(rootsFor(module, engineVersion), entry); err != nil {
 		t.Fatalf("rig reference failed: %v", err)
 	}
 	entry.Test = "TestRenamed"
-	if err := runAcceptanceEntry(module, entry); err == nil ||
+	if err := runAcceptanceEntry(rootsFor(module, engineVersion), entry); err == nil ||
 		!strings.Contains(err.Error(), "is not declared") {
 		t.Fatalf("renamed rig test error = %v, want is not declared", err)
 	}
 	entry.Path = "applications/x/magefiles/missing_test.go"
-	if err := runAcceptanceEntry(module, entry); err == nil {
+	if err := runAcceptanceEntry(rootsFor(module, engineVersion), entry); err == nil {
 		t.Fatal("missing rig file produced passing evidence")
 	}
 }
@@ -116,7 +122,7 @@ func TestRigEvidenceMayNotEscapeRepository(t *testing.T) {
 		Path:      "../outside_test.go",
 		Test:      "TestOutside",
 	}
-	err := runAcceptanceEntry(module, entry)
+	err := runAcceptanceEntry(rootsFor(module, engineVersion), entry)
 	if err == nil || !strings.Contains(err.Error(), "escapes the repository") {
 		t.Fatalf("escape error = %v, want escapes the repository", err)
 	}
@@ -137,16 +143,17 @@ func TestGoTestEvidenceRequiresDeclaredTest(t *testing.T) {
 // mage audit. go_test entries are exercised by the audit target itself; a
 // test that re-entered go test here would recurse.
 func TestRepositoryFixtureEvidencePasses(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
+	roots := rootsFor("..", engineVersion)
 	for _, statement := range language.Statements {
 		for _, entry := range statement.Acceptance {
 			if entry.Assertion != "fixture" {
 				continue
 			}
-			if err := runAcceptanceEntry("..", entry); err != nil {
+			if err := runAcceptanceEntry(roots, entry); err != nil {
 				t.Errorf("%s: %v", statement.ID, err)
 			}
 		}

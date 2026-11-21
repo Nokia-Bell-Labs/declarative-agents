@@ -34,5 +34,5 @@ We bind the agent-core runtime and its document processors to the specification 
 <!-- field: references -->
 ## References
 
-- application-dsl-spec/language.yaml
-- application-dsl-spec/04-lifecycle-and-population.md
+- application-dsl-spec/1.0/language.yaml
+- application-dsl-spec/1.0/04-lifecycle-and-population.md

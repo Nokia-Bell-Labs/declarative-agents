@@ -134,7 +134,7 @@ func TestConstitutionCitations(t *testing.T) {
 // TestRepositoryConstitutionsCiteResolvableStatements gates the tracked
 // constitutions against the tracked language.
 func TestRepositoryConstitutionsCiteResolvableStatements(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,14 +146,14 @@ func TestRepositoryConstitutionsCiteResolvableStatements(t *testing.T) {
 // TestRepositoryFixtureSuitesAreCoveredAndOwned gates the tracked suites, so
 // a suite regression fails go test as well as mage audit.
 func TestRepositoryFixtureSuitesAreCoveredAndOwned(t *testing.T) {
-	language, err := loadLanguage(filepath.Join("..", languagePath))
+	language, err := loadLanguage(engineVersion.languagePath(".."))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := checkFixtureCoverage(language); err != nil {
 		t.Error(err)
 	}
-	if err := checkFixtureOwnership("..", language); err != nil {
+	if err := checkFixtureOwnership(engineVersion.root(".."), language); err != nil {
 		t.Error(err)
 	}
 }

@@ -24,7 +24,8 @@ import (
 // publishes an immutable /v<version>/ copy.
 const pagesBaseURL = "https://nokia-bell-labs.github.io/declarative-agents"
 
-const siteDir = "generated-files/site"
+// siteDirName is the Pages tree under the engine version's rendered output.
+const siteDirName = "site"
 
 // chapterHeadingPattern pulls the page title from a chapter's first heading.
 var chapterHeadingPattern = regexp.MustCompile(`(?m)^# (.+)$`)
@@ -42,11 +43,12 @@ func Site() error {
 	if err := Render(); err != nil {
 		return err
 	}
-	language, err := loadLanguage(languagePath)
+	language, err := loadLanguage(engineVersion.languagePath("."))
 	if err != nil {
 		return err
 	}
-	return buildSite(renderOutputDir, siteDir, language)
+	rendered := engineVersion.renderOutputDir(".")
+	return buildSite(rendered, filepath.Join(rendered, siteDirName), language)
 }
 
 func buildSite(renderedDir, outputDir string, language languageFile) error {

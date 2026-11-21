@@ -13,8 +13,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const languagePath = "language.yaml"
-
 // statementIDPattern is the shape of a stable statement identifier. Identifiers
 // are never renumbered or reused: constitutions, tests, and commits cite them.
 var statementIDPattern = regexp.MustCompile(`^R-[A-Z][A-Z0-9]*-[0-9]{3}$`)

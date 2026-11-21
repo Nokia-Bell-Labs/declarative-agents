@@ -27,5 +27,5 @@ We bind the shared catalog (applications/catalog) to the specification (applicat
 <!-- field: references -->
 ## References
 
-- application-dsl-spec/language.yaml
-- application-dsl-spec/06-mechanized-checking.md
+- application-dsl-spec/1.0/language.yaml
+- application-dsl-spec/1.0/06-mechanized-checking.md
