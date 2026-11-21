@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-005: a chat dialect naming its bearer credential by environment-variable reference.
+unit: fixture-chat-dialect
+auth:
+  type: bearer
+  token_ref: FIXTURE_API_KEY

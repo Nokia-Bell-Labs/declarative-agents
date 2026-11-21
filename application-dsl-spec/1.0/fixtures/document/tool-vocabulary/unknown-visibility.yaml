@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-003: an entry whose visibility is outside internal and external.
+tools:
+  - name: commit
+    binary: git
+    visibility: internl

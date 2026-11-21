@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-001: a tool-declaration document carrying both a tools and a types body.
+unit: chat-tools
+tools:
+  - name: build
+    binary: go
+types:
+  - name: Text
+    schema: {type: string}

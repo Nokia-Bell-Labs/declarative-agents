@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-001: a REST definition document carrying the reserved document_resources keyname.
+rest:
+  version: v1
+  document_resources:
+    docs: {root: docs}

@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-003: a resource whose operations use only the resource verbs.
+rest:
+  version: v1
+  clients:
+    github:
+      base_url: https://api.github.com
+      resources:
+        issue:
+          path: /repos/nokia/agents/issues
+          operations:
+            get:
+              method: GET
+              success: {status: [200], signal: RESTResourceRead}

@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-003: an application-profile document that omits the runnable_module capability.
+schema_version: 1
+application: chatbot-mesh
+ownership: agent-owning
+module_status: implemented
+capabilities:
+  packaged: {status: not_applicable}
+roots:
+  - {id: chatbot, ownership: local, source: agents/chatbot/profile.yaml, runtime_path: agents/chatbot/profile.yaml}

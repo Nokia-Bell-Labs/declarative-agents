@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-001: a REST definition document holds one rest mapping that names its format version.
+rest:
+  version: v1
+  auth:
+    none: {type: none}

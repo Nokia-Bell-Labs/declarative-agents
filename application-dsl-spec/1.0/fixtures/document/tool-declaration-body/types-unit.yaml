@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-001: a type unit carries a types body and names its unit.
+unit: chat-types
+types:
+  - name: Text
+    schema: {type: string}

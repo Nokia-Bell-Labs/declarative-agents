@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-002: a chat dialect whose path does not start with a slash.
+unit: fixture-chat-dialect
+provider_name: fixture
+path: v1/chat
+auth:
+  type: none

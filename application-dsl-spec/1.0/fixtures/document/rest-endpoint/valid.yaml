@@ -1,0 +1,23 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-007: a server whose endpoints name handled bindings and whose public address is allowed by policy.
+rest:
+  version: v1
+  limits:
+    open:
+      network: {allow_public_listener: true}
+  servers:
+    control:
+      address: 0.0.0.0:8080
+      limits_ref: open
+      endpoints:
+        approve:
+          method: POST
+          path: /approve
+          binding: emit_signal
+          signal: Approved
+        decide:
+          method: POST
+          path: /decide
+          binding: emit_dynamic_signal
+          allowed_signals: [Approved, Rejected]

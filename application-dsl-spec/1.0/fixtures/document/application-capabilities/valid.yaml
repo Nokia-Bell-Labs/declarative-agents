@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-003: an application-profile document whose active capabilities carry evidence and whose helm capability rests on packaging.
+schema_version: 1
+application: chatbot-mesh
+ownership: agent-owning
+module_status: implemented
+capabilities:
+  runnable_module: {status: implemented, evidence: [mage test]}
+  packaged: {status: partial, evidence: [mage package]}
+  helm_managed: {status: implemented, evidence: [helm lint]}
+  ui: {status: not_applicable}
+runtime:
+  mount_path: /opt/agent-profiles
+roots:
+  - {id: chatbot, ownership: local, source: agents/chatbot/profile.yaml, runtime_path: agents/chatbot/profile.yaml}

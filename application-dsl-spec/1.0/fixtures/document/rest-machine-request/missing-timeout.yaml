@@ -1,0 +1,18 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-008: a machine_request endpoint that declares no timeout.
+rest:
+  version: v1
+  servers:
+    docs:
+      address: 127.0.0.1:0
+      endpoints:
+        answer:
+          method: POST
+          path: /answer
+          binding: machine_request
+          machine_request:
+            profile: ../answerer/profile.yaml
+            response:
+              terminal_signals:
+                Answered: {status: 200}

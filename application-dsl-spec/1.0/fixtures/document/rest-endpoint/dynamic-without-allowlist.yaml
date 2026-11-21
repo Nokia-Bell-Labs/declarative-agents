@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-007: an emit_dynamic_signal endpoint with no allowed_signals.
+rest:
+  version: v1
+  servers:
+    control:
+      address: 127.0.0.1:0
+      endpoints:
+        decide:
+          method: POST
+          path: /decide
+          binding: emit_dynamic_signal

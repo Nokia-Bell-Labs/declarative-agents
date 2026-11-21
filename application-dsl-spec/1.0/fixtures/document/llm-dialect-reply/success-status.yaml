@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-LLM-004: a chat dialect mapping a success status to a failure signal.
+unit: fixture-chat-dialect
+response:
+  text: $.message.content
+failures:
+  - status: [200]
+    signal: ProviderThrottled

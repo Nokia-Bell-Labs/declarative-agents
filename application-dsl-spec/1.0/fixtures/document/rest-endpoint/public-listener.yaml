@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-007: a server binding every interface without allow_public_listener.
+rest:
+  version: v1
+  servers:
+    control:
+      address: 0.0.0.0:8080
+      endpoints:
+        health:
+          method: GET
+          path: /healthz
+          binding: health

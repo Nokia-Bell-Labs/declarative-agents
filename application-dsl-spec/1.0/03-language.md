@@ -31,11 +31,31 @@ keyname presence.
 
 {{statement R-APP-001}}
 
+The header fixes what the document is: the one schema version the repository
+reads, a portable identity, and whether the application-profile owns
+agent-profiles or only composes them. The schema is closed, so a misspelt
+keyname is an error rather than a silent omission.
+
+{{statement R-APP-002}}
+
+A capability claim is checked against its evidence: a status that asserts
+working behavior names the commands that prove it, and a claim that depends on
+another, such as Helm management on packaging, holds only when that other claim
+does.
+
+{{statement R-APP-003}}
+
 A root is `local` when its agent-profile lives in the application module, or
 `canonical` when it refers to the shared catalog. An application-profile
 concerned only with composition declares no local roots and introduces no
 duplicate agent-profiles, which lets the repository's reuse accounting tell
 implementations apart from compositions.
+
+Ownership decides where a root's source is read from: a `local` root lives in
+the module and is versioned with it, while a `catalog` root is pinned to the
+catalog release it is compatible with.
+
+{{statement R-APP-004}}
 
 ## The agent-profile
 
@@ -49,6 +69,24 @@ agent-instance.
 {{keyname-table yaml:agent-core/docs/specs/config-formats/agent-profile-format.md}}
 
 {{statement R-PROF-001}}
+
+Beyond its name and machine-profile, an agent-profile names the tool selections
+it draws from and the declaration sources that supply those names. Every source
+keyname is a list of paths, and at least one tool selection is required.
+
+{{statement R-PROF-004}}
+
+An agent-profile may declare named library roots under `libraries`. The
+`agent-core` root is implicit and cannot be redeclared; every other root maps a
+kebab name to the directory that imports under `/opt/<name>/` resolve to.
+
+{{statement R-PROF-005}}
+
+Path resolution is the processor's side of these keynames: relative paths are
+read from the agent-profile's own directory, and install and library prefixes
+map to the roots they name.
+
+{{statement R-PROF-006}}
 
 Reference keynames resolve relative to the agent-profile's directory unless the
 runtime contract says otherwise. Tool selections must match declared entries in
@@ -83,6 +121,151 @@ the blueprint's own directory, and the expanded result satisfies the rules a
 hand-written agent-profile does. No processor enforces any of it today: the
 loader work is deferred under gh-2123, so these statements bind documents alone
 until it lands.
+
+## Tools
+
+A tool-declaration document supplies the vocabulary an agent-profile selects
+from. It carries either tool entries or named types, never both, so a file is
+one kind of unit.
+
+{{statement R-TOOL-001}}
+
+Two kinds of tool exist: a builtin is compiled into the runtime and named by
+its factory, and an exec tool runs an external program. An entry that omits its
+type is an exec tool.
+
+{{statement R-TOOL-002}}
+
+The contract fields the loader enforces are closed vocabularies, so a typo
+cannot expose an internal tool or disable receipt validation. Prose obligations
+from the tool-authoring standard, such as goals and non-goals, bind authors and
+are not checked here.
+
+{{statement R-TOOL-003}}
+
+Exec fields describe how a program is launched — its environment, its standard
+input drawn from a prior step's output, and how its output is captured — and
+mean nothing to a builtin, so a builtin may not carry them.
+
+{{statement R-TOOL-004}}
+
+A signature states a tool's input and output by type reference and its outcomes
+as signals. It replaces the older contract blocks rather than adding to them,
+so a tool may not say the same thing twice.
+
+{{statement R-TOOL-005}}
+
+Declared types use a closed subset of JSON Schema. The subset is closed so that
+a selector path into a typed value stays decidable; a type refers to another by
+`$type` and adds nothing beside the reference.
+
+{{statement R-TOOL-006}}
+
+A fragment is the parameterized form of a declaration unit: its body holds
+`$param(name)` references that an expansion entry fills, per R-MODEL-002. A
+fragment does not expand another, and a unit that is not a fragment has no
+parameters to reference.
+
+{{statement R-TOOL-007}}
+
+Units compose by import and by expansion. The loader resolves the closure once
+and refuses any composition whose meaning would depend on load order: a cycle,
+a name supplied twice, or a write into a library that its importers only read.
+
+{{statement R-TOOL-008}}
+
+A tool selection is separate from the declarations it draws on. It lists names
+only, so the same declaration serves agent-profiles that select different
+toolsets.
+
+{{statement R-TOOL-009}}
+
+Selection is resolved after every declaration source has loaded, in the order
+the agent-profile lists them, so local declarations override shared ones and
+every selected name must resolve.
+
+{{statement R-TOOL-010}}
+
+## REST definitions
+
+A REST definition binds tools to HTTP: clients describe outbound operations and
+servers describe inbound endpoints. One file holds one `rest` mapping, grouped
+by family.
+
+{{statement R-REST-001}}
+
+REST units compose by the same import and fragment rules as tool declarations,
+and the definition model is closed at every level.
+
+{{statement R-REST-002}}
+
+A client groups resource-shaped calls under resources and their four verbs, and
+keeps RPC-shaped calls under its own `operations` map.
+
+{{statement R-REST-003}}
+
+Status mappings turn an HTTP response into the signal the operation emits. Each
+status has exactly one owner, so the signal a response produces never depends
+on the order of the mappings.
+
+{{statement R-REST-004}}
+
+An operation that changes a remote service carries the same contract a mutating
+tool does: what it changes, and how that change is undone, compensated, or
+confirmed before it runs.
+
+{{statement R-REST-005}}
+
+Authentication and redirect behavior are named profiles that clients and
+servers reference; their kinds are closed sets the transport implements.
+
+{{statement R-REST-006}}
+
+A server endpoint's binding says what an accepted request does — emit a signal,
+read state, run a request-scoped machine-instance, and so on — and a binding
+the runtime cannot dispatch is a load error rather than a 501 at run time.
+
+{{statement R-REST-007}}
+
+A `machine_request` endpoint is how a request machine-profile is served. Its
+document fixes what runs, how long it may run, and which terminal outcomes
+become which responses; nothing in the request can choose them.
+
+{{statement R-REST-008}}
+
+## Inference configuration
+
+Inference configuration is an ordinary tool declaration: an `invoke_llm`
+builtin whose config names the model, the state whose external tools form the
+manifest, and the chat dialect the call speaks. A dialect replaces the legacy
+provider name, so naming both is an error.
+
+{{statement R-LLM-001}}
+
+A chat dialect, shipped as `chat-dialect.yaml` in a provider library, fills the
+provider-specific steps of an inference call using the REST grammar for its
+body, failure map, and auth profile. Its header names the library and the
+endpoint the call posts to.
+
+{{statement R-LLM-002}}
+
+The request body is a template over the values the inference call supplies. The
+conversation goes in whole, never spliced into text, so the provider receives
+it as the structured list it is.
+
+{{statement R-LLM-003}}
+
+The reply side names where the text and token counts sit in the provider's
+response, and maps provider error statuses onto a shared failure vocabulary, so
+a machine-profile routes provider failures the same way whichever provider it
+calls.
+
+{{statement R-LLM-004}}
+
+A dialect names its credentials and never carries them, so the library can be
+shipped and reviewed without secrets.
+
+{{statement R-LLM-005}}
 
 ## The machine-profile
 

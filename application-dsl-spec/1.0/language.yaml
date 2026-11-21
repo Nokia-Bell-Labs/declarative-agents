@@ -963,3 +963,845 @@ statements:
       - assertion: rig
         path: agent-core/internal/runtime/core/machine_template_test.go
         test: TestMachineTemplateInstanceEqualsTheHandWrittenMachine
+
+  - id: R-PROF-004
+    target: document
+    level: MUST
+    statement: >-
+      An agent-profile document MUST carry the `tools` keyname as a non-empty
+      sequence of tool-selection paths, and the `tool_declarations`,
+      `tool_config_dirs`, `rest_definitions`, and `rest_config_dirs` keynames,
+      when present, MUST each be a sequence of paths and `directory` a string.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-references/valid.yaml
+        check: profile_reference_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-references/empty-tools.yaml
+        check: profile_reference_keynames
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/profile-references/scalar-reference.yaml
+        check: profile_reference_keynames
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile_MissingTools
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile
+
+  - id: R-PROF-005
+    target: document
+    level: MUST
+    statement: >-
+      Each key under an agent-profile document's `libraries` keyname MUST be a
+      lowercase kebab root name other than `agent-core`, and each value MUST be
+      a non-empty directory path.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/profile-libraries/valid.yaml
+        check: profile_library_roots
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/profile-libraries/invalid.yaml
+        check: profile_library_roots
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/support/corepath/install_test.go
+        test: TestDeclaredLibraryRootsResolveScopedAndReadOnly
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinProfileLibraryRootNamesADirectory
+
+  - id: R-PROF-006
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST resolve a relative path in an agent-profile
+      document against that document's directory, MUST map a path under the
+      agent-core install prefix through the install root and a path under
+      `/opt/<name>/` through the root declared for `<name>` under `libraries`,
+      and MUST use any other absolute path as written.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_loading_from_stl_test.go
+        test: TestLoadProfile_AbsolutePaths
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/library_roots_test.go
+        test: TestProfileDeclaresLibraryRootsAndMapsItsOwnPaths
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/profile_test.go
+        test: TestResolveProfilePathMapsInstalledCoreHome
+
+  - id: R-APP-002
+    target: document
+    level: MUST
+    statement: >-
+      An application-profile document MUST declare `schema_version` 1, a
+      lower-kebab `application` identifier, an `ownership` of `agent-owning` or
+      `composition-only`, and a `module_status` from the closed status set, and
+      MUST NOT carry a keyname outside the application-profile schema.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-identity/valid.yaml
+        check: application_identity
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-identity/unknown-ownership.yaml
+        check: application_identity
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/application-identity/unknown-keyname.yaml
+        check: application_identity
+        verdict: invalid
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsUnknownFieldsAndSymlinkedSources
+      - assertion: rig
+        path: magefiles/appmanifest/spec_pin_tools_test.go
+        test: TestSpecPinManifestModuleStatusAndRunnableModule
+
+  - id: R-APP-003
+    target: document
+    level: MUST
+    statement: >-
+      Each `capabilities` entry of an application-profile document MUST name a
+      known capability and a known status, an entry whose status is
+      `implemented`, `partial`, or `dependency_gated` MUST carry non-empty
+      `evidence`, the `runnable_module` capability MUST be declared and MUST
+      NOT be active in an `audit_only` module, and an active `helm_managed`
+      capability MUST be accompanied by an active `packaged` capability.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-capabilities/valid.yaml
+        check: application_capabilities
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-capabilities/evidence-missing.yaml
+        check: application_capabilities
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/application-capabilities/no-runnable-module.yaml
+        check: application_capabilities
+        verdict: invalid
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities
+      - assertion: rig
+        path: magefiles/appmanifest/spec_pin_tools_test.go
+        test: TestSpecPinManifestModuleStatusAndRunnableModule
+
+  - id: R-APP-004
+    target: document
+    level: MUST
+    statement: >-
+      Each `roots` entry of an application-profile document MUST carry a unique
+      lower-kebab `id`, an `ownership` of `catalog` or `local`, and a portable
+      relative `source` naming an agent-profile file below `agents/<actor>/`; a
+      `catalog` root MUST pin a `compatible_release` and a `local` root MUST
+      NOT carry one.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/application-roots/valid.yaml
+        check: application_roots
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/application-roots/local-compatible-release.yaml
+        check: application_roots
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/application-roots/source-outside-agents.yaml
+        check: application_roots
+        verdict: invalid
+      - assertion: rig
+        path: magefiles/appmanifest/manifest_test.go
+        test: TestLoadRejectsInvalidSchemaPathsDuplicatesAndCapabilities
+      - assertion: rig
+        path: magefiles/appmanifest/spec_pin_tools_test.go
+        test: TestSpecPinRootSourceNamesAProfileBelowAgents
+
+  - id: R-TOOL-001
+    target: document
+    level: MUST
+    statement: >-
+      A tool-declaration document MUST carry a `tools` sequence or a `types`
+      sequence and MUST NOT carry both; a document carrying `types` MUST
+      declare its `unit`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/valid.yaml
+        check: tool_declaration_body
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/types-unit.yaml
+        check: tool_declaration_body
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/both-bodies.yaml
+        check: tool_declaration_body
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-declaration-body/no-body.yaml
+        check: tool_declaration_body
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectInvalidSyntaxAndContracts
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinDeclarationCannotCarryToolsAndTypes
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinTypeAndFragmentUnitsDeclareUnit
+
+  - id: R-TOOL-002
+    target: document
+    level: MUST
+    statement: >-
+      Every entry under a tool-declaration document's `tools` keyname MUST
+      carry a non-empty `name` and a `type` of `builtin`, `exec`, or none; a
+      `builtin` entry MUST name its factory under `init`, and an `exec` or
+      untyped entry MUST name its executable under `binary`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-entry-kind/valid.yaml
+        check: tool_entry_kind
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-entry-kind/builtin-without-init.yaml
+        check: tool_entry_kind
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-entry-kind/unknown-type.yaml
+        check: tool_entry_kind
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefs_Errors
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinBuiltinToolRequiresInit
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinUnknownToolTypeIsRejected
+
+  - id: R-TOOL-003
+    target: document
+    level: MUST
+    statement: >-
+      A tool entry's `visibility` MUST be `internal` or `external`, its
+      `reversibility.classification` MUST be `reversible`, `compensatable`, or
+      `irreversible`, its `precondition` MUST be `git_repo`, and the
+      `undo.strategy` of an `exec` or untyped entry MUST be `noop`,
+      `workspace_restore`, `compensating_action`, or `irreversible`, whenever
+      each is present.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-vocabulary/valid.yaml
+        check: tool_contract_vocabulary
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-vocabulary/unknown-visibility.yaml
+        check: tool_contract_vocabulary
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-vocabulary/exec-undo-strategy.yaml
+        check: tool_contract_vocabulary
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefs_Errors
+
+  - id: R-TOOL-004
+    target: document
+    level: MUST NOT
+    statement: >-
+      A `builtin` tool entry MUST NOT carry the exec-only `env`,
+      `stdin_source`, `stdin_max_bytes`, or `output.mode` fields or the
+      `source`, `flag`, `positional`, or `position` parameter extensions; on an
+      exec entry, `stdin_source` MUST be a `$from(label).path` selector,
+      `stdin_max_bytes` MUST be positive and accompany `stdin_source`,
+      `output.mode` MUST be `raw` or `structured`, and a parameter `default`
+      MUST be a string and `position` an integer.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-exec-fields/valid.yaml
+        check: tool_exec_fields
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-exec-fields/builtin-env.yaml
+        check: tool_exec_fields
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-exec-fields/invalid-stdin.yaml
+        check: tool_exec_fields
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exec_io_test.go
+        test: TestParseToolDefsRejectsInvalidExecIO
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exec_io_test.go
+        test: TestParseToolDefsRejectsInvalidExecEnv
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefs_Errors
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinBuiltinToolRejectsExecInputAndOutputMode
+
+  - id: R-TOOL-005
+    target: document
+    level: MUST NOT
+    statement: >-
+      A tool entry MUST NOT state its input through both `signature.input` and
+      `parameters`, nor its output through both `signature.output` and
+      `output.schema`, and when it carries both `signature.emits` and `emits`
+      the two lists MUST be identical.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-signature/valid.yaml
+        check: tool_signature_single_source
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-signature/input-twice.yaml
+        check: tool_signature_single_source
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-signature/emits-differ.yaml
+        check: tool_signature_single_source
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureRejectsInputDeclaredTwice
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureRejectsOutputDeclaredTwice
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureRejectsConflictingEmits
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/signature_test.go
+        test: TestSignatureAcceptsIdenticalLegacyEmits
+
+  - id: R-TOOL-006
+    target: document
+    level: MUST
+    statement: >-
+      Every entry under a tool-declaration document's `types` keyname MUST
+      carry a `name`, and its `schema` MUST use only the `type`, `properties`,
+      `required`, `items`, `description`, and `enum` keywords with `type` one
+      of `object`, `array`, `string`, `number`, `integer`, or `boolean`, at
+      every depth; a `$type` reference MUST carry no sibling keyword.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-types/valid.yaml
+        check: tool_type_subset
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-types/keyword-outside-subset.yaml
+        check: tool_type_subset
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-types/reference-with-sibling.yaml
+        check: tool_type_subset
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsKeywordNestedInProperties
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsKeywordNestedInItems
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsTypeOutsideSubset
+      - assertion: rig
+        path: agent-core/internal/typesys/subset_test.go
+        test: TestValidateSubsetRejectsReferenceWithSiblingKeyword
+      - assertion: rig
+        path: agent-core/internal/typesys/spec_pin_tools_test.go
+        test: TestSpecPinDeclaredTypeIsNamed
+
+  - id: R-TOOL-007
+    target: document
+    level: MUST
+    statement: >-
+      A tool-declaration document carrying `params` is a fragment and MUST
+      declare its `unit` and a `tools` or `types` body and MUST NOT carry an
+      expansion; a tool-declaration document without `params` MUST NOT contain
+      a `$param(` reference.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-fragment/valid.yaml
+        check: tool_fragment_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-fragment/param-without-params.yaml
+        check: tool_fragment_shape
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/tool-fragment/nested-expansion.yaml
+        check: tool_fragment_shape
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestHalfDeclaredFragmentFails
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestFragmentCannotNest
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/spec_pin_tools_test.go
+        test: TestSpecPinTypeAndFragmentUnitsDeclareUnit
+
+  - id: R-TOOL-008
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor loading a tool-declaration closure MUST reject a
+      keyname outside the declaration schema at any nesting level, an import
+      cycle, two units sharing a name, two imports supplying the same tool
+      name, a fragment named under `imports` or a plain unit named under
+      `expand`, an absolute import outside every library root, and an
+      `override` from a file inside a library root.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_definition_test.go
+        test: TestParseToolDefsRejectsNestedUnknownFields
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectCycleAndUnitCollision
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectSiblingDuplicateWithSources
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestFragmentUnderImportsIsRejected
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/fragments_test.go
+        test: TestPlainUnitCannotBeExpanded
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/imports_test.go
+        test: TestToolImportsRejectAbsolutePath
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/library_imports_test.go
+        test: TestToolFragmentOutsideALibraryRootIsRejected
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/library_roots_test.go
+        test: TestLibraryFileCannotOverrideAnImport
+
+  - id: R-TOOL-009
+    target: document
+    level: MUST
+    statement: >-
+      A tool-selection document MUST carry only the `tools` keyname, a sequence
+      of tool names.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/tool-selection/valid.yaml
+        check: tool_selection_names
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/tool-selection/declaration-entry.yaml
+        check: tool_selection_names
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestLoadToolSelection
+
+  - id: R-TOOL-010
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject an agent-profile whose selected tool
+      name matches no tool declared by its `tool_config_dirs` and
+      `tool_declarations`, MUST merge the names of several selection documents
+      without duplicates, and MUST let a later declaration of a tool name
+      replace an earlier one across those sources.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestSelectTools
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestLoadToolSelections
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/loading_selection_test.go
+        test: TestLoadToolDeclarations_Merge
+
+  - id: R-REST-001
+    target: document
+    level: MUST
+    statement: >-
+      A REST definition document MUST hold one `rest` mapping that carries
+      `version` and only the `clients`, `servers`, `openapi`, `auth`, `limits`,
+      `retry_policies`, and `response_mappings` families beside it, and MUST
+      NOT carry the reserved `document_resources` family.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-root/valid.yaml
+        check: rest_definition_root
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-root/missing-version.yaml
+        check: rest_definition_root
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-root/document-resources.yaml
+        check: rest_definition_root
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_behavior_test.go
+        test: TestRESTDocumentResourcesConfigConformance
+
+  - id: R-REST-002
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject a REST definition document carrying a
+      keyname unknown to the definition schema at any nesting level, and, when
+      loading a REST closure, MUST reject an import cycle, two units sharing a
+      name, a name defined twice in one map family, an absolute import outside
+      every library root, and a fragment named under `imports`.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition_test.go
+        test: TestParseDefinitionRejectsUnknownFieldsAtEveryStructLevel
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/imports_test.go
+        test: TestLoadDefinitionClosureRejectsUnitCollisionAndCycle
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/imports_test.go
+        test: TestLoadDefinitionClosureRejectsEveryMapFamilyCollision
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/imports_test.go
+        test: TestLoadDefinitionClosureRejectsAbsoluteImport
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/fragments_test.go
+        test: TestRESTFragmentUnderImportsIsRejected
+
+  - id: R-REST-003
+    target: document
+    level: MUST
+    statement: >-
+      A REST resource's `operations` map MUST use only the `get`, `set`,
+      `create`, and `delete` verbs, and a resource MUST NOT carry the reserved
+      `id_field` or `version_field` keynames.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-resource/valid.yaml
+        check: rest_resource_operations
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-resource/rpc-verb.yaml
+        check: rest_resource_operations
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-resource/reserved-field.yaml
+        check: rest_resource_operations
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsReservedResourceMetadataFields
+
+  - id: R-REST-004
+    target: document
+    level: MUST
+    statement: >-
+      Within one REST operation, each HTTP status MUST appear in at most one of
+      the `success` and `failures` status mappings, and at most once within it.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-status/valid.yaml
+        check: rest_status_owners
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-status/overlapping.yaml
+        check: rest_status_owners
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsAmbiguousStatusMappings
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateStatusMappingsEveryHTTPCodeHasOneOwner
+
+  - id: R-REST-005
+    target: document
+    level: MUST
+    statement: >-
+      A mutating REST operation — one whose method is POST, PUT, PATCH, or
+      DELETE, or a resource `set`, `create`, or `delete` — MUST declare
+      non-empty `side_effects` and a `reversibility.classification`; an
+      `irreversible` one MUST set `requires_confirmation`, and a
+      `compensatable` one MUST name its compensating operation under
+      `compensation.operation`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-mutating/valid.yaml
+        check: rest_mutating_contract
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-mutating/missing-reversibility.yaml
+        check: rest_mutating_contract
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-mutating/irreversible-unconfirmed.yaml
+        check: rest_mutating_contract
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_compensation_test.go
+        test: TestValidateDefinitionRejectsInvalidCompensationTargets
+      - assertion: rig
+        path: agent-core/internal/tools/rest/spec_pin_tools_test.go
+        test: TestSpecPinIrreversibleOperationRequiresConfirmation
+
+  - id: R-REST-006
+    target: document
+    level: MUST
+    statement: >-
+      A REST auth profile's `type` MUST be `none`, `basic`, `bearer`,
+      `header_token`, or `query_token`, and a limit profile's `redirect.mode`,
+      when present, MUST be `none`, `same_host`, or `allowlist`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-policy/valid.yaml
+        check: rest_policy_vocabulary
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-policy/unknown-auth.yaml
+        check: rest_policy_vocabulary
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-policy/unknown-redirect.yaml
+        check: rest_policy_vocabulary
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+
+  - id: R-REST-007
+    target: document
+    level: MUST
+    statement: >-
+      Every REST server endpoint MUST name a `binding` the runtime handles, an
+      `emit_dynamic_signal` endpoint MUST declare non-empty `allowed_signals`,
+      and a server whose `address` binds every interface MUST reference a limit
+      profile whose `network.allow_public_listener` is true.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/valid.yaml
+        check: rest_server_endpoints
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/unknown-binding.yaml
+        check: rest_server_endpoints
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/dynamic-without-allowlist.yaml
+        check: rest_server_endpoints
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-endpoint/public-listener.yaml
+        check: rest_server_endpoints
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/endpoint_binding_test.go
+        test: TestValidateEndpointRejectsUnknownBinding
+      - assertion: rig
+        path: agent-core/internal/tools/rest/endpoint_binding_test.go
+        test: TestValidateEndpointRejectsEmptyBinding
+      - assertion: rig
+        path: agent-core/internal/tools/rest/validation_test.go
+        test: TestValidateDefinitionRejectsConfigFormatRules
+
+  - id: R-REST-008
+    target: document
+    level: MUST
+    statement: >-
+      A REST endpoint whose binding is `machine_request` MUST name the
+      agent-profile or machine-profile it runs under `machine_request.profile`
+      or `machine_request.machine`, MUST declare `machine_request.timeout`,
+      MUST map outcomes under `response.terminal_states` or
+      `response.terminal_signals`, and MUST NOT carry
+      `machine_request.document_resources`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/rest-machine-request/valid.yaml
+        check: rest_machine_request
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/rest-machine-request/missing-timeout.yaml
+        check: rest_machine_request
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/rest-machine-request/no-response-map.yaml
+        check: rest_machine_request
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_terminal_state_test.go
+        test: TestMachineRequestEndpointAcceptsEitherResponseMap
+      - assertion: rig
+        path: agent-core/internal/tools/rest/spec_pin_tools_test.go
+        test: TestSpecPinMachineRequestRequiresTargetAndTimeout
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_behavior_test.go
+        test: TestRESTDocumentResourcesConfigConformance
+
+  - id: R-LLM-001
+    target: document
+    level: MUST
+    statement: >-
+      The `config` of a tool entry whose `init` is `invoke_llm` MUST name a
+      non-empty `model` and `manifest_state`, and MUST NOT name both a
+      `provider` and a `dialect`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-config/valid.yaml
+        check: llm_invoke_config
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-config/provider-and-dialect.yaml
+        check: llm_invoke_config
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-config/missing-model.yaml
+        check: llm_invoke_config
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/invoke_dialect_test.go
+        test: TestInvokeLLMRejectsProviderAndDialect
+      - assertion: rig
+        path: agent-core/internal/tools/llm/spec_pin_tools_test.go
+        test: TestSpecPinInvokeLLMConfigRequiresModelAndManifestState
+
+  - id: R-LLM-002
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document MUST name a lowercase kebab `unit`, a non-empty
+      `provider_name`, a `path` beginning with `/`, and an `auth.type`, and its
+      `method`, when present, MUST be POST.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-header/valid.yaml
+        check: llm_dialect_header
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-header/get-method.yaml
+        check: llm_dialect_header
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-header/relative-path.yaml
+        check: llm_dialect_header
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectLoadsStrictly
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsUnknownField
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/spec_pin_tools_test.go
+        test: TestSpecPinChatDialectHeader
+
+  - id: R-LLM-003
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document's `body` MUST be non-empty, MUST reference only
+      the `messages`, `model`, `temperature`, `seed`, and `num_ctx` params as
+      `{{ params.<name> }}` tokens, and MUST place `{{ params.messages }}`
+      exactly once, as a whole scalar.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-body/valid.yaml
+        check: llm_dialect_body
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-body/messages-inside-string.yaml
+        check: llm_dialect_body
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-body/unsupplied-param.yaml
+        check: llm_dialect_body
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsMessagesInsideString
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsInvalidDeclarations
+
+  - id: R-LLM-004
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document MUST select its reply under `response.text` with
+      a `$.` selector, and any `response.input_tokens` or
+      `response.output_tokens` likewise; its `failures` MUST be non-empty, and
+      each entry MUST map one or more 4xx or 5xx statuses, none mapped twice,
+      to `ProviderUnauthorized`, `ProviderThrottled`, or `ProviderUnavailable`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-reply/valid.yaml
+        check: llm_dialect_reply
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-reply/success-status.yaml
+        check: llm_dialect_reply
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-reply/foreign-signal.yaml
+        check: llm_dialect_reply
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsInvalidDeclarations
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectLoadsStrictly
+
+  - id: R-LLM-005
+    target: document
+    level: MUST
+    statement: >-
+      A chat-dialect document's `auth` MUST name credentials only by
+      environment-variable reference: an auth type of `none` MUST carry no
+      reference, `basic` MUST carry `username_ref` and `password_ref`, any
+      other type MUST carry `token_ref`, and every reference MUST be an
+      upper-case environment-variable name.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-auth/valid.yaml
+        check: llm_dialect_auth
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-auth/credential-literal.yaml
+        check: llm_dialect_auth
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/document/llm-dialect-auth/none-with-credential.yaml
+        check: llm_dialect_auth
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsCredentialLiteral
+      - assertion: rig
+        path: agent-core/internal/tools/llm/dialect/dialect_test.go
+        test: TestChatDialectRejectsInvalidDeclarations

@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-002: an application-profile document with a supported schema, kebab identity, and known ownership and module status.
+schema_version: 1
+application: chatbot-mesh
+ownership: agent-owning
+module_status: implemented
+capabilities:
+  runnable_module: {status: implemented, evidence: [mage test]}
+roots:
+  - {id: chatbot, ownership: local, source: agents/chatbot/profile.yaml, runtime_path: agents/chatbot/profile.yaml}

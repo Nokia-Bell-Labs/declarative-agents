@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-004: an agent-profile document whose tools sequence is empty.
+name: generator
+machine: machine.yaml
+tools: []
