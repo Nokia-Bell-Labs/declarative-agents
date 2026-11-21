@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-003: a machine-profile carrying only keynames the format names.
+name: relay
+purpose: Relay one request.
+initial_state: Idle
+budget: {max_iterations: 10, command_timeout: 1m}
+states: [Idle, {name: Done, run_status: succeeded}]
+terminal_states: [Done]
+signals: [Seed]
+transitions:
+  - {state: Idle, signal: Seed, next: Done, action: relay}

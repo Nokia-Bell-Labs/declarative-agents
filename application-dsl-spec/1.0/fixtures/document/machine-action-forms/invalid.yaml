@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-011: a no-action move that selects a report_output.
+transitions:
+  - {state: Idle, signal: Seed, next: Done, report_output: $.address}

@@ -149,6 +149,20 @@ var fixtureChecks = map[string]func(string) error{
 	"blueprint_body_shape":          checkBlueprintBodyShape,
 	"machine_body_keynames":         checkMachineBodyKeynames,
 	"machine_instance_header":       checkMachineInstanceHeader,
+	"machine_top_keynames":          checkMachineTopKeynames,
+	"machine_transition_keynames":   checkMachineTransitionKeynames,
+	"machine_named_specs":           checkMachineNamedSpecs,
+	"machine_graph_references":      checkMachineGraphReferences,
+	"machine_run_status":            checkMachineRunStatus,
+	"machine_budget":                checkMachineBudget,
+	"machine_policy_signals":        checkMachinePolicySignals,
+	"machine_action_forms":          checkMachineActionForms,
+	"machine_step_labels":           checkMachineStepLabels,
+	"machine_for_each_shape":        checkMachineForEachShape,
+	"machine_for_each_policy":       checkMachineForEachPolicy,
+	"model_stage_fragment":          checkModelStageFragment,
+	"model_machine_template":        checkModelMachineTemplate,
+	"model_fragment_params":         checkModelFragmentParams,
 }
 
 // checkApplicationRequiredKeynames enforces R-APP-001: the application-profile

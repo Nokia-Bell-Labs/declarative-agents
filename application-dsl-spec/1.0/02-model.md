@@ -114,6 +114,34 @@ act on either.
 
 {{statement R-MODEL-003}}
 
+A splice adds and never overrides. The states a stage-fragment hands control to
+belong to the expanding machine-profile, which declares them, and a
+stage-fragment spliced twice composes its prefix parameter into distinct names.
+
+{{statement R-MODEL-004}}
+
+{{statement R-MODEL-005}}
+
+{{statement R-MODEL-006}}
+
+A machine-template is not a machine-profile until its arguments arrive, so
+nothing may run it directly.
+
+{{statement R-MODEL-007}}
+
+Parameters are typed, so an argument is checked before it fills a hole.
+
+{{statement R-MODEL-008}}
+
+{{statement R-MODEL-009}}
+
+Substitution fills holes and never adds structure: an argument cannot mint a
+keyname, a list entry, or a second transition.
+
+{{statement R-MODEL-010}}
+
+{{statement R-MODEL-011}}
+
 The expanded machine-profile is validated like a hand-written one, with
 diagnostics naming both the unit and the expanding document. Processor
 obligations, and the fixture suites that exercise invalid expansions, are the

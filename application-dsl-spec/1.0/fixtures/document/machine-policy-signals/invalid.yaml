@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-009: a machine-profile declaring AwaitApproval without resume_signal.
+summary_signal: Relayed
+signals: [Seed, Relayed, AwaitApproval, Approved]

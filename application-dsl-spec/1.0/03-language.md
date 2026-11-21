@@ -96,6 +96,100 @@ describes.
 
 {{statement R-MACH-001}}
 
+The keyname table is closed. The loader decodes strictly, so a misspelled
+keyname is a load error rather than a silently ignored field.
+
+{{statement R-MACH-003}}
+
+A transition maps one (state, signal) pair to a next state, and may name the
+action that runs on the way.
+
+{{statement R-MACH-004}}
+
+States and signals each have a short form, a bare name, and a long form that
+carries documentation beside the name.
+
+{{statement R-MACH-005}}
+
+The transition table is closed over its own declarations: every name a
+transition uses is one the machine-profile declares, and the table is a
+function of (state, signal).
+
+{{statement R-MACH-006}}
+
+A terminal state says how a run that halts there ends, so the reported outcome
+comes from the document rather than from the state's name. The parser checks
+the value and its placement; the startup boundary rejects a terminal state that
+leaves it out.
+
+{{statement R-MACH-007}}
+
+The budget bounds a run. The interpreter does not choose an iteration bound or
+a per-command timeout on a machine-profile's behalf, so an executed
+machine-profile declares both.
+
+{{statement R-MACH-008}}
+
+Two machine-level policy keynames name signals: the one whose output becomes
+the run summary, and the one a suspended run resumes with.
+
+{{statement R-MACH-009}}
+
+A parse-retry budget is meaningful only when the transition table retries and
+exhausts through it, so the startup boundary checks that wiring.
+
+{{statement R-MACH-010}}
+
+An action takes one of three forms: a named tool, the `$tool` sentinel whose
+tool the model chooses at run time, or nothing at all, which moves the
+machine-instance without running a command.
+
+{{statement R-MACH-011}}
+
+{{statement R-MACH-012}}
+
+A label gives a completed step a stable address that a later word reads with
+`$from(label).path`, independent of which tool ran. Runtime-seeded labels under
+`external_labels` widen the same address space.
+
+{{statement R-MACH-013}}
+
+{{statement R-MACH-014}}
+
+{{statement R-MACH-015}}
+
+Data-driven iteration runs one named action over an array a prior step
+produced. The document supplies the action and the binding name; the runtime
+data supplies only the items, so it can neither choose an action nor introduce
+an expression. The join folds the item outcomes back into one signal the
+transition table routes.
+
+{{statement R-MACH-016}}
+
+Iteration is sequential and fails fast unless the document says otherwise;
+concurrency is always bounded.
+
+{{statement R-MACH-017}}
+
+{{statement R-MACH-018}}
+
+Signal exhaustiveness runs in both directions once the selected tools are
+known. In the first, every signal a tool emits has a route from the state it
+lands in.
+
+{{statement R-MACH-019}}
+
+In the second, every transition waits on a signal that can arrive.
+
+{{statement R-MACH-020}}
+
+A state is a grammar phase, and the transition table, not the tool
+declarations, says which tools the model may choose in it.
+
+{{statement R-MACH-021}}
+
+{{statement R-MACH-022}}
+
 A request machine binds a machine-profile to a REST endpoint: each accepted
 request creates a request-scoped machine-instance whose terminal signals
 determine the response status. The binding rules live in agent-core srd030

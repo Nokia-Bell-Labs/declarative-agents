@@ -1,0 +1,16 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-017: a parallel for_each with no max_concurrency.
+transitions:
+  - state: Iterating
+    signal: ItemsReady
+    next: Iterating
+    action: item
+    for_each:
+      items: $from(items).rows
+      as: row
+      mode: parallel
+      continue_on: [ItemDone]
+      join:
+        next: Done
+        signals: {all_success: ItemsDone, failed: ItemsFailed, empty: ItemsEmpty}

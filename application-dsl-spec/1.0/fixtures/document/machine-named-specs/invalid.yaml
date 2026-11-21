@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-005: a long-form state with no name and a repeated signal.
+states:
+  - Idle
+  - {meaning: A state with no name.}
+signals: [Seed, Seed]

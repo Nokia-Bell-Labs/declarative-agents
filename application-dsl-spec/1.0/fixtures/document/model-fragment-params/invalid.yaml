@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-008: an integer parameter whose default is not an integer.
+unit: embed-stage
+params:
+  - {name: dimensions, type: integer, default: many}
+stage:
+  transitions:
+    - {state: Ready, signal: Seed, next: Done, action: embed}

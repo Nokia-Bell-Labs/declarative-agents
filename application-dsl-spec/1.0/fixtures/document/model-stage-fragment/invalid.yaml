@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-005: a stage-fragment whose stage body carries initial_state.
+unit: run-stage
+params:
+  - {name: prefix, type: string}
+stage:
+  initial_state: $param(prefix)Running
+  states: [$param(prefix)Running]
+  transitions:
+    - {state: $param(prefix)Running, signal: Seed, next: Done}

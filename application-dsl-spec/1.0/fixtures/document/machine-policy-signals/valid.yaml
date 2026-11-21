@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-009: an approval machine-profile naming its declared resume and summary signals.
+summary_signal: Relayed
+resume_signal: Approved
+signals: [Seed, Relayed, AwaitApproval, Approved]

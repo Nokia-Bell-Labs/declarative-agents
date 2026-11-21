@@ -1,0 +1,18 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-016: a for_each whose items is not a $from selector and whose join is unrouted.
+states: [Start, Iterating, Joined, Done]
+terminal_states: [Done]
+signals: [Seed, ItemsReady, ItemDone, ItemsDone, ItemsFailed, ItemsEmpty]
+transitions:
+  - state: Start
+    signal: Seed
+    next: Iterating
+    action: item
+    for_each:
+      items: $.rows
+      as: row
+      continue_on: [ItemDone]
+      join:
+        next: Joined
+        signals: {all_success: ItemsDone, failed: ItemsFailed, empty: ItemsEmpty}

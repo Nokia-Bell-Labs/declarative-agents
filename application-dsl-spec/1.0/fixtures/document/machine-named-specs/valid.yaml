@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-005: states and signals mixing the short and the long form.
+states:
+  - Idle
+  - {name: Done, meaning: All work completed., run_status: succeeded, tags: [work]}
+signals:
+  - Seed
+  - {name: Relayed, trigger: The relay tool finished.}
