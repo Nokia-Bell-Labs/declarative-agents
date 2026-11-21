@@ -1,0 +1,7 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-002: an agent-profile document expanding one blueprint.
+name: chatbot
+expand:
+  - fragment: ../../units/serve-agent-blueprint.yaml
+    args: {agent: chatbot, server: chatbot-control}

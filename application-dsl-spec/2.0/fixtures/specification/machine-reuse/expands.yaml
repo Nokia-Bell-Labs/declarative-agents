@@ -1,0 +1,17 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-004: a machine splicing a fragment through expand, the
+# reuse form a machine no longer has.
+kind: machine
+schema_version: 1
+name: worker
+initial_state: Idle
+terminal_states: [Done]
+states:
+  - {name: Idle, meaning: Waiting for work.}
+  - {name: Done, meaning: Work finished.}
+transitions:
+  - {state: Idle, signal: Seed, next: Done}
+expand:
+  - fragment: ../../units/control-stage-fragment.yaml
+    args: {prefix: Patient}

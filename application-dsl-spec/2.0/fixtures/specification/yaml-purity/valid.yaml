@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-INTRO-005: two endpoints repeat their shared block written out.
+kind: rest-definition
+schema_version: 1
+endpoints:
+  first:
+    method: GET
+    timeout: 30s
+    response: {status: 200, content_type: application/json}
+  second:
+    method: GET
+    timeout: 30s
+    response: {status: 200, content_type: application/json}

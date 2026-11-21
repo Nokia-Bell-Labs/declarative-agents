@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-001: no body of its own; the one compose entry,
+# without enter, adopts the control template whole.
+kind: machine
+schema_version: 1
+name: control
+purpose: Serve a control endpoint until an exit request arrives.
+compose:
+  - template: ../../units/control.yaml
+    args: {server: agent, exit_signal: ExitRequested}

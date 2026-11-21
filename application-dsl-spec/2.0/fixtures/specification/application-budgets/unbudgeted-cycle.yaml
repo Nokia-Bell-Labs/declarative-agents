@@ -1,0 +1,49 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-005: no agent service declares a budget, so every loop is unbounded.
+kind: application-profile
+schema_version: 1
+application: coding-agent-demo
+ownership: composition-only
+capabilities:
+  runnable_module:
+    status: planned
+channels:
+  - {id: issue, schema: agents/channels/issue.yaml}
+  - {id: ready-issue, schema: agents/channels/issue.yaml}
+  - {id: assignment, schema: agents/channels/assignment.yaml}
+  - {id: candidate, schema: agents/channels/candidate.yaml}
+  - {id: audit-request, schema: agents/channels/audit-request.yaml}
+  - {id: audit-report, schema: agents/channels/audit-report.yaml}
+  - {id: review, schema: agents/channels/review.yaml}
+  - {id: closure, schema: agents/channels/closure.yaml}
+services:
+  - id: planner
+    ownership: local
+    source: agents/planner/profile.yaml
+    emits: [issue]
+  - id: tracker
+    ownership: local
+    source: agents/tracker/profile.yaml
+    consumes: [issue, closure]
+    emits: [ready-issue]
+  - id: dispatcher
+    ownership: local
+    source: agents/dispatcher/profile.yaml
+    consumes: [ready-issue]
+    emits: [assignment]
+  - id: executor
+    ownership: catalog
+    source: agents/executor/profile.yaml
+    consumes: [assignment, review]
+    emits: [candidate]
+  - id: critic
+    ownership: catalog
+    source: agents/critic/profile.yaml
+    consumes: [candidate, audit-report]
+    emits: [audit-request, review, closure]
+  - id: auditor
+    ownership: catalog
+    source: agents/specification-critic/profile.yaml
+    consumes: [audit-request]
+    emits: [audit-report]

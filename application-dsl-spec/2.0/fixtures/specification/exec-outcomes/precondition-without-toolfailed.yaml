@@ -1,0 +1,23 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-009: a precondition answers ToolFailed when its gate
+# fails, but the signature does not emit it, so the failure cannot be routed.
+kind: tool-declaration
+schema_version: 1
+unit: exec-precondition-unroutable
+tools:
+  - name: lint_repo
+    category: word
+    visibility: internal
+    description: Lint the repository, gated on the workspace being a Git repository.
+    binary: sh
+    args: ["-c", "exit 0"]
+    precondition: git_repo
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: ToolDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+    outcomes:
+      - {exit: 0, signal: ToolDone}
+      - {default: ToolDone}

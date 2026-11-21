@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-018: each listed step runs the tool its kind selects, the step kind is an enum equal to the table's keys, and every dispatched tool's signals are answered.
+kind: agent-profile
+schema_version: 1
+name: step-runner
+machine: ../../units/for-each-dispatch/machine-valid.yaml
+tools: [../../units/for-each-dispatch/tools.yaml]
+tool_declarations: [../../units/for-each-dispatch/declarations.yaml]
+directory: .

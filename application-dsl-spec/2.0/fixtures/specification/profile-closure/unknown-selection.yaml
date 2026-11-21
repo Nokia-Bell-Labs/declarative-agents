@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-007: the selection names a tool no declaration provides.
+kind: agent-profile
+schema_version: 1
+name: closure-example
+machine: ../../units/closure/machine.yaml
+tools: [../../units/closure/tools-unknown.yaml]
+tool_declarations: [../../units/closure/declarations.yaml]

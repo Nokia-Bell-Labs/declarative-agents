@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MODEL-002: every expansion entry in a tool declaration names
+# its fragment.
+kind: tool-declaration
+schema_version: 1
+unit: work-executor-starter
+tools: []
+expand:
+  - fragment: ../../units/start-service-fragment.yaml
+    args: {root: work-executor, profile: ../work-executor/profile.yaml}

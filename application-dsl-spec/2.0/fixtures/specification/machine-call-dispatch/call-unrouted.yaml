@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-019: the word parses calls to write_note, which no row runs.
+kind: agent-profile
+schema_version: 1
+name: call-runner
+machine: ../../units/parse-calls/machine-call-unrouted.yaml
+tools: [../../units/parse-calls/tools.yaml]
+tool_declarations: [../../units/parse-calls/declarations.yaml]
+directory: .

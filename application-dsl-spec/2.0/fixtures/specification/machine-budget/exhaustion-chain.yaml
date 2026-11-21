@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-013: BudgetExhausted routes chain through a working
+# state into a terminal, so an exhausted run tears down and then ends.
+kind: machine
+schema_version: 1
+name: worker
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 10}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for work.}
+  - {name: Working, meaning: Doing the work.}
+  - {name: Cleanup, meaning: Tearing down after exhaustion.}
+  - {name: Done, meaning: Work finished., run_status: succeeded}
+  - {name: Failed, meaning: Work failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A caller hands work over.}
+  - {name: Worked, trigger: The work is done.}
+  - {name: BudgetExhausted, trigger: The budget is spent.}
+transitions:
+  - {state: Idle, signal: Seed, next: Working, action: work, label: result}
+  - {state: Working, signal: Worked, next: Done}
+  - {state: Working, signal: BudgetExhausted, next: Cleanup, action: tear_down, label: teardown}
+  - {state: Cleanup, signal: BudgetExhausted, next: Failed}

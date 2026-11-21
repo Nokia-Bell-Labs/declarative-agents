@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-INTRO-003: an agent-profile declaring its kind and schema
+# version.
+kind: agent-profile
+schema_version: 1
+name: worker
+machine: machine.yaml
+tools: tools.yaml

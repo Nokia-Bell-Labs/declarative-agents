@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The selection the call-dispatch fixtures use.
+kind: tool-selection
+schema_version: 1
+tools: [parse_note_calls, parse_more_calls, read_note, list_notes, write_note]

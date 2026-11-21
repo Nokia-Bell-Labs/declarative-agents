@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-PROF-005: a function entry naming a channel; a local transport
+# names none.
+kind: agent-profile
+schema_version: 1
+name: executor
+machine: machine.yaml
+tools: [tools.yaml]
+action_channels:
+  - {action: run_planner, transport: function, channel: review}

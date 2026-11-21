@@ -1,0 +1,22 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Imports the closure tools and overrides pass_through.
+kind: tool-declaration
+schema_version: 1
+unit: closure-override
+imports:
+  - declarations.yaml
+tools:
+  - name: pass_through
+    type: builtin
+    override: true
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Pass the message on, overridden.
+    config: {path: vector, signal: Passed}
+    signature:
+      input: builtin.Message<$T>
+      emits:
+        - {signal: Passed, message: builtin.Message<$T>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

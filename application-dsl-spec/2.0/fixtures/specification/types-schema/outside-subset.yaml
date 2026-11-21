@@ -1,0 +1,27 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-002: a schema keyword outside the closed subset, nested in properties.
+kind: tool-declaration
+schema_version: 1
+unit: typed-example-types
+types:
+  - name: Item
+    schema:
+      type: object
+      properties:
+        id: {type: string}
+        count: {type: integer, minimum: 0}
+        tags: {type: array, items: {type: string}}
+        state: {type: string, enum: [open, closed]}
+      required: [id]
+  - name: Batch
+    params: [T]
+    schema:
+      type: object
+      properties:
+        entries: {type: array, items: {$type: $T}}
+  - name: Order
+    schema:
+      type: object
+      properties:
+        lines: {$type: typed-example-types.Batch<typed-example-types.Item>}

@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A stage fragment in the retired grammar, referenced by the machine-reuse
+# refusal fixture: a machine that still writes expand is refused before this
+# file is read, and the file exists so the path resolves.
+kind: stage-fragment
+schema_version: 1
+unit: control-stage-fragment
+params:
+  - {name: prefix, type: string, description: The state-name prefix.}
+stage:
+  states:
+    - {name: $param(prefix)Awaiting, meaning: Waiting for an exit request.}
+  signals: []
+  transitions: []

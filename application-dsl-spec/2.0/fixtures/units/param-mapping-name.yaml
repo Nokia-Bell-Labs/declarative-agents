@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A template the param-reference fixtures include: a parameter reference
+# stands as a mapping name, which substitution never touches (R-MACH-008).
+kind: machine
+schema_version: 1
+unit: param-mapping-name
+name: param-mapping-name
+purpose: Review a candidate and end approved or rejected.
+params:
+  - {name: reviewer, type: string, description: The tool that performs the review.}
+initial_state: Reviewing
+states:
+  - {name: Reviewing, meaning: The reviewer is judging the candidate., $param(reviewer): tag}
+  - {name: Approved,  meaning: The candidate passed review., run_status: succeeded}
+  - {name: Rejected,  meaning: The candidate failed review., run_status: failed}
+terminal_states: [Approved, Rejected]
+signals:
+  - {name: Worked,       trigger: The host hands the candidate over.}
+  - {name: ReviewPassed, trigger: The reviewer approved.}
+  - {name: ReviewFailed, trigger: The reviewer rejected.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Reviewing, signal: ReviewPassed, next: Approved, action: $param(reviewer)}
+  - {state: Reviewing, signal: ReviewFailed, next: Rejected}
+  - {state: Reviewing, signal: CommandError, next: Rejected}

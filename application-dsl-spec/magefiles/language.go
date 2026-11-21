@@ -60,19 +60,45 @@ type languageStatement struct {
 	Level      string            `yaml:"level"`
 	Statement  string            `yaml:"statement"`
 	Acceptance []acceptanceEntry `yaml:"acceptance"`
+	// Status is empty for a statement in force and "retired" for one the
+	// language no longer makes; Retired then names the release and the
+	// statements that replace it.
+	Status  string `yaml:"status"`
+	Retired string `yaml:"retired"`
+}
+
+// statusRetired marks a statement the language no longer makes. It keeps its
+// id and text, and its acceptance stays as the record of what was checked.
+const statusRetired = "retired"
+
+func (s languageStatement) retired() bool { return s.Status == statusRetired }
+
+// hasPending reports whether the statement records evidence it lacks.
+func (s languageStatement) hasPending() bool {
+	for _, entry := range s.Acceptance {
+		if entry.Assertion == assertionPending {
+			return true
+		}
+	}
+	return false
 }
 
 // acceptanceEntry is one piece of evidence that a statement is checked. The
 // assertion selects which fields apply: a fixture entry names a document under
-// the module with the check applied and the expected verdict; a go_test entry
-// names a test function that must exist and pass in the file at path.
+// the version directory with the check applied and the expected verdict; a
+// go_test or rig entry names a test function that must exist in the file at
+// path; a pending entry names, under note, evidence the statement lacks.
 type acceptanceEntry struct {
 	Assertion string `yaml:"assertion"`
 	Path      string `yaml:"path"`
 	Check     string `yaml:"check"`
 	Verdict   string `yaml:"verdict"`
 	Test      string `yaml:"test"`
+	Note      string `yaml:"note"`
 }
+
+// assertionPending records a known gap rather than a check.
+const assertionPending = "pending"
 
 func loadLanguage(path string) (languageFile, error) {
 	data, err := os.ReadFile(path)
@@ -86,10 +112,34 @@ func loadLanguage(path string) (languageFile, error) {
 	return language, nil
 }
 
-// validateLanguage checks the statement schema: stable well-formed identifiers,
-// declared conformance targets, RFC 2119 levels, normative text, and at least
-// one acceptance entry per statement with the fields its assertion requires.
+// validateLanguage is the full-gate schema: the shared schema, the chapter 02
+// terminology rule, and evidence on every entry — a version the engine
+// implements records no pending gaps.
 func validateLanguage(language languageFile) error {
+	findings := []error{validateLanguageSchema(language)}
+	for _, statement := range language.Statements {
+		for _, word := range wordPattern.FindAllString(backtickSpanPattern.ReplaceAllString(statement.Statement, " "), -1) {
+			if bareNounWords[strings.ToLower(word)] {
+				findings = append(findings, fmt.Errorf(
+					"%s: bare noun %q in normative text; use a class or instance term (chapter 02)",
+					statement.ID, word))
+			}
+		}
+		for index, entry := range statement.Acceptance {
+			if entry.Assertion == assertionPending {
+				findings = append(findings, fmt.Errorf(
+					"%s acceptance[%d]: pending evidence in a version the engine implements", statement.ID, index))
+			}
+		}
+	}
+	return errors.Join(findings...)
+}
+
+// validateLanguageSchema checks the statement schema every version shares:
+// stable well-formed identifiers, declared conformance targets, RFC 2119
+// levels, normative text, a consistent retirement record, and at least one
+// acceptance entry per statement with the fields its assertion requires.
+func validateLanguageSchema(language languageFile) error {
 	var findings []error
 	targets := make(map[string]bool, len(language.Language.ConformanceTargets))
 	for _, target := range language.Language.ConformanceTargets {
@@ -127,12 +177,13 @@ func validateLanguage(language languageFile) error {
 		if strings.TrimSpace(statement.Statement) == "" {
 			findings = append(findings, fmt.Errorf("%s: statement text is required", label))
 		}
-		for _, word := range wordPattern.FindAllString(backtickSpanPattern.ReplaceAllString(statement.Statement, " "), -1) {
-			if bareNounWords[strings.ToLower(word)] {
-				findings = append(findings, fmt.Errorf(
-					"%s: bare noun %q in normative text; use a class or instance term (chapter 02)",
-					label, word))
-			}
+		switch {
+		case statement.Status != "" && statement.Status != statusRetired:
+			findings = append(findings, fmt.Errorf("%s: unknown status %q", label, statement.Status))
+		case statement.retired() && strings.TrimSpace(statement.Retired) == "":
+			findings = append(findings, fmt.Errorf("%s: a retired statement must name its retirement under retired", label))
+		case !statement.retired() && statement.Retired != "":
+			findings = append(findings, fmt.Errorf("%s: retired note on a statement in force", label))
 		}
 		if len(statement.Acceptance) == 0 {
 			findings = append(findings, fmt.Errorf("%s: at least one acceptance entry is required", label))
@@ -147,6 +198,12 @@ func validateLanguage(language languageFile) error {
 }
 
 func validateAcceptanceEntry(entry acceptanceEntry) error {
+	if entry.Assertion == assertionPending {
+		if strings.TrimSpace(entry.Note) == "" {
+			return errors.New("pending entries require a note naming the gap")
+		}
+		return nil
+	}
 	if strings.TrimSpace(entry.Path) == "" {
 		return errors.New("path is required")
 	}

@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The planner whose plan the expect fixtures check, and the tool that plans again.
+kind: tool-declaration
+schema_version: 1
+unit: expect-tools
+imports: [types.yaml]
+tools:
+  - name: plan_steps
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: List the steps of a plan and the environment it targets.
+    config: {path: vector, signal: PlanReady}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: PlanReady, message: builtin.Message<expect-types.Plan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: replan_steps
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Plan again from the report of what the last plan got wrong.
+    config: {path: vector, signal: PlanReady}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: PlanReady, message: builtin.Message<expect-types.Plan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

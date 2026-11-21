@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A template the compose-binding fixtures include: it composes the review
+# template whole and passes its own reviewer parameter through the entry's
+# args, the one way a parameter reaches a nested template (R-MODEL-005).
+kind: machine
+schema_version: 1
+unit: review-passthrough
+name: review-passthrough
+purpose: Review a candidate through the review template, naming the reviewer once.
+params:
+  - {name: reviewer, type: string, description: The tool that performs the review.}
+compose:
+  - template: review.yaml
+    args: {reviewer: $param(reviewer)}

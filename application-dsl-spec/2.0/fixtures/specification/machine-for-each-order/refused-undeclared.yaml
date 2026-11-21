@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-020: the refused signal is not in the machine's signals list.
+kind: agent-profile
+schema_version: 1
+name: step-runner
+machine: ../../units/for-each-order/machine-refused-undeclared.yaml
+tools: [../../units/for-each-dispatch/tools.yaml]
+tool_declarations: [../../units/for-each-dispatch/declarations.yaml]
+directory: .

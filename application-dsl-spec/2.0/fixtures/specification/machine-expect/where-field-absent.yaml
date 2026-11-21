@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-021: where names owner, which the plan type does not have.
+kind: agent-profile
+schema_version: 1
+name: planner
+machine: ../../units/expect/machine-where-field-absent.yaml
+tools: [../../units/expect/tools.yaml]
+tool_declarations: [../../units/expect/declarations.yaml]
+directory: .

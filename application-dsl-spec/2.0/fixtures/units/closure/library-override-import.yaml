@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Imports the library unit that overrides.
+kind: tool-declaration
+schema_version: 1
+unit: closure-library-override
+imports:
+  - /opt/demo-lib/lib-override.yaml
+tools: []

@@ -1,0 +1,18 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-006: a tool type other than builtin or exec.
+kind: tool-declaration
+schema_version: 1
+unit: closure-tools
+tools:
+  - name: pass_through
+    type: gadget
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Pass the message on.
+    signature:
+      input: builtin.Message<$T>
+      emits:
+        - {signal: Passed, message: builtin.Message<$T>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

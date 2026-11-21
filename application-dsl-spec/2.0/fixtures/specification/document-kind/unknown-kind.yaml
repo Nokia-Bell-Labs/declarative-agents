@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-INTRO-003: profile-blueprint, a kind the language retired, is
+# outside the vocabulary.
+kind: profile-blueprint
+schema_version: 1
+unit: serve-agent
+params:
+  - {name: agent, type: string}

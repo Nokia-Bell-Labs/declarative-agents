@@ -1,0 +1,21 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-APP-001: the governance and deployment keynames a repository
+# may keep are legal beside the topology, and none is required.
+kind: application-profile
+schema_version: 1
+application: example
+ownership: agent-owning
+capabilities:
+  runnable_module:
+    status: implemented
+    evidence:
+      - go test ./...
+module_status: implemented
+runtime:
+  mount_path: /profiles
+services:
+  - id: worker
+    ownership: local
+    source: agents/worker/profile.yaml
+    runtime_path: applications/example/worker/profile.yaml

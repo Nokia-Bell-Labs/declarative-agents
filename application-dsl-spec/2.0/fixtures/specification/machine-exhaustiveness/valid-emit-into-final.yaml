@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-015: an action enters a final state, so its emits need no route.
+kind: agent-profile
+schema_version: 1
+name: planner
+machine: ../../units/exhaustiveness/machine-valid-emit-into-final.yaml
+tools: [../../units/exhaustiveness/tools.yaml]
+tool_declarations: [../../units/exhaustiveness/declarations.yaml]
+directory: .

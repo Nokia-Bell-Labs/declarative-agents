@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-005: an import names an absolute path outside a library root.
+kind: agent-profile
+schema_version: 1
+name: closure-example
+machine: ../../units/closure/machine.yaml
+tools: [../../units/closure/tools.yaml]
+tool_declarations: [../../units/closure/bad-import.yaml]

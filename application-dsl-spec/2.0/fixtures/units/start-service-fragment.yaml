@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A start fragment the expansion-fragment fixtures expand: the two
+# parameters its expanding fixture binds, producing one start word.
+kind: tool-declaration
+schema_version: 1
+unit: start-service-fragment
+params:
+  - {name: root, type: string, description: The agent service this word starts.}
+  - {name: profile, type: string, description: The started service's profile path.}
+tools:
+  - name: start_$param(root)
+    type: builtin
+    init: start_service
+    category: lifecycle
+    visibility: internal
+    description: Start one $param(root) instance from its declared profile.
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: ToolDone, message: builtin.Message}
+        - {signal: ToolFailed, message: builtin.Message<builtin.Text>}
+    config:
+      profile: $param(profile)

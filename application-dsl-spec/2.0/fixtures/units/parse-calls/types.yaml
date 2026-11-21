@@ -1,0 +1,38 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The call lists the call-dispatch fixtures parse: a call names one of the
+# word's tools, and its parameters are whatever that tool's input takes.
+kind: tool-declaration
+schema_version: 1
+unit: parse-calls-types
+types:
+  - name: NoteCalls
+    schema:
+      type: object
+      properties:
+        calls:
+          type: array
+          items:
+            type: object
+            properties:
+              tool: {type: string, enum: [read_note, list_notes]}
+              parameters: {type: object}
+            required: [tool]
+  - name: MoreCalls
+    schema:
+      type: object
+      properties:
+        calls:
+          type: array
+          items:
+            type: object
+            properties:
+              tool: {type: string, enum: [read_note, list_notes, write_note]}
+              parameters: {type: object}
+            required: [tool]
+  - name: NotePath
+    schema:
+      type: object
+      properties:
+        path: {type: string}
+      required: [path]

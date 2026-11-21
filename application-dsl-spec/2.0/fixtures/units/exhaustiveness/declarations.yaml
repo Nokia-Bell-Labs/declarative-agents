@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The planner and the vetter the exhaustiveness fixtures hold a machine to.
+kind: tool-declaration
+schema_version: 1
+unit: exhaustiveness-tools
+imports: [types.yaml]
+tools:
+  - name: probe_plan
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: List the steps of a plan and the environment it targets.
+    config: {path: vector, signal: PlanReady}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: PlanReady, message: builtin.Message<exhaustiveness-types.Plan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: vet_plan
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Vet a listed plan against the target environment.
+    config: {path: vector, signal: PlanVetted}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: PlanVetted, message: builtin.Message<exhaustiveness-types.Plan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

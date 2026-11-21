@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-004: a machine that reuses a template by composing it.
+kind: machine
+schema_version: 1
+name: control
+compose:
+  - template: ../../units/control.yaml
+    args: {server: agent, exit_signal: ExitRequested}

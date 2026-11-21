@@ -1,0 +1,54 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-007: a read-only tool, a reversible writer whose undo
+# consumes its receipt, and an irreversible boundary tool.
+kind: tool-declaration
+schema_version: 1
+unit: contract-example
+tools:
+  - name: read_notes
+    type: builtin
+    init: read_resource
+    category: word
+    visibility: internal
+    description: Read a note without changing it.
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: ToolDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+    side_effects:
+      - {kind: filesystem_read, target: notes, description: Reads the note file.}
+    reversibility: {classification: reversible}
+    undo: {strategy: noop, description: A read changes nothing.}
+  - name: write_notes
+    type: builtin
+    init: write_resource
+    category: word
+    visibility: internal
+    description: Write a note, restorable from the snapshot its receipt carries.
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: ToolDone, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+    side_effects:
+      - {kind: filesystem_write, target: notes, description: Writes the note file.}
+    reversibility: {classification: reversible}
+    undo: {strategy: file_snapshot_restore, description: Restore the file from the receipt's snapshot.}
+  - name: open_ticket
+    type: exec
+    binary: tracker
+    category: boundary
+    visibility: internal
+    description: Open a ticket in an external tracker, which cannot be recalled.
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: ToolDone, message: builtin.Message<builtin.Text>}
+        - {signal: ToolFailed, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+    side_effects:
+      - {kind: external_api, target: tracker, description: Creates a ticket.}
+    reversibility: {classification: irreversible}
+    undo: {strategy: irreversible, description: A created ticket is the tracker's.}

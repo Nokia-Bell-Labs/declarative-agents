@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-016: parallel dispatch with no max_concurrency is unbounded.
+kind: machine
+schema_version: 1
+name: fanner
+initial_state: Idle
+budget: {command_timeout: 1m, max_iterations: 20}
+terminal_states: [Done, Failed]
+states:
+  - {name: Idle, meaning: Waiting for work.}
+  - {name: Fanning, meaning: Handling each listed item.}
+  - {name: Reporting, meaning: Reporting the joined outcome.}
+  - {name: Done, meaning: Every item was handled., run_status: succeeded}
+  - {name: Failed, meaning: The fan-out failed., run_status: failed}
+signals:
+  - {name: Seed, trigger: A caller hands work over.}
+  - {name: Listed, trigger: The items are listed.}
+  - {name: ItemDone, trigger: One item was handled.}
+  - {name: AllDone, trigger: Every item succeeded or none was listed.}
+  - {name: Partial, trigger: Some items succeeded.}
+  - {name: SomeFailed, trigger: No item succeeded.}
+  - {name: Reported, trigger: The outcome is reported.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Idle, signal: Seed, next: Fanning, action: list_items, label: listed}
+  - state: Fanning
+    signal: Listed
+    next: Reporting
+    action: handle_item
+    for_each:
+      items: $from(listed).items
+      as: item
+      mode: parallel
+      failure: collect_all
+      continue_on: [ItemDone]
+      join:
+        next: Reporting
+        label: handled
+        signals: {all_success: AllDone, partial: Partial, failed: SomeFailed, empty: AllDone}
+  - {state: Fanning, signal: CommandError, next: Failed}
+  - {state: Reporting, signal: AllDone, next: Done, action: report}
+  - {state: Reporting, signal: Partial, next: Done, action: report}
+  - {state: Reporting, signal: SomeFailed, next: Failed}
+  - {state: Reporting, signal: Reported, next: Done}

@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-009: an exec tool maps exit codes to its own signals, one row parsing JSON.
+kind: tool-declaration
+schema_version: 1
+unit: exec-outcomes-example
+tools:
+  - name: lint_repo
+    category: word
+    visibility: internal
+    description: Lint the repository and say whether there was anything to do.
+    binary: sh
+    args: ["-c", "exit 3"]
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: ToolDone, message: builtin.Message<builtin.Text>}
+        - {signal: NothingToDo, message: builtin.Message<builtin.Text>}
+        - {signal: InputRejected, message: builtin.Message<builtin.Object>}
+        - {signal: ToolFailed, message: builtin.Message<builtin.Text>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+    outcomes:
+      - {exit: 0, signal: ToolDone}
+      - {exit: 3, signal: NothingToDo}
+      - {exit: [4, 5], signal: InputRejected, parse: json}
+      - {default: ToolFailed}

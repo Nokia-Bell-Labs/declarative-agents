@@ -1,0 +1,56 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The planner and the step tools the per-element expect fixtures dispatch to.
+kind: tool-declaration
+schema_version: 1
+unit: expect-fan-tools
+imports: [types.yaml]
+tools:
+  - name: plan_steps
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: List the steps, each an edit or a test.
+    config: {path: vector, signal: Planned}
+    signature:
+      input: builtin.Message
+      emits:
+        - {signal: Planned, message: builtin.Message<expect-fan-types.Plan>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: apply_edit
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Apply one edit and report the files it changed.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<expect-fan-types.Step>
+      emits:
+        - {signal: StepDone, message: builtin.Message<expect-fan-types.Report>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: run_tests
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Run one test step and report the files it touched.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<expect-fan-types.Step>
+      emits:
+        - {signal: StepDone, message: builtin.Message<expect-fan-types.Report>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}
+  - name: run_tests_bare
+    type: builtin
+    init: normalize_vector
+    category: word
+    visibility: internal
+    description: Run one test step and report only how many passed.
+    config: {path: vector, signal: StepDone}
+    signature:
+      input: builtin.Message<expect-fan-types.Step>
+      emits:
+        - {signal: StepDone, message: builtin.Message<expect-fan-types.TestReport>}
+        - {signal: CommandError, message: builtin.Message<builtin.Text>}

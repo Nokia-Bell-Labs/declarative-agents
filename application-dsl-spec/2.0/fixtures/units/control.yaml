@@ -1,0 +1,28 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A control template the adoption fixtures take whole: launch a server,
+# await the exit request, report how it ended.
+kind: machine
+schema_version: 1
+unit: control
+name: control
+purpose: Launch a control server, await the exit request, and report the ending.
+params:
+  - {name: server, type: string, description: The server the launch word starts.}
+  - {name: exit_signal, type: string, description: The signal that requests the exit.}
+initial_state: Launching
+states:
+  - {name: Launching, meaning: Starting the $param(server) control server.}
+  - {name: Awaiting,  meaning: Waiting for an exit request.}
+  - {name: Exiting,   meaning: An exit was requested., run_status: succeeded}
+  - {name: Failed,    meaning: The server failed or stopped., run_status: failed}
+terminal_states: [Exiting, Failed]
+signals:
+  - {name: ServerLaunched, trigger: The control server is up.}
+  - {name: $param(exit_signal), trigger: The exit was requested.}
+  - {name: CommandError, trigger: A word failed.}
+transitions:
+  - {state: Launching, signal: ServerLaunched, next: Awaiting}
+  - {state: Launching, signal: CommandError,   next: Failed}
+  - {state: Awaiting,  signal: $param(exit_signal), next: Exiting}
+  - {state: Awaiting,  signal: CommandError,   next: Failed}

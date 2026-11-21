@@ -18,15 +18,39 @@ const (
 type specVersion struct {
 	// Dir is the version directory, relative to the module root.
 	Dir string
+	// AuthoredTarget is the conformance target that binds what an author
+	// writes: "document" in 1.0, "specification" from 2.0.
+	AuthoredTarget string
+	// Gate selects how much of the audit the version takes.
+	Gate gateKind
 }
+
+// gateKind is how much of the audit a version takes.
+type gateKind int
+
+const (
+	// gateFull runs everything: schema, terminology, fixture coverage and
+	// ownership, constitution citations, every evidence entry, and the
+	// chapter render. It is for the version the engine implements.
+	gateFull gateKind = iota
+	// gateReduced checks what this repository can honestly check of a
+	// version its engine does not implement: schema, fixture coverage and
+	// ownership, fixture shape, and that every evidence reference resolves.
+	// It runs no fixture verdict, binds no constitution, and renders nothing.
+	gateReduced
+)
 
 // engineVersion is the revision the engine in this repository implements.
 // Its chapters render, its constitutions bind, and its evidence runs in full.
-var engineVersion = specVersion{Dir: "1.0"}
+var engineVersion = specVersion{Dir: "1.0", AuthoredTarget: "document", Gate: gateFull}
+
+// currentVersion is the current revision of the language. It publishes as
+// statements, fixtures, and a README.
+var currentVersion = specVersion{Dir: "2.0", AuthoredTarget: "specification", Gate: gateReduced}
 
 // specVersions lists every published revision the audit visits, oldest
 // first.
-var specVersions = []specVersion{engineVersion}
+var specVersions = []specVersion{engineVersion, currentVersion}
 
 // root is the version directory under moduleRoot.
 func (v specVersion) root(moduleRoot string) string {

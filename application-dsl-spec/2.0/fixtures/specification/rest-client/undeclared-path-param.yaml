@@ -1,0 +1,55 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-REST-001: an operation path uses a parameter it does not declare.
+kind: rest-definition
+schema_version: 1
+rest:
+  version: v1
+  limits:
+    tracker_api:
+      timeout: 30s
+  clients:
+    tracker:
+      base_url: https://tracker.example.com
+      limits_ref: tracker_api
+      resources:
+        issue:
+          path: /issues/{number}
+          operations:
+            get:
+              method: GET
+              params:
+                path:
+                  number: {type: integer}
+              success: {status: [200], signal: IssueRead}
+              failures:
+                - {status: [404], signal: IssueMissing}
+              side_effects:
+                - {kind: external_api, target: tracker.issue, state: read_only}
+              reversibility: {classification: reversible, undo: noop}
+      operations:
+        close_issue:
+          method: POST
+          path: /issues/{number}/close/{reason}
+          params:
+            path:
+              number: {type: integer}
+          success: {status: [200], signal: IssueClosed}
+          side_effects:
+            - {kind: external_api, target: tracker.issue, state: issue_closed}
+          reversibility: {classification: irreversible, undo: none, requires_confirmation: true}
+  servers:
+    control:
+      address: 127.0.0.1:0
+      endpoints:
+        approve:
+          method: POST
+          path: /approve/{id}
+          binding: emit_signal
+          signal: Approved
+          request:
+            path:
+              id: {type: string}
+          response:
+            output:
+              accepted: "true"

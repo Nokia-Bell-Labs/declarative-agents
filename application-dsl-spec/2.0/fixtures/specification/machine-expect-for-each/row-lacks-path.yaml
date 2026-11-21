@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-MACH-024: the test row's output has no files field for where to hold.
+kind: agent-profile
+schema_version: 1
+name: step-runner
+machine: ../../units/expect-for-each/machine-row-lacks-path.yaml
+tools: [../../units/expect-for-each/tools.yaml]
+tool_declarations: [../../units/expect-for-each/declarations.yaml]
+directory: .

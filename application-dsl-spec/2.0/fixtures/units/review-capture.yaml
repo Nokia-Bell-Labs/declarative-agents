@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# A template the compose-binding captured fixture includes: it declares the
+# reviewer parameter but composes the review template without passing it on,
+# so nothing binds the inner reviewer (R-MODEL-005).
+kind: machine
+schema_version: 1
+unit: review-capture
+name: review-capture
+purpose: Review a candidate, forgetting to hand the reviewer down.
+params:
+  - {name: reviewer, type: string, description: The tool that performs the review.}
+compose:
+  - template: review.yaml

@@ -1,0 +1,2710 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# =============================================================================
+# language.yaml
+# Application DSL Specification — normative statements
+# =============================================================================
+#
+# WHAT THIS FILE IS
+# -----------------
+# This is the machine-readable companion to the prose chapters in this
+# directory. Every requirement the specification makes is a statement here,
+# and nothing normative exists only in prose. The chapters cite statements
+# with `{{statement <id>}}` placeholders; the render target expands each
+# citation in place with a stable anchor, and the audit target fails when a
+# citation does not resolve, when a statement is never cited, or when a
+# statement's acceptance evidence is missing or failing.
+#
+# HOW TO READ EACH STATEMENT
+# --------------------------
+#   id          stable identifier, R-<CHAPTER TAG>-<NNN>. Identifiers are
+#               never renumbered or reused; constitutions, tests, and commits
+#               cite them.
+#   target      which conformance target the statement binds — one of the
+#               names under language.conformance_targets (chapter 01).
+#   level       RFC 2119 requirement level: MUST, MUST NOT, SHOULD,
+#               SHOULD NOT, or MAY.
+#   statement   the normative text itself.
+#   acceptance  at least one evidence entry proving the statement is checked:
+#                 assertion: fixture   a specification under fixtures/ with the
+#                                      named check applied and an expected
+#                                      verdict (valid or invalid)
+#                 assertion: go_test   a named Go test that must exist and
+#                                      pass, path relative to this directory
+#                 assertion: rig       a named Go test in the wider repository
+#                                      (path relative to the repository root)
+#                                      anchoring a runtime or population
+#                                      statement; the audit verifies the
+#                                      reference resolves to a declared test,
+#                                      and the repository's test and
+#                                      integration gates execute it
+#                 assertion: pending   evidence the statement lacks; `note`
+#                                      names what is missing. A pending entry
+#                                      is a known gap, not a check
+#   status      absent for a statement in force; `retired` for one the
+#               language no longer makes. A retired statement keeps its id and
+#               text, and `retired` names the release and the statements that
+#               replace it, if any. Its acceptance stays as the record of what
+#               was checked.
+#
+# Test paths (rig and go_test assertions) are relative to the repository
+# root.
+#
+language:
+  id: application-dsl
+  title: "A Domain-Specific Language for Agents"
+  version: 2.0.0
+  conformance_targets:
+    - specification
+    - processor
+    - runtime
+    - population
+
+statements:
+  - id: R-INTRO-001
+    target: specification
+    level: MUST
+    statement: >-
+      A conforming specification MUST be a single YAML document whose root node is
+      a mapping.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/root-mapping/valid.yaml
+        check: yaml_mapping
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/root-mapping/invalid.yaml
+        check: yaml_mapping
+        verdict: invalid
+
+  - id: R-INTRO-002
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST reject a specification whose root node is not a
+      mapping.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-INTRO-003
+    target: specification
+    level: MUST
+    statement: >-
+      A conforming specification MUST declare the `kind` keyname, naming
+      which document of the language it is, and the `schema_version`
+      keyname, whose value is 1 for every kind. The kinds are
+      `application-profile`, `agent-profile`, `machine`, `tool-selection`,
+      `tool-declaration`, `rest-definition`, `llm-configuration`, and
+      `channel-schema`. `machine-profile`, `stage-fragment`, and
+      `machine-template` are the deprecated predecessors of `machine`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/document-kind/valid.yaml
+        check: document_kind_header
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/document-kind/missing-kind.yaml
+        check: document_kind_header
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/document-kind/unknown-kind.yaml
+        check: document_kind_header
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/document-kind/wrong-version.yaml
+        check: document_kind_header
+        verdict: invalid
+
+  - id: R-INTRO-004
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST hold each specification to the kinds its
+      position accepts, reading `kind` and `schema_version` before the body:
+      an application-profile found by discovery declares
+      `application-profile`; an agent-profile, `agent-profile`; the machine
+      an agent-profile names and each `compose` template, `machine`; a tool
+      selection, `tool-selection`; a declaration unit, import, or fragment,
+      `tool-declaration`; a REST definition, `rest-definition`; a model
+      dialect, `llm-configuration`; and a channel's schema,
+      `channel-schema`. It MUST refuse a declared kind outside what the
+      position accepts, naming the file, the declared kind, and the
+      expected kinds; a kind outside the language; and a `schema_version`
+      other than 1. It MAY load a specification that declares no `kind`,
+      writing one warning that names the file and the kind it should
+      declare, and MAY load a deprecated machine kind the same way.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-INTRO-005
+    target: specification
+    level: MUST NOT
+    statement: >-
+      A conforming specification MUST NOT contain a YAML anchor, alias, or
+      merge key. A specification reuses structure only through the
+      language's declared forms, composition, fragments, and imports, which
+      provenance, the expansion record, and the reuse statistics see. A
+      conforming processor MUST refuse such a specification, naming the
+      file and each construct by line.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/yaml-purity/valid.yaml
+        check: yaml_purity
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/yaml-purity/anchors.yaml
+        check: yaml_purity
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MODEL-001
+    target: specification
+    level: MUST
+    statement: >-
+      A machine specification MUST either declare both `states` and
+      `transitions`, or declare neither and carry exactly one `compose`
+      entry, without `enter`, whose template it adopts whole.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-composition/body.yaml
+        check: machine_body_or_adoption
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-composition/adoption.yaml
+        check: machine_body_or_adoption
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-composition/no-body-no-compose.yaml
+        check: machine_body_or_adoption
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-composition/adoption-beside-another.yaml
+        check: machine_body_or_adoption
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-LCM-001
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST bind an agent-instance to exactly one
+      workspace at instantiation and MUST release the binding when the
+      agent-instance terminates.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-LCM-002
+    target: runtime
+    level: MUST
+    statement: >-
+      Terminating an agent-instance MUST NOT decommission its workspace; a
+      later agent-instance MAY bind the same workspace and resume its
+      identity.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: rig
+        path: agent-core/cmd/agent/run_identity_test.go
+        test: TestResolveRunIDFreshRunsDifferAndResumeRetainsID
+
+  - id: R-POP-001
+    target: population
+    level: MUST
+    statement: >-
+      Every agent-instance in a conforming population MUST realize an
+      agent-profile that a governing application-profile names among its
+      agent services.
+    acceptance:
+      - assertion: rig
+        path: applications/chatbot-mesh/magefiles/application_manifest_test.go
+        test: TestApplicationManifestDeclaresExactProductionRoots
+
+  - id: R-POP-002
+    target: population
+    level: MUST
+    statement: >-
+      In a conforming population, a deployment authority MUST rest with
+      exactly one agent-profile's instances, and an agent-instance that
+      decides operations MUST NOT hold the deployment authority those
+      operations act through. No processor checks this statement: the
+      language declares no authority a processor could compare across an
+      application, so it binds the population as deployed. Its evidence is
+      one test over one application, the chatbot mesh, which finds that no
+      agent service selects an exec tool whose binary is `helm` or
+      `kubectl`, or a shell whose arguments name either. That shows no
+      agent of that mesh holds the deployment authority by those binaries;
+      it does not show that exactly one profile's instances hold it.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: pending
+        note: >-
+          No processor check, and no declared authority field on a tool or
+          profile for one to read; nothing shows that exactly one profile's
+          instances hold a deployment authority, in this mesh or any other
+          application.
+
+  - id: R-POP-003
+    target: population
+    level: MUST
+    statement: >-
+      A workspace MUST be bound by at most one agent-instance at any time.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-POP-004
+    target: population
+    level: MAY
+    statement: >-
+      A conforming population MAY contain orphan workspaces; a workspace with
+      no bound agent-instance is a legal state that only an explicit
+      decommission removes.
+    acceptance:
+      - assertion: rig
+        path: applications/coding-agent/magefiles/integration_coding_loop_test.go
+        test: TestFreshWorkspaceIsPortableAndIsolated
+
+  - id: R-APP-001
+    target: specification
+    level: MUST
+    statement: >-
+      An application-profile specification MUST carry the `schema_version`,
+      `application`, and `services` keynames, and every `services` entry,
+      one agent service, MUST carry `id`, `ownership`, and `source`. The
+      application-level `ownership`, `module_status`, `capabilities`, and
+      `runtime`, and a service's `runtime_path`, are governance and
+      deployment binding a repository MAY keep and the language does not
+      require. `roots` is the older spelling of
+      `services`: a conforming processor MAY accept it with a warning, and
+      a specification MUST NOT declare both.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-keynames/valid.yaml
+        check: application_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-keynames/governance.yaml
+        check: application_required_keynames
+        verdict: valid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: fixture
+        path: fixtures/specification/application-keynames/invalid.yaml
+        check: application_required_keynames
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-keynames/services-and-roots.yaml
+        check: application_required_keynames
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-002
+    target: specification
+    level: MUST
+    statement: >-
+      An application-profile specification that declares `channels` MUST make it a
+      sequence of mappings, each carrying a lower-kebab `id` unique among the
+      channels and a non-empty `schema`; a `services` entry's `consumes` and
+      `emits`, when present, MUST be sequences that name no channel twice,
+      and its `budget`, when present, MUST be a positive integer.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-channels/valid.yaml
+        check: application_channel_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-channels/duplicate-channel.yaml
+        check: application_channel_shape
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-channels/negative-budget.yaml
+        check: application_channel_shape
+        verdict: invalid
+
+  - id: R-APP-003
+    target: specification
+    level: MUST
+    statement: >-
+      Every channel that a `services` entry names under `consumes` or `emits`
+      MUST be declared under the application-profile's `channels`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-channel-names/valid.yaml
+        check: application_channel_names
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-channel-names/undeclared-channel.yaml
+        check: application_channel_names
+        verdict: invalid
+
+  - id: R-APP-004
+    target: specification
+    level: MUST
+    statement: >-
+      Every channel an application-profile declares MUST be emitted by at
+      least one `services` entry and consumed by at least one `services` entry.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-closure/valid.yaml
+        check: application_channel_closure
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-closure/orphan-emit.yaml
+        check: application_channel_closure
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-closure/unfed-consumer.yaml
+        check: application_channel_closure
+        verdict: invalid
+
+  - id: R-APP-005
+    target: specification
+    level: MUST
+    statement: >-
+      Every cycle in an application-profile's emit/consume graph, whose edges
+      run from a `services` entry that emits a channel to each `services`
+      entry that consumes it, MUST pass through a `services` entry that
+      declares a `budget`. A channel whose `pattern` is `request-reply` or
+      `survey` is such an edge, from its requester or surveyor to its
+      replier or respondents, because the run that takes the request or the
+      question can emit onward; it adds no reverse edge, because its answer
+      returns within the exchange that asked for it. A cycle whose every
+      edge is a `request-reply` channel MUST NOT appear, whatever its
+      budgets: each requester on it waits on its reply while the cycle's
+      request comes back to it, and its one listener (R-APP-017) admits that
+      request only after the wait ends, so the cycle deadlocks. A declared
+      `budget` bounds each item chain independently of the instance count of
+      the agent services the chain passes through. The engine enforces the
+      budget (R-RUN-005).
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-budgets/valid.yaml
+        check: application_budgeted_cycles
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-budgets/unbudgeted-cycle.yaml
+        check: application_budgeted_cycles
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-budgets/cycle-avoiding-budget.yaml
+        check: application_budgeted_cycles
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-budgets/request-reply-budgeted.yaml
+        check: application_budgeted_cycles
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-budgets/request-reply-side-effect.yaml
+        check: application_budgeted_cycles
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-budgets/request-reply-only-cycle.yaml
+        check: application_budgeted_cycles
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-006
+    status: retired
+    retired: >-
+      The 2.0 revision retired `delivery` in favour of `pattern`
+      (R-APP-015): queue reads as `push-pull` and topic as
+      `publish-subscribe` for one release with a deprecation line, and is
+      refused after.
+    target: specification
+    level: MUST
+    statement: >-
+      A channel declared under an application-profile's `channels` MAY carry
+      the `delivery` keyname; when present its value MUST be `queue` or
+      `topic`, and an absent `delivery` means `queue`. Each item on a queue
+      channel is consumed once across the consuming agent services'
+      agent-instances; every consuming agent-instance receives each item on a topic channel.
+      `delivery` is the older spelling of two patterns (R-APP-015): `queue`
+      reads as `push-pull` and `topic` as `publish-subscribe`, so a channel
+      that declares only `delivery` keeps its meaning.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/retired/application-delivery/valid.yaml
+        check: application_channel_delivery
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/retired/application-delivery/unknown-delivery.yaml
+        check: application_channel_delivery
+        verdict: invalid
+
+  - id: R-APP-007
+    target: specification
+    level: MUST
+    statement: >-
+      A `services` entry MAY carry the `instances` keyname, a mapping whose
+      integer `min` and `max` bound how many agent-instances of that agent
+      service run at once; when present, `min` MUST be at least 0, `max` MUST be at
+      least 1, and `max` MUST NOT be below `min`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-instance-ranges/valid.yaml
+        check: application_instance_ranges
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-instance-ranges/max-below-min.yaml
+        check: application_instance_ranges
+        verdict: invalid
+
+  - id: R-APP-008
+    target: specification
+    level: MUST
+    statement: >-
+      A `services` entry whose `instances.max` exceeds one MUST NOT consume a
+      `publish-subscribe` channel: every one of its agent-instances would
+      receive each item, so a publish-subscribe channel is consumed only by
+      agent services that run a single agent-instance.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-topic-scaling/valid.yaml
+        check: application_topic_scaling
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-topic-scaling/scaled-topic-consumer.yaml
+        check: application_topic_scaling
+        verdict: invalid
+
+  - id: R-APP-009
+    status: retired
+    retired: >-
+      The 2.0 revision retired launched agent services and the
+      lifecycle launcher: the agent operator instantiates every agent service
+      from its Agent resource, so no agent service holds instantiation
+      authority over another and `launches` is refused.
+    target: specification
+    level: MUST
+    statement: >-
+      Every entry under a `services` entry's `launches` MUST name a declared
+      agent service other than the launcher itself, each target at most once
+      per launcher, and each launched agent service MUST have exactly one
+      launcher across the application-profile, so instantiation authority
+      for a launched agent service rests with one agent service.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/retired/application-launch-edges/valid.yaml
+        check: application_launch_edges
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/retired/application-launch-edges/undeclared-target.yaml
+        check: application_launch_edges
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/retired/application-launch-edges/two-launchers.yaml
+        check: application_launch_edges
+        verdict: invalid
+
+  - id: R-APP-010
+    target: specification
+    level: MUST
+    statement: >-
+      A channel declared under an application-profile's `channels` MAY
+      carry `transport`, one of `rest`, `ws`, or `udp`, absent meaning
+      `rest`; `reliability`, `at-most-once` or `at-least-once`, absent meaning
+      `at-most-once`; and `policy`, whose `rate_limit`, when present, MUST
+      be a positive integer followed by `/s`, items per second. A
+      conforming processor MUST refuse a channel whose transport it does
+      not run; the reference implementation runs `rest` alone.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-channel-attributes/valid.yaml
+        check: application_channel_attributes
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-channel-attributes/unknown-transport.yaml
+        check: application_channel_attributes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-channel-attributes/unknown-reliability.yaml
+        check: application_channel_attributes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-channel-attributes/bad-rate-limit.yaml
+        check: application_channel_attributes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-channel-attributes/unimplemented-transport.yaml
+        check: application_channel_attributes
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-011
+    target: specification
+    level: MUST
+    statement: >-
+      The specification a channel's `schema` names MUST declare kind
+      `channel-schema`; it describes the item the channel carries, and a
+      listener refuses an item that does not satisfy it. The
+      whole-application check holds the schema to its kind and compares no
+      message types: each agent's load holds the actions on its side of
+      the channel to the schema (R-TOOL-003), and the listener holds each
+      item to it at delivery (R-TOOL-004).
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/channel-schema-kind/valid.yaml
+        check: channel_schema_kind
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/channel-schema-kind/wrong-kind.yaml
+        check: channel_schema_kind
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-012
+    target: processor
+    level: MUST
+    statement: >-
+      While a declared channel joins an emitting agent service to a
+      consuming one, a conforming processor that checks the application
+      with its files MUST refuse a REST client operation the emitter
+      declares whose method and path equal an endpoint the consumer's REST
+      servers declare, naming both agent services, the tool, the route, and
+      the channel: the item belongs on the channel, and a hand-written edge
+      beside it is how declared and actual traffic diverge. The check reads
+      declarations only: the client operations and server endpoints in the
+      `rest_definitions` each agent service's profile references by a path
+      relative to it, and in those of the request profiles its servers
+      bind, with the method and the path compared as written. It does not
+      see a definition referenced by an absolute path or one resolved at run
+      time (`${...}`), a client's base URL or host, a call from the consumer
+      back to the emitter, a pair of agent services no channel joins, the
+      engine's own `/channels/<id>` routes, an exec tool's program
+      (R-TOOL-009), or a builtin tool that is not a REST client.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-013
+    status: retired
+    retired: >-
+      The 2.0 revision retired the budget guard
+      convention: the engine enforces a declared `budget` on the item chains
+      that cross it, and the manifest check no longer reads machines for it.
+      Replaced by R-RUN-005.
+    target: processor
+    level: MUST
+    statement: >-
+      An agent service that declares a `budget` and emits a channel on a
+      cycle back to itself (R-APP-005) MUST enforce the budget with a guard
+      its machine cannot bypass: a counter with a start, whose branch under
+      the limit leads to the send on that channel, whose branch at the limit
+      leads to no send on any cycle channel, which every path to such a
+      send passes, and whose limit is the declared budget written in the
+      specification rather than supplied at dispatch. A conforming
+      processor MUST refuse an agent service whose closure breaks any of
+      these, naming the agent service, the guard, and the channel.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-014
+    status: retired
+    retired: >-
+      The 2.0 revision retired the launch guard with the launched
+      agent services it guarded (R-APP-009).
+    target: processor
+    level: MUST
+    statement: >-
+      Only the launcher of a launched agent service (R-APP-009) MAY start
+      it: a conforming processor MUST refuse a start tool (`start_service`) for a launched
+      agent service in the closure of any other agent service, naming both
+      and the tool. The launcher of a launched agent service that declares
+      `instances` MUST declare a start tool for it, and a bound the launcher
+      gives, the start tool's maximum or the lifecycle-launcher fragment's
+      minimum and maximum, MUST equal the declared range; a bound left out
+      takes the range.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-015
+    target: specification
+    level: MUST
+    statement: >-
+      A channel declared under an application-profile's `channels` MAY carry
+      the `pattern` keyname; when present its value MUST be one of
+      `request-reply` (many requesters, one replier, each request
+      answered), `publish-subscribe` (one publisher, many subscribers),
+      `push-pull` (a load-balanced pipeline), or `survey` (one surveyor,
+      answers collected until a deadline). A channel that declares no
+      `pattern` is a direct channel: each emitter posts to its consumers, and
+      each item is consumed once. An agent service's side of a pattern
+      follows from its `emits` and `consumes`: the requester, publisher,
+      pusher, and surveyor emit; the replier, subscriber, puller, and
+      respondent consume.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-patterns/valid.yaml
+        check: application_channel_patterns
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-patterns/unknown-pattern.yaml
+        check: application_channel_patterns
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-016
+    target: specification
+    level: MUST
+    statement: >-
+      A `services` entry MAY carry the `listens` keyname, naming the pattern
+      channels it listens on; a listening agent service serves the channel
+      at a stable address and every other agent service on the channel
+      dials it. Each channel that declares a `pattern` MUST have exactly one
+      listening agent service among the agent services that emit or consume
+      it; `listens` MUST name only channels that declare a `pattern` and
+      that the agent service emits or consumes; and the listener of a
+      `request-reply` channel MUST be its replier, the agent service that
+      consumes it.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-listeners/valid.yaml
+        check: application_channel_listeners
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-listeners/missing-listener.yaml
+        check: application_channel_listeners
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-listeners/two-listeners.yaml
+        check: application_channel_listeners
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-listeners/listener-off-channel.yaml
+        check: application_channel_listeners
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-listeners/requester-listens.yaml
+        check: application_channel_listeners
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/application-listeners/listens-without-pattern.yaml
+        check: application_channel_listeners
+        verdict: invalid
+
+  - id: R-APP-017
+    target: specification
+    level: MUST
+    statement: >-
+      An agent service that listens on a `request-reply`,
+      `publish-subscribe`, or `survey` channel MUST NOT declare an
+      `instances.max` above one: the reply store that answers a resend once,
+      the feed read by cursor, and the open surveys live in one listener
+      process, and every instance of an agent service shares its address. A
+      `push-pull` listener is not restricted.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/application-scaled-listeners/valid.yaml
+        check: application_scaled_listeners
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/application-scaled-listeners/scaled-listener.yaml
+        check: application_scaled_listeners
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-018
+    target: processor
+    level: MUST
+    statement: >-
+      Nothing is networked unless the application declares it: an
+      `action_channels` entry on a network transport (R-PROF-005) MUST name
+      a channel the application-profile declares and the entry's agent
+      service emits. A conforming processor MUST
+      refuse any other network action, naming the agent service, the
+      action, and the channel, both when it checks the application and when
+      it loads the agent. An application whose agent services declare no
+      network action is a monolith, and every action in it stays local.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-APP-019
+    target: processor
+    level: MUST
+    statement: >-
+      An agent service MAY declare the fields of the Agent resource an
+      operator runs it as, under the Agent's own names: a `mode` of service
+      or task, `scaling` for a service agent, a `profile` and an
+      `application` manifest as `<package>:<path>`, the `packages` it
+      mounts, its `instances`, and its `bindings`, listeners, telemetry,
+      workspace, environment, volumes, resources, service account, flags,
+      and termination grace period, and the `runtime` it runs on, by the
+      name of one of the manifest's `runtimes`, each an image named by tag.
+      A service that declares a mode MUST list its packages, profile, and
+      instances, and a conforming processor MUST refuse one whose profile,
+      application manifest, or workspace asset names a package it does not
+      list, one with bindings and no application manifest, one naming a
+      runtime the manifest does not declare, a runtime declared twice or
+      by digest, and a service that declares any of these fields without a
+      mode. Package and runtime images' digests never appear in the
+      manifest; the lock supplies them.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-PROF-001
+    target: specification
+    level: MUST
+    statement: >-
+      An agent-profile specification MUST carry the `name` and `machine` keynames,
+      each a non-empty string; `machine` references the machine specification
+      the agent-instance executes.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/profile-keynames/valid.yaml
+        check: profile_required_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/profile-keynames/invalid.yaml
+        check: profile_required_keynames
+        verdict: invalid
+
+  - id: R-PROF-002
+    status: retired
+    retired: >-
+      The 2.0 revision retired agent blueprints; no statement replaces this one.
+    target: specification
+    level: MUST
+    statement: >-
+      An agent-profile specification that expands a blueprint MUST carry the
+      `name` keyname and exactly one expansion entry, and that entry MUST NOT
+      carry the `as` keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/retired/profile-expansion/valid.yaml
+        check: profile_expansion_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/retired/profile-expansion/invalid.yaml
+        check: profile_expansion_shape
+        verdict: invalid
+
+  - id: R-PROF-003
+    status: retired
+    retired: >-
+      The 2.0 revision retired agent blueprints; no statement replaces this one.
+    target: specification
+    level: MUST NOT
+    statement: >-
+      A blueprint MUST NOT carry an expansion; a specification carrying the
+      `params` and `profile` keynames is a blueprint, and is not itself an
+      agent-profile specification.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/retired/blueprint-body/valid.yaml
+        check: blueprint_body_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/retired/blueprint-body/invalid.yaml
+        check: blueprint_body_shape
+        verdict: invalid
+
+  - id: R-PROF-004
+    target: processor
+    level: MUST
+    statement: >-
+      For each channel an agent service consumes, a conforming processor
+      MUST give the agent's machines the channel's arrival, decided by the
+      agent service's side of the wiring rather than by any channel
+      attribute. A dialing consumer takes items with a receive tool for the
+      channel, emitting `Received` with the item or `Empty` after a bounded
+      wait, which some machine in the agent's closure MUST call. A listening
+      consumer of a direct or `push-pull` channel takes them with that
+      receive tool when some machine in its closure calls it; otherwise, as
+      the listening replier of a `request-reply` channel always does, it
+      takes each item as a signal named for the channel, which the machine
+      MUST declare and handle in its initial state, where an arrival starts
+      a run. A machine MUST NOT call a receive tool for a channel its agent
+      service does not consume. It MUST refuse an agent that breaks any of
+      these rules, naming the agent service, the channel, and the signal and
+      state where they apply, both when the agent starts and when its
+      configuration is validated.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-PROF-005
+    target: specification
+    level: MUST
+    statement: >-
+      An agent-profile specification MAY carry `action_channels`, a
+      sequence of entries that each move one action off its implied
+      transport. Each entry MUST carry `action` and `transport`, one of
+      `function` (in the engine's process), `process` (a child process or
+      child agent), or a network transport, `rest`, `ws`, or `udp`. A
+      network entry MUST name under `channel` the channel that carries the
+      action; a local entry MUST NOT name a channel and MAY carry
+      `policy.rate_limit`, written as for a channel (R-APP-010). An action
+      MUST appear in at most one entry, and an action no entry names keeps
+      its implied transport.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/profile-action-channels/valid.yaml
+        check: profile_action_channels
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/profile-action-channels/network-without-channel.yaml
+        check: profile_action_channels
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/profile-action-channels/local-with-channel.yaml
+        check: profile_action_channels
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/profile-action-channels/duplicate-action.yaml
+        check: profile_action_channels
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/profile-action-channels/unknown-transport.yaml
+        check: profile_action_channels
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-PROF-006
+    target: processor
+    level: MUST
+    statement: >-
+      The initiating half of an exchange is an action in the profile
+      (`action_channels`); the completing half of an exchange another agent
+      service initiated stays an engine word. A conforming processor MUST
+      refuse an agent whose closure selects a synthesized word that opens an
+      exchange, `request_`, `send_`, `publish_`, or `survey_` followed by a
+      channel id, naming the word, the channel, and the `action_channels`
+      entry that replaces it. The completing-side `receive_` and `respond_`
+      words remain. `reply_` is retired, since a listener run answers with
+      its outcome (R-MODEL-006), and a processor MUST refuse a machine that
+      calls it.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-001
+    target: specification
+    level: MUST
+    statement: >-
+      A machine specification that declares its own body MUST carry the
+      `name` keyname, and its `states` and `transitions` MUST be sequences.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-keynames/valid.yaml
+        check: machine_body_keynames
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-keynames/invalid.yaml
+        check: machine_body_keynames
+        verdict: invalid
+
+  - id: R-MACH-002
+    status: retired
+    retired: >-
+      The 2.0 revision replaced the
+      template instance with adoption: a machine with no states of its own
+      composes one template whole. Replaced by R-MODEL-001.
+    target: specification
+    level: MUST
+    statement: >-
+      A machine-profile specification that declares no body MUST carry only the
+      `unit`, `name`, `purpose`, and `expand` keynames, and its expansion
+      entry MUST NOT carry the `as` keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/retired/machine-instance-header/valid.yaml
+        check: machine_instance_header
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/retired/machine-instance-header/invalid.yaml
+        check: machine_instance_header
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineInstanceCarriesOnlyItsHeader
+
+  - id: R-MACH-003
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST run only a machine: a machine specification
+      that binds every parameter, names a start state under `initial_state`,
+      and names at least one final state under `terminal_states`. It MUST
+      refuse to run a specification that leaves a parameter open or lacks
+      either state, naming what is missing; such a specification is a
+      template, which other machine specifications compose.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-004
+    target: specification
+    level: MUST NOT
+    statement: >-
+      A machine specification MUST NOT carry the `imports` or `expand`
+      keynames; a machine reuses other machines only by composing them.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-reuse/composes.yaml
+        check: machine_reuses_by_composition
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-reuse/expands.yaml
+        check: machine_reuses_by_composition
+        verdict: invalid
+
+  - id: R-MACH-005
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST raise the loop signals itself, in
+      whatever state the run is in and whatever any word declares: `Seed`
+      when a run starts, carrying the request seed for a machine an endpoint
+      dispatches; `CommandError` when a word, or the exchange that carries
+      it, fails; and `BudgetExhausted` when the machine's iteration or
+      token budget, or a bounded retry, is spent. A transition on a loop
+      signal is therefore live in every state.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_BudgetExhausted
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_TokenBudgetExhausted
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-006
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST give the engine's other reserved signals
+      one meaning each. `ArgumentsRejected` reaches the target of a `$tool`
+      transition whose chosen tool's arguments do not conform, and the tool
+      did not run. `<Id>Received`, the channel id in upper camel case, is an
+      item arriving on a channel the agent service consumes (R-PROF-004).
+      A network action answers with `Replied` or `SendFailed` on a
+      `request-reply` channel when no local tool gives it a contract, with
+      `Sent` or `Dropped` on a one-way channel, adding `ChainExhausted` on
+      a budgeted agent service's cycle channel (R-RUN-005), and with
+      `Answers` or `Deadline` on a `survey` channel; the completing-side words answer
+      with `Received` or `Empty` (`receive_`) and `Sent` (`respond_`); and a
+      listener run answers with its outcome, `ToolDone` or `ToolFailed`
+      (R-MODEL-006, R-PROF-006).
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-RUN-005
+    target: runtime
+    level: MUST
+    statement: >-
+      The engine enforces each declared `budget` (R-APP-005) on the item
+      chains that cross it. A delivery on a channel that can bring an item
+      back to its emitter, a `request-reply` request and a `survey` question
+      included, carries the chain's remaining hop count beside the item,
+      never inside it, and the run the delivery starts, or the run that
+      takes it, holds that count. An agent service that declares a `budget`
+      starts an uncounted chain at its budget and otherwise spends one hop on
+      each such send, never raising the count above its budget; any other
+      agent service passes the count on unchanged. When a budgeted agent
+      service's send would leave the chain no hop, nothing is delivered: a
+      one-way send answers `ChainExhausted` (R-MACH-006), and a request or a
+      survey fails, each naming the channel and the budget. The budget bounds
+      each chain's depth, not its volume: every copy a send delivers carries
+      the same count, so an agent service that sends k items per arrival can
+      cause on the order of k^budget deliveries. A loop that closes through
+      state one agent service stores and another reads in an unrelated later
+      run carries no count and is outside the bound.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-RUN-007
+    target: runtime
+    level: MUST
+    statement: >-
+      A listener admits an item on a channel only from one of the channel's
+      declared emitters, named by the request's `Loom-Root` header, and
+      refuses any other root with status 403. When the application's
+      channel key is configured, as `LOOM_CHANNEL_KEY` or the file
+      `LOOM_CHANNEL_KEY_FILE` names, every request an agent service dials to
+      a listener MUST carry an HMAC-SHA256 signature under that key over its
+      method, its path and query (which name the channel), its emitter
+      root, hop count, request id, and respondent headers, its body, a
+      timestamp, and a nonce, and the listener MUST refuse with the same 403
+      a request that is unsigned, signed under another key or over other
+      contents, timestamped more than two minutes from the listener's
+      clock, or carrying a nonce it accepted within that window. A key
+      named by `LOOM_CHANNEL_KEY_FILE` that cannot be read refuses the
+      start. With no key configured the listener admits on the header
+      alone and MUST say so once at startup, naming its address and root.
+      The key stops a process outside the application from injecting an
+      item under an emitter's id. It does not tell the application's agent
+      services apart: every one holds the key and can sign as any root, an
+      exec tool's program inherits it with the agent's environment and
+      files (R-TOOL-009), and the agents of one application are trusted
+      with each other's ids. It does not encrypt an item, authenticate the
+      lifecycle routes, or cover the agent operator's intake, which accepts
+      a task agent's item unsigned and signs it at delivery.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-007
+    target: specification
+    level: MUST NOT
+    statement: >-
+      A machine declares a reserved signal under `signals` only to route
+      the engine's signal, and routing it gives it the engine's meaning. A
+      machine MUST NOT route a reserved signal where the engine cannot
+      raise it: the loop signals and a consumed channel's arrival reach any
+      state, `ArgumentsRejected` only the target of a `$tool` transition,
+      and a word's outcome only the target of a transition that calls that
+      word. A transition on a reserved signal anywhere else is dead, and a
+      conforming processor refuses it.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessAcceptsExternallyInjectedSignals
+      - assertion: pending
+        note: >-
+          No fixture exercises the rule, because the fixture checks load a
+          machine without its tools, and liveness needs the tools' emits.
+          A check that loads a machine with a declaration unit would give
+          this statement a valid and an invalid fixture.
+
+  - id: R-MACH-008
+    target: specification
+    level: MUST
+    statement: >-
+      A template or a declaration fragment MAY reference a parameter it
+      declares as `$param(name)`. A reference MUST stand inside a scalar
+      value, never as a mapping name or as list structure, so an argument
+      cannot add a key, an entry, or a tool, and substitution gives the
+      scalar the parameter's type. A reference reaches only the parameters
+      of the document it appears in; a nested template receives a value only
+      through its compose entry's `args` (R-MODEL-005). A conforming
+      processor MUST refuse a reference to an undeclared parameter and one
+      left after substitution, naming the document and the line.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/param-reference/valid.yaml
+        check: param_reference
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/param-reference/undeclared.yaml
+        check: param_reference
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/param-reference/mapping-name.yaml
+        check: param_reference
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/fragments/substitute_test.go
+        test: TestSubstituteFillsScalarHolesWithTheirTypes
+      - assertion: rig
+        path: agent-core/internal/fragments/substitute_test.go
+        test: TestSubstituteIgnoresEnvironmentAndSelectorForms
+
+  - id: R-MACH-009
+    target: processor
+    level: MUST
+    statement: >-
+      A selector `$from(label).path`, or `$from(label:Signal).path`, reads
+      the output of the newest completed step the label addresses: a
+      transition's `label`, or the name of the command it ran, so an
+      unlabeled step answers to its command name and a `$tool` step keeps
+      its label whichever tool ran. `:Signal` narrows the read to the output
+      the step produced with that signal, and `.path` names a field of that
+      output's type. A conforming processor MUST refuse, before any run, a
+      selector whose label no step on a path to it publishes, whose signal
+      the step does not emit, or whose path a message the step may produce
+      lacks.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/selector_test.go
+        test: TestParseSelectorGrammar
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/selector_labels_test.go
+        test: TestValidateSelectorLabelsReportsUnknownToolLabel
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/selector_labels_test.go
+        test: TestMachineLabelsAddressesUnlabeledTransitionByCommandName
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/selector_paths_test.go
+        test: TestValidateSelectorPathsRejectsAFieldTheTypeLacks
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-010
+    target: processor
+    level: MUST
+    statement: >-
+      A transition whose action is `$tool` runs the tool the model chose in
+      the state it leaves. The tools valid there are the external tools
+      that transition can dispatch whose every declared signal its target
+      state routes, or whose target is final; the manifest the model sees
+      lists exactly those. A conforming processor MUST refuse, before the
+      tool runs, a chosen tool outside that set with `ParseFailed`, naming
+      an out-of-state tool apart from an unknown one, and MUST land
+      arguments that do not conform to the chosen tool's input type on
+      `ArgumentsRejected` at the target state, which the machine MUST route
+      (R-MACH-006).
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_test.go
+        test: TestDeriveDynamicToolPhasesScopesExternalToolsByRoutableSignals
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_test.go
+        test: TestApplyDynamicToolPhasesFiltersRegistryManifest
+      - assertion: rig
+        path: agent-core/internal/tools/llm/parse_response_test.go
+        test: TestParseResponseRejectsOutOfStateTool
+      - assertion: rig
+        path: agent-core/internal/tools/llm/parse_response_test.go
+        test: TestParseResponseUnknownToolStillReportsUnknown
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-011
+    target: specification
+    level: MUST
+    statement: >-
+      Each entry under `transitions` MUST carry `state`, `signal`, and
+      `next`, each naming a state or signal the machine declares, and a
+      machine MUST NOT declare two transitions that leave one state on one
+      signal. `action` MAY name a tool, MAY be `$tool` (R-MACH-010), or MAY
+      be absent, in which case the machine moves to `next` running nothing.
+      `label`, when present, MUST be a non-empty address with no dot,
+      parenthesis, or whitespace (R-MACH-009); `summary` and
+      `report_output` read an action's output, so a transition carrying
+      either MUST carry an `action`.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-transitions/valid.yaml
+        check: machine_transitions
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-transitions/undeclared-next.yaml
+        check: machine_transitions
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-transitions/duplicate-pair.yaml
+        check: machine_transitions
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-transitions/bad-label.yaml
+        check: machine_transitions
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-transitions/summary-without-action.yaml
+        check: machine_transitions
+        verdict: invalid
+
+  - id: R-MACH-012
+    target: specification
+    level: MUST
+    statement: >-
+      `states` and `signals` MAY mix the short form, a name, and the long
+      form, a mapping with `name` and its prose (`meaning` or `trigger`);
+      names MUST be non-empty and unique. `initial_state` and every entry
+      of `terminal_states` MUST name a declared state, each terminal state
+      once. A state MUST carry `run_status` exactly when it is terminal:
+      `terminal_states` and the per-state `run_status` state the same fact
+      twice, and the redundancy is deliberate, so a checker can catch the
+      two disagreeing.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-states/valid.yaml
+        check: machine_states
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-states/run-status-not-terminal.yaml
+        check: machine_states
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-states/terminal-not-a-state.yaml
+        check: machine_states
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-states/duplicate-state.yaml
+        check: machine_states
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-states/initial-not-a-state.yaml
+        check: machine_states
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_policy_test.go
+        test: TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+
+  - id: R-MACH-013
+    target: processor
+    level: MUST
+    statement: >-
+      A machine's `budget` MAY carry `max_iterations`, `command_timeout`,
+      `max_tokens`, `max_duration`, and `max_consecutive_parse_errors`, and
+      nothing else. A conforming processor MUST refuse to run a machine
+      whose budget lacks a positive `max_iterations` or a `command_timeout`;
+      it MUST raise `BudgetExhausted` when the iterations, the tokens, or
+      the consecutive parse failures are spent (R-MACH-005), bound every
+      dispatch by `command_timeout`, and cancel the run when `max_duration`
+      elapses. Once the budget is spent the loop raises `BudgetExhausted`
+      at every following step, whatever a word answers, so after
+      exhaustion a run walks only the machine's `BudgetExhausted`
+      transitions: a chain through working states that reaches a terminal
+      state, or a state without such a transition, ends the run, but a
+      cycle does not. A conforming processor MUST refuse a machine whose
+      `BudgetExhausted` transitions cycle through working states, naming
+      the cycle.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-budget/valid.yaml
+        check: machine_budget
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-budget/unknown-limit.yaml
+        check: machine_budget
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-budget/exhaustion-chain.yaml
+        check: machine_budget
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-budget/exhaustion-cycle.yaml
+        check: machine_budget
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_policy_test.go
+        test: TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_BudgetExhausted
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_TokenBudgetExhausted
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/parse_retry_test.go
+        test: TestValidateParseRetryWiringRequiresExhaustionRouteFromReportDestination
+
+  - id: R-MACH-014
+    target: specification
+    level: MUST
+    statement: >-
+      `summary_signal`, when present, MUST name a declared signal; the
+      output of the step that raised it becomes the run's summary, as the
+      output of a transition marked `summary` does. A machine that declares
+      `AwaitApproval` suspends for an operator and MUST declare
+      `resume_signal`, naming the declared signal a resumed run continues
+      on.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-run-signals/valid.yaml
+        check: machine_run_signals
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-run-signals/undeclared-summary-signal.yaml
+        check: machine_run_signals
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-run-signals/undeclared-resume-signal.yaml
+        check: machine_run_signals
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_policy_test.go
+        test: TestValidateMachinePolicyRequiresResumeSignalAndIterationBudget
+
+  - id: R-MACH-015
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST check a machine against the tools it
+      selects before any run, both ways. Every signal a transition awaits
+      MUST be able to arrive in its state: emitted by an action whose
+      transition enters it, produced by a `for_each` join, raised by the
+      loop (R-MACH-005), or injected from outside (R-PROF-004); a
+      transition on any other signal is dead and refused. Every signal an
+      action declares it emits MUST be handled by a transition from the
+      state the action enters, unless that state is final; a machine that
+      declares `on_failure.require_routes` runs no action into a final state
+      (R-MACH-025).
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-exhaustiveness/valid.yaml
+        check: machine_exhaustiveness
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-exhaustiveness/emit-unrouted.yaml
+        check: machine_exhaustiveness
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-exhaustiveness/transition-dead.yaml
+        check: machine_exhaustiveness
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-exhaustiveness/valid-emit-into-final.yaml
+        check: machine_exhaustiveness
+        verdict: valid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessAcceptsATotalMachine
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessReportsADeadTransition
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessAcceptsJoinSignals
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/exhaustiveness_test.go
+        test: TestExhaustivenessAcceptsExternallyInjectedSignals
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_from_stl_test.go
+        test: TestValidateToolEmitsMissingFollowupTransition
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/emits_from_stl_test.go
+        test: TestValidateToolEmitsTerminalTargetSkipsFollowup
+
+  - id: R-MACH-016
+    target: specification
+    level: MUST
+    statement: >-
+      A transition MAY carry `for_each`, which runs its `action` once per
+      element of an array. `items` MUST be a `$from(label).path` selector
+      over a prior step's output: the specification names the action and
+      the binding, and runtime data can choose neither an action nor an
+      expression. `as` binds each element while it is dispatched, an object
+      at `$from(as).field` and a scalar at `$from(as).value`. `mode` is
+      `sequential`, the default, or `parallel`, which MUST carry a positive
+      `max_concurrency` that `sequential` MUST NOT carry. `failure` is
+      `fail_fast`, the default, or `collect_all`; `continue_on` MUST name at
+      least one signal that counts an element as done, `abort_on` names
+      signals that stop the fan-out, and `fail_on` MUST appear only with
+      `collect_all`. `join` names its `next` state, an optional `label`, and
+      the signals for `all_success`, `failed`, and `empty`, plus `partial`,
+      which `collect_all` MUST name; each MUST be declared, and each MUST be
+      routed from `join.next` unless that state is final. `body`, when
+      present, MUST be a `$from(as).path` selector into the bound element;
+      each step is then built with the selected value as its input body.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/valid.yaml
+        check: machine_for_each
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/items-not-selector.yaml
+        check: machine_for_each
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/parallel-without-bound.yaml
+        check: machine_for_each
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/bound-in-sequential.yaml
+        check: machine_for_each
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/collect-all-without-partial.yaml
+        check: machine_for_each
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/join-signal-unrouted.yaml
+        check: machine_for_each
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/no-continue-signal.yaml
+        check: machine_for_each
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/body.yaml
+        check: machine_for_each
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each/body-other-label.yaml
+        check: machine_for_each
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: rig
+        path: agent-core/internal/runtime/core/iterator_spec_test.go
+        test: TestMachineSpecForEachValidation
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-017
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST dispatch each element as an ordinary step,
+      with its own trace, checkpoint entry, receipt, cancellation, and
+      budget iteration, and MUST reduce the outcomes in input order whatever
+      order parallel work finishes in, never running more than
+      `max_concurrency` at once. `fail_fast` cancels the elements still
+      running and waits for them before the join; an empty array joins at
+      once on `empty`; a resumed run continues after the last element its
+      checkpoint recorded. The join records one step holding the ordered
+      outcomes and their counts under its `label`, then raises the signal
+      its outcome selects. When a composed template's `exit` maps the state
+      a join lands on, the join lands on the mapped host state
+      (R-MODEL-005).
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachDispatchesItemsInOrderAndJoins
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachEmptyCollectionJoinsDirectlyToTerminal
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachResumeContinuesAfterLastPersistedItem
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachCollectAllJoinsPartialInInputOrder
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_test.go
+        test: TestLoopForEachAbortSignalStopsCollectAll
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_parallel_test.go
+        test: TestLoopParallelForEachIsBoundedAndJoinsInInputOrder
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_iterator_parallel_test.go
+        test: TestLoopParallelForEachFailFastCancelsAndJoinsChildren
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-018
+    target: specification
+    level: MUST
+    statement: >-
+      A `for_each` MAY carry `dispatch`, which routes each element to the
+      tool its `field` value selects from `actions`, in place of the
+      transition's `action`; exactly one of the two MUST route the fan-out.
+      The element type MUST be decided, and its `field` MUST be an enum whose
+      values equal the `actions` keys in both directions, with no default
+      row, so runtime data selects among declared tools and never names
+      one. Every `actions` value MUST be a tool the profile selects whose
+      input accepts the element, and MUST NOT be `$tool`; when the element
+      type is a discriminated union (R-TOOL-002) and `field` is its
+      discriminator, the keys are the variants' values and each row's
+      input MUST accept the variant its key selects. Every signal a
+      dispatched tool emits MUST be named in `continue_on`, `abort_on`, or
+      `fail_on`, checked per tool. Each element runs as an ordinary step
+      under R-MACH-017, and the join records the tool each element ran.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-dispatch/valid.yaml
+        check: machine_for_each_dispatch
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-dispatch/action-and-dispatch.yaml
+        check: machine_for_each_dispatch
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-dispatch/enum-value-unrouted.yaml
+        check: machine_for_each_dispatch
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-dispatch/dispatch-key-dead.yaml
+        check: machine_for_each_dispatch
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-dispatch/undeclared-tool.yaml
+        check: machine_for_each_dispatch
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-dispatch/dispatched-signal-unrouted.yaml
+        check: machine_for_each_dispatch
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-dispatch/tool-variable-value.yaml
+        check: machine_for_each_dispatch
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-019
+    target: specification
+    level: MUST
+    statement: >-
+      A `for_each` over the calls a `parse_calls` step lists MUST dispatch
+      on `tool`, its `actions` keys MUST equal the word's declared `tools`,
+      and each row MUST run the tool its key names. `parse_calls` lists
+      every call of a model reply in reply order and refuses the whole
+      reply when a call is malformed or names a tool outside `tools`
+      (ParseFailed), or when a tool's input refuses its call's parameters
+      (ArgumentsRejected), so each listed call already fits the tool its
+      row runs. With `body: $from(as).parameters`, each step receives its
+      call's parameters as its input body, as a `$tool` dispatch does.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-call-dispatch/valid.yaml
+        check: machine_call_dispatch
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-call-dispatch/row-runs-another-tool.yaml
+        check: machine_call_dispatch
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-call-dispatch/call-unrouted.yaml
+        check: machine_call_dispatch
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-020
+    target: specification
+    level: MUST
+    statement: >-
+      A `for_each` that carries `dispatch` MAY carry `order`, a sequence
+      contract over its kinds: `precedes` lists pairs `{before, after}`, and
+      an array keeps the contract when no element of a pair's `after` kind
+      comes ahead of an element of its `before` kind. `order` without
+      `dispatch` MUST be refused. Each pair MUST name two distinct
+      `dispatch.actions` keys; a pair need not mention every kind.
+      `refused` MUST be a declared signal, and the join state MUST route it
+      unless that state is terminal. A conforming runtime MUST check the
+      whole array before any element runs; an array that breaks the
+      contract runs no element and lands at the join on `refused`, recorded
+      as one join step whose output names the broken pair and the indices
+      of its two elements. Runtime data cannot alter the contract.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-order/valid.yaml
+        check: machine_for_each_order
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-order/order-without-dispatch.yaml
+        check: machine_for_each_order
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-order/undeclared-kind.yaml
+        check: machine_for_each_order
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-order/refused-unrouted.yaml
+        check: machine_for_each_order
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-for-each-order/refused-undeclared.yaml
+        check: machine_for_each_order
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-021
+    target: specification
+    level: MUST
+    statement: >-
+      A transition with an action MAY carry `expect`, holding its result body
+      to more than its type: `where` maps body fields to refinements, and
+      `otherwise` names the `signal` raised for a body outside them and
+      whether the result is put in `quarantine`. Every field `where` names
+      is required. A refinement MUST use only the declaration type subset
+      without references or unions, plus `min_items` and `max_items` on an
+      array and `min` and `max` on a number, with no lower bound above its
+      upper bound; it is static data, and a selector anywhere in it MUST be
+      refused. When the action's output type is decided, every field path
+      `where` names MUST exist in it and every `enum` value MUST be one the
+      type allows. `expect` on a transition with neither an action nor
+      `for_each` MUST be refused; on a `for_each`, R-MACH-024 applies.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-expect/valid-quarantine.yaml
+        check: machine_expect
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect/valid-soft.yaml
+        check: machine_expect
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect/where-outside-subset.yaml
+        check: machine_expect
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect/from-in-where.yaml
+        check: machine_expect
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect/where-field-absent.yaml
+        check: machine_expect
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-022
+    target: specification
+    level: MUST
+    statement: >-
+      An expectation's `otherwise.signal` MUST be a declared signal and MUST
+      NOT be one the engine raises itself (R-MACH-007), and the
+      transition's `next` state MUST route it unless that state is
+      terminal or the transition is a `for_each` (R-MACH-024). The signal
+      arrives at `next` for exhaustiveness. Under
+      `quarantine` it carries a mismatch report naming the label, the
+      tool's signal, and the failed constraint, never the result, so the
+      action it fires MUST accept that report.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-expect-routing/valid-route-to-failure.yaml
+        check: machine_expect_routing
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect-routing/undeclared-signal.yaml
+        check: machine_expect_routing
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect-routing/engine-signal.yaml
+        check: machine_expect_routing
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect-routing/unrouted-signal.yaml
+        check: machine_expect_routing
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-023
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST hold a transition's result to its `expect`
+      when the result arrives, after the output type check and before
+      routing; a result carrying an engine signal or `ToolFailed`, and a
+      `for_each` join, are not held, and `for_each` elements are held under
+      R-MACH-024. A result inside the
+      expectation MUST run exactly as without it. A result outside it MUST
+      raise `otherwise.signal` in place of the tool's signal. Under
+      `quarantine` the step log MUST keep the body with the mismatch report
+      through every checkpoint, the next action and a resumed run MUST
+      receive the report instead of the body, and a `$from` read whose
+      newest matching step is quarantined MUST fail without falling back to
+      an older step. A later step recording the same label releases that
+      label; resuming a run suspended on `AwaitApproval` MUST release every
+      quarantine, and any other resume MUST keep them. Without
+      `quarantine` the body stays readable.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-024
+    target: specification
+    level: MUST
+    statement: >-
+      A `for_each` MAY carry `expect`, which holds each element's result to
+      it as the element completes, in sequential and parallel mode; under
+      `dispatch`, every field path `where` names MUST exist in each row's
+      decided output type. Its `otherwise.signal` MUST be named in
+      `continue_on`, `abort_on`, or `fail_on`: a miss is the element's
+      outcome under the declared failure policy, and `next` need not route
+      it. Under `quarantine` the element's step keeps its body and is
+      withheld as R-MACH-023 states, its join outcome carries the mismatch
+      report and a `quarantined` flag in place of the output, and the join
+      records a `quarantined` count; the join signals keep their meaning.
+      An approval releases element quarantines without rewriting a
+      recorded join, and a resumed fan-out keeps the quarantines its
+      checkpoint recorded.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-expect-for-each/valid.yaml
+        check: machine_expect_for_each
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect-for-each/signal-not-in-policy.yaml
+        check: machine_expect_for_each
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-expect-for-each/row-lacks-path.yaml
+        check: machine_expect_for_each
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MACH-025
+    target: specification
+    level: MUST
+    statement: >-
+      A machine MAY carry `on_failure`, its failure policy, holding the
+      booleans `require_routes` and `rollback`, each false when absent, and
+      nothing else. A machine that sets `require_routes` MUST route
+      `CommandError` and `BudgetExhausted` from every non-final state it can
+      reach from its start state, and MUST NOT run an action on a transition
+      into a final state or join a `for_each` in one, where the outcome
+      would end the run unread; a conforming processor refuses it, naming
+      each state and signal or each transition. The signals a word declares,
+      `ParseFailed` among them, stay held by R-MACH-015, and
+      `ArgumentsRejected` at a `$tool` target by R-MACH-010. A machine that
+      sets `rollback` has a failed run's effects reversed (R-RUN-006).
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/machine-failure-policy/valid.yaml
+        check: machine_failure_policy
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/machine-failure-policy/unrouted-command-error.yaml
+        check: machine_failure_policy
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-failure-policy/action-into-final.yaml
+        check: machine_failure_policy
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/machine-failure-policy/unknown-field.yaml
+        check: machine_failure_policy
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-TOOL-001
+    target: specification
+    level: MUST
+    statement: >-
+      A tool's `signature` MUST name its `input` as a message and list under
+      `emits` one entry `{signal, message}` per signal it can raise, each
+      message typed. The one message type is `builtin.Message<T>`, whose
+      envelope the engine fixes: `body`, of type `T`, the data; `source`, the
+      step, channel, or seed it came from; and `request_id` within a
+      request-reply exchange. `builtin.Message` alone carries nothing. A type
+      is named `<unit>.<Name>` or `builtin.<Name>`; a tool whose input and
+      emitted messages share a parameter `$T` is generic, bound at each use
+      from the message that reaches it. A type argument MUST be a concrete
+      type or a parameter, never itself a bound generic, and a use MUST give
+      as many arguments as the type has parameters. `signature.output` and
+      `parameters` are refused in favour of the typed messages.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/tool-signature/valid.yaml
+        check: tool_signature
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/tool-signature/no-input.yaml
+        check: tool_signature
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-signature/signal-without-message.yaml
+        check: tool_signature
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-signature/unknown-type.yaml
+        check: tool_signature
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-signature/nested-generic.yaml
+        check: tool_signature
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-signature/wrong-arity.yaml
+        check: tool_signature
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-signature/signature-output.yaml
+        check: tool_signature
+        verdict: invalid
+
+  - id: R-TOOL-002
+    target: specification
+    level: MUST
+    statement: >-
+      A declaration unit MAY carry `types`, a list of named types, and a
+      unit carries `types` or `tools`, never both. A type's `schema` MUST
+      use only `type`, `properties`, `required`, `items`, `description`, and
+      `enum`, at any depth, and `type` MUST be one of `object`, `array`,
+      `string`, `number`, `integer`, or `boolean`: the subset is closed so a
+      selector path can be decided against a shape. A type MAY declare
+      `params` and reference them as `{$type: $T}`; a reference
+      `{$type: <unit>.<Name>}` stands anywhere a schema does and MUST carry
+      no other keyword, and a type MUST NOT reference a parameter it does not
+      declare. The one widening is a discriminated union,
+      `{oneOf: [variant, ...], discriminator: <field>}`, which MAY stand as an
+      array's `items` or a property's value and MUST NOT stand as a schema's
+      root. It lists at least two variants, each an object type that requires
+      the discriminator as a string with exactly one `enum` value, the values
+      distinct; a value is checked against the variant its discriminator
+      selects. A channel schema and a model-facing tool's types carry no
+      union.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/types-schema/valid.yaml
+        check: types_schema
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/outside-subset.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/unknown-json-type.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/mixed-reference.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/undeclared-parameter.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/union-valid.yaml
+        check: types_schema
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/union-root.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/union-no-discriminator.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/union-duplicate-value.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/types-schema/union-scalar-variant.yaml
+        check: types_schema
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-TOOL-003
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST check every handoff before a run: the
+      message of each signal that fires a transition, as emitted by the
+      actions whose transitions enter its state (or the seed, for the
+      initial state), MUST conform to the input type of the transition's
+      action, binding a generic action's parameters from it; a transition
+      with no action passes its message on. Across a channel the check
+      before a run is made in the load of each agent on either side, given
+      its application and agent service, and not in the whole-application
+      check (R-APP-011). On the consuming side an arriving item is a
+      producer whose message is `builtin.Message<T>`, T the channel
+      schema's type, on the arrival signal the initial state takes or the
+      receive tool's `Received`, and the action that signal fires MUST
+      accept it; a refusal names the agent service, the channel, the
+      signal, the state, the action, and the path. On the emitting side
+      the message an action sends onto a channel MUST conform to the
+      channel schema's type, and also to the input of the local tool whose
+      contract an action moved by `action_channels` keeps. A message whose
+      type names no field conforms to every input, so a producer that
+      sends one onto a channel whose schema names fields passes this check,
+      and the processor SHOULD warn naming it. An agent loaded without its
+      application consumes and emits no channel, so neither side is checked
+      before a run; every item is held to the schema at delivery
+      (R-TOOL-004). At run time the processor MUST hold each result's
+      message to the type its signal declares, and a mismatch becomes
+      `CommandError` naming the tool, the signal, and the path.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-TOOL-004
+    target: specification
+    level: MUST
+    statement: >-
+      A channel-schema's body is the type of the message bodies its channel
+      carries: an object schema, `type` absent or `object`, with
+      `properties` and `required` written in the subset of R-TOOL-002. A
+      conforming processor MUST refuse a channel schema of another type,
+      and a listener MUST refuse an item that is not an object, lacks a
+      required property, or mistypes a named one. The listener's check is
+      the one each item meets at delivery. Before a run the schema's type
+      is the message of the channel's arrival and the input of its words in
+      the handoff check of each agent that emits or consumes the channel
+      (R-TOOL-003).
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/channel-schema-body/valid.yaml
+        check: channel_schema_body
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/channel-schema-body/array-type.yaml
+        check: channel_schema_body
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: fixture
+        path: fixtures/specification/channel-schema-body/outside-subset.yaml
+        check: channel_schema_body
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-TOOL-005
+    target: specification
+    level: MUST
+    statement: >-
+      A declaration unit names itself with `unit` and MAY list `imports`,
+      the units whose tools and types it reaches. An import path MUST be
+      relative to the importing file or absolute under a library root,
+      `/opt/<root>/...` (R-PROF-008); any other absolute path is refused. A
+      tool name MUST be unique in the closure a profile loads, except that
+      a tool carrying `override: true` replaces the tool of its name an
+      import brought in; an override with no imported tool of its name is
+      refused. A REST unit's `imports` and fragment expansions resolve by
+      the same two path forms.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/override.yaml
+        check: profile_closure
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/override-unimported.yaml
+        check: profile_closure
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/duplicate-tool.yaml
+        check: profile_closure
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/bad-import.yaml
+        check: profile_closure
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/loading_imports_test.go
+        test: TestLoadDefinitionsResolvesImportedRESTUnits
+      - assertion: rig
+        path: agent-core/internal/tools/rest/definition/library_imports_test.go
+        test: TestRESTImportsAndFragmentsResolveUnderTheAgentCoreLibrary
+
+  - id: R-TOOL-006
+    target: specification
+    level: MUST
+    statement: >-
+      A tool MUST carry a `name` and MAY carry `type`, `builtin` or `exec`,
+      absent meaning `exec`. `visibility` is `external`, the default, which
+      a model may choose under `$tool`, or `internal`, which only a
+      transition runs; a conforming processor MUST refuse any other value,
+      so a typo cannot expose an internal word. `category` MAY classify the
+      tool as `word`, `sentence`, `boundary`, or `stateful_internal` for
+      contract validation. A `builtin` MUST name its `init`, the engine
+      factory that builds it, and MAY carry `config`, which that factory
+      decodes; a processor MUST refuse a builtin with no `init` when it
+      loads and one whose `init` it does not provide before the run.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/tool-fields/valid.yaml
+        check: tool_fields
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/tool-fields/unknown-type.yaml
+        check: tool_fields
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-fields/unknown-visibility.yaml
+        check: tool_fields
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-fields/builtin-without-init.yaml
+        check: tool_fields
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/registry/builtin_test.go
+        test: TestRegisterUnifiedToolsUnknownInit
+
+  - id: R-PROF-007
+    target: specification
+    level: MUST
+    statement: >-
+      An agent-profile's `tools` lists at least one tool-selection, whose
+      `tools` is a list of names, and each name MUST match a tool the
+      profile's `tool_declarations` files or `tool_config_dirs` directories
+      declare; a conforming processor MUST refuse a selected name no
+      declaration provides. `directory` names the default workspace. A path
+      in a profile is relative to the profile's file, or absolute, or under
+      a library root.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/valid.yaml
+        check: profile_closure
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/unknown-selection.yaml
+        check: profile_closure
+        verdict: invalid
+
+  - id: R-PROF-008
+    target: specification
+    level: MUST
+    statement: >-
+      A profile MAY declare `libraries`, mapping lowercase-kebab root names
+      to directories relative to its file; `agent-core` is the implicit
+      root of the standard library and MUST NOT be declared. An import
+      under `/opt/<name>/` maps to the named root, which MUST be declared in
+      the closure of the profile that reaches it; a child agent declares its
+      own. A library is read-only to its importers: a tool in a file under a
+      root MUST NOT carry `override: true`, and a relative import there
+      MUST NOT leave the root. `--library <name>=<path>` overrides a
+      declared root for one run.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/library.yaml
+        check: profile_closure
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/undeclared-root.yaml
+        check: profile_closure
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/library-override.yaml
+        check: profile_closure
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/profile-closure/reserved-root.yaml
+        check: profile_closure
+        verdict: invalid
+
+  - id: R-TOOL-007
+    target: specification
+    level: MUST
+    statement: >-
+      A tool's contract MAY declare `side_effects`, entries naming a
+      `kind` of effect (such as `filesystem_write`, `external_api`, or
+      `child_process`), its `target`, and a description; `reversibility`,
+      whose `classification` MUST be `reversible`, `compensatable`, or
+      `irreversible`; and `undo`, whose `strategy` MUST be one the engine
+      runs (`noop`, `conversation_truncate`, `file_snapshot_restore`,
+      `workspace_restore`, `compensating_action`, `child_command_undo`, or
+      `irreversible`), with the `captures` and `requires` its reversal
+      reads. An `exec` tool's strategy MUST be `noop`, `workspace_restore`,
+      `compensating_action`, or `irreversible`, the ones the shared exec
+      interpreter runs.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/tool-contract/valid.yaml
+        check: tool_contract
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/tool-contract/unknown-classification.yaml
+        check: tool_contract
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-contract/unknown-strategy.yaml
+        check: tool_contract
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/tool-contract/exec-builtin-strategy.yaml
+        check: tool_contract
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/runtime/core/rollback_policy_test.go
+        test: TestUndoStrategyVocabulary
+      - assertion: rig
+        path: agent-core/internal/runtime/core/rollback_policy_test.go
+        test: TestExecUndoStrategySupportIsClosed
+
+  - id: R-TOOL-008
+    target: processor
+    level: MUST
+    statement: >-
+      A tool declared `reversible` whose effects mutate state MUST declare
+      an undo that consumes its receipt, and a conforming processor MUST
+      refuse to start an agent whose closure holds one that does not. Each
+      successful run of such a tool MUST return an opaque receipt, which
+      the checkpoint persists with the step; a successful result without one
+      becomes `CommandError` naming the tool and the signal. Undo is the same
+      tool's: it
+      receives its own prior result and decodes its receipt to reverse the
+      effect, so a rollback after a restart walks the persisted receipts in
+      reverse order, continuing past a step that fails to reverse and
+      reporting it. The same walk reverses a failed run whose machine
+      declares `on_failure.rollback` (R-RUN-006).
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/tool-contract/receipt-backed.yaml
+        check: tool_contract
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/tool-contract/reversible-without-receipt-undo.yaml
+        check: tool_contract
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/receipt_contract_test.go
+        test: TestValidateReceiptContractFailsMutatingReversibleWithNoopUndo
+      - assertion: rig
+        path: agent-core/internal/tools/catalog/receipt_contract_test.go
+        test: TestValidateReceiptPresenceFailsReversibleToolWithoutReceipt
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/checkpoint_compensation_test.go
+        test: TestCheckpointRollbackRestoresFileViaPersistedReceipt
+      - assertion: rig
+        path: agent-core/internal/tools/lifecycle/receipt_rollback_test.go
+        test: TestRollbackViaReceiptsContinuesPastFailure
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-TOOL-009
+    target: processor
+    level: MUST
+    statement: >-
+      An `exec` tool names its `binary` and MAY carry `args` and an `argv`
+      that maps input fields to its command line. Its exit code chooses its
+      signal: `ToolDone` for 0 and `ToolFailed` otherwise, unless the tool
+      declares `outcomes`, rows `{exit: N, signal: S}` or
+      `{exit: [N, ...], signal: S}` with codes from 0 to 255 and exactly one
+      `{default: S}` row answering every other code. Every signal a row
+      names MUST be one the tool's `signature` emits, so a machine routes it
+      like any other, and a row MAY set `parse: json` to decode the output as
+      that signal's message. A transport error is `CommandError` and a
+      failed precondition `ToolFailed`, whatever the table says; a tool
+      that declares a `precondition` MUST therefore emit `ToolFailed` in
+      its signature, so the gate's failure has a route a machine can
+      declare. A
+      conforming processor MUST refuse, naming the tool, `outcomes` on a
+      tool with no `binary`, a row signal the signature does not emit, an
+      exit code two rows name, a table without exactly one default, a
+      row whose signal's message the output cannot meet: text for a row
+      without `parse`, never text for one with it, and a `precondition`
+      on a tool whose signature does not emit `ToolFailed`. The program an exec tool
+      runs is outside every check a processor makes: the engine starts it
+      as a child process in the tool's working directory with the agent's
+      environment and files, or calls a runner the agent's build links in
+      under the binary's name, and applies no sandbox, file-system, or
+      network policy to it. What the program reaches, another agent
+      service's routes, an outside system, or the application's channel key
+      (R-RUN-007), no check sees, so an exec tool holds the whole authority
+      of the agent that selects it.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/valid.yaml
+        check: exec_outcomes
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/undeclared-signal.yaml
+        check: exec_outcomes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/overlapping-exit.yaml
+        check: exec_outcomes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/no-default.yaml
+        check: exec_outcomes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/builtin-outcomes.yaml
+        check: exec_outcomes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/parse-typed-as-text.yaml
+        check: exec_outcomes
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/precondition-declares-toolfailed.yaml
+        check: exec_outcomes
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/exec-outcomes/precondition-without-toolfailed.yaml
+        check: exec_outcomes
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-REST-001
+    target: specification
+    level: MUST
+    statement: >-
+      An agent-profile's `rest_definitions` files and `rest_config_dirs`
+      directories supply the rest-definitions its closure loads. A
+      rest-definition MUST carry `rest.version` and MAY declare `auth`,
+      `limits`, and `retry` profiles and `clients`. A client names its
+      `base_url` and the profiles it uses, each of which MUST be declared;
+      it groups operations under `resources`, whose operations MUST be
+      among `get`, `set`, `create`, and `delete`, or lists them directly
+      under `operations`. An operation names its `method` and `path`,
+      declares every path parameter the path uses under `params`, and maps
+      responses to signals: `success` names the statuses and the signal of
+      a success, and each `failures` entry maps statuses, or the
+      `network_policy` stage, to a signal. An operation that changes state
+      MUST declare its `side_effects` and `reversibility`, and one declared
+      `irreversible` MUST require confirmation.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/rest-client/valid.yaml
+        check: rest_client
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/rest-client/no-version.yaml
+        check: rest_client
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/rest-client/undefined-limits.yaml
+        check: rest_client
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/rest-client/undeclared-path-param.yaml
+        check: rest_client
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/rest-client/unknown-resource-verb.yaml
+        check: rest_client
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/rest-client/mutation-without-side-effects.yaml
+        check: rest_client
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/rest-client/irreversible-without-confirmation.yaml
+        check: rest_client
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/emits_validation_test.go
+        test: TestValidateClientEmitsRejectsSuccessAndFailureDrift
+      - assertion: rig
+        path: agent-core/internal/tools/rest/loading_imports_test.go
+        test: TestLoadDefinitionsResolvesImportedRESTUnits
+
+  - id: R-REST-002
+    target: specification
+    level: MUST
+    statement: >-
+      A rest-definition MAY declare `servers`. A server names its `address`,
+      which MUST be a loopback address unless the server carries
+      `allow_public_listener`, and its `endpoints`. Each endpoint names its
+      `method` and `path` and MUST name a `binding`: among them
+      `emit_signal`, which raises the named `signal` in the serving
+      machine; `machine_request`, which runs a request profile's machine
+      per request, seeded by the mapped request and answered by the status
+      its terminal state maps; and `lifecycle_control` and `health`. Two
+      endpoints of one server MUST NOT answer the same method and path.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/rest-server/valid.yaml
+        check: rest_server
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/rest-server/no-binding.yaml
+        check: rest_server
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/rest-server/public-address.yaml
+        check: rest_server
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/rest-server/shadowed-endpoint.yaml
+        check: rest_server
+        verdict: invalid
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_behavior_test.go
+        test: TestRESTServerMachineRequestTerminalStatusMapping
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_machine_request_behavior_test.go
+        test: TestRESTServerMachineRequestConfiguredInitialSignal
+      - assertion: rig
+        path: agent-core/internal/tools/rest/server_endpoints_test.go
+        test: TestRESTServer_AwaitInboundSignals
+
+  - id: R-MODEL-007
+    target: specification
+    level: MUST
+    statement: >-
+      A model is reached through an llm-configuration, a chat dialect that
+      names its `unit`, a lowercase-kebab name, and its `provider_name`, and
+      describes one POST request and its reply: the rooted `path`, the
+      `auth` profile, and the `body` template filled from the call's
+      parameters; under `response`, the paths to the reply `text`, whether
+      a reply without text is a failure, and the paths to the input and
+      output token counts; and under `failures`, the statuses it maps to
+      signals. It MUST carry no other key. Provider differences live in the
+      dialect, so one grammar reaches every provider.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/model-dialect/valid.yaml
+        check: model_dialect
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/model-dialect/no-provider.yaml
+        check: model_dialect
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/model-dialect/relative-path.yaml
+        check: model_dialect
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/model-dialect/not-post.yaml
+        check: model_dialect
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/model-dialect/bad-unit.yaml
+        check: model_dialect
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/model-dialect/unknown-field.yaml
+        check: model_dialect
+        verdict: invalid
+
+  - id: R-RUN-001
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST run a machine as a loop. In the current
+      state it takes the signal that arrived, finds the one transition for
+      that state and signal, runs its action if it has one, records the step
+      (its label, command, signal, message, and receipt) in the step log and
+      the checkpoint, and moves to `next`. The run ends when it enters a
+      final state, whose `run_status` is the run's status; a signal with no
+      transition in the current state ends the run failed, keeping the
+      failure that raised it; a spent budget raises `BudgetExhausted`
+      (R-MACH-013); and a cancelled run stops at the step it was on. A
+      failed run's earlier effects stay in place unless the machine declares
+      `on_failure.rollback` (R-RUN-006).
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_RunsToCompletion
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_ActionlessTerminalTransitionStopsWithoutDispatch
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_UnhandledTransitionPreservesOriginalFailure
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_MachineFailureTerminalIsDomainOutcome
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoopUsesDeclaredStatusForArbitrarilyNamedTerminal
+      - assertion: rig
+        path: agent-core/internal/runtime/core/loop_runtime_test.go
+        test: TestLoop_ContextCancellation
+      - assertion: rig
+        path: agent-core/internal/runtime/core/checkpoint_adapters_test.go
+        test: TestInMemoryCheckpointRoundTripsConversationAndReceipts
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-RUN-002
+    target: runtime
+    level: MUST
+    statement: >-
+      Before its first step a conforming runtime MUST load the whole closure
+      and run every check the language states over it (kinds, declarations,
+      types and handoffs, exhaustiveness, channel wiring, budgets and
+      timeouts), and MUST refuse to start when any fails, exiting non-zero
+      and naming the fault. Validating a configuration without running it
+      applies the same checks and exits.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-RUN-003
+    target: runtime
+    level: MUST
+    statement: >-
+      A conforming runtime MUST report a run's summary and final state when
+      it ends and exit zero when the run succeeded or suspended, a
+      suspended run being a deliberate pause its checkpoint resumes; any
+      other end MUST exit with the machine-failure code. An exit an operator
+      requested is orderly and exits zero.
+    acceptance:
+      - assertion: rig
+        path: agent-core/cmd/agent/main_bootstrap_test.go
+        test: TestRunPreparedPrintsSummaryFinalStateAndMappedExit
+      - assertion: rig
+        path: agent-core/cmd/agent/checkpoint_lifecycle_test.go
+        test: TestRunPreparedMachineFailureUsesMachineExitCode
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-RUN-004
+    target: runtime
+    level: MUST
+    statement: >-
+      A machine-hosting tool runs a child machine inside one step of its
+      parent: on the `function` transport in the parent's process, on the
+      `process` transport as a child agent, and on a network transport at a
+      peer agent service (R-MODEL-006). Whatever the transport, the child
+      runs under its own machine and budget, and its run's outcome returns
+      to the parent as the step's result, `ToolDone` or `ToolFailed` with
+      the child's summary, so the parent's machine is the same on every
+      transport.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-RUN-006
+    target: runtime
+    level: MUST
+    statement: >-
+      When a run of a machine that declares `on_failure.rollback` ends with
+      status `failed` or `budget_exceeded`, whether in a final state with
+      that status, on a signal with no transition, or on a spent budget with
+      no route, a conforming runtime MUST walk the steps the run recorded in
+      reverse dispatch order and hand each step's receipt to its tool's undo,
+      the walk of R-TOOL-008, continuing past a step that fails to reverse.
+      It MUST report each step's outcome in the run's result and trace:
+      reversed, skipped because its tool is irreversible, pending
+      compensation, undo failed, or not reversed because the step returned
+      no receipt. The walk needs no revertible checkpoint, and the
+      checkpoint keeps the failed run's steps. A cancelled run, and a failed
+      run of a machine without the declaration, are not walked.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MODEL-003
+    status: retired
+    retired: >-
+      The 2.0 revision replaced
+      replace-or-splice expansion with composition. Replaced by R-MODEL-005
+      and R-MACH-003.
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST select expansion behavior by the body kind
+      of each expansion target, replacing the expanding specification's body for a
+      `machine` body and splicing for a `stage` body, and MUST reject a
+      machine-template that expands another machine-template.
+    acceptance:
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestExpandTargetBodyKindSelectsReplaceOrSplice
+      - assertion: rig
+        path: agent-core/internal/runtime/core/machine_template_test.go
+        test: TestMachineTemplateCannotNestOrBeLoadedAsAMachine
+
+  - id: R-CONF-001
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST accept every fixture file whose
+      declared verdict is valid and MUST reject every fixture file whose
+      declared verdict is invalid.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MODEL-002
+    target: specification
+    level: MUST
+    statement: >-
+      Every `expand` entry in a tool-declaration or rest-definition
+      specification MUST name its source fragment under the `fragment`
+      keyname; argument bindings MAY accompany the name under the `args`
+      keyname, and a name prefix under the `as` keyname.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/expansion-fragment/named.yaml
+        check: expansion_names_fragment
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/expansion-fragment/unnamed.yaml
+        check: expansion_names_fragment
+        verdict: invalid
+
+  - id: R-MODEL-004
+    target: specification
+    level: MUST
+    statement: >-
+      Every `compose` entry in a machine specification MUST carry the
+      `template` keyname, the path of the machine specification it
+      includes. It MAY carry `as`, a prefix for the included states; `args`,
+      a mapping from the template's parameter names to values; `enter`, a
+      mapping that MUST carry `from` (a state of the result) and `on` (a
+      signal) and MAY carry `action` and `label`; and `exit`, a mapping from
+      the template's final states to states of the result.
+    acceptance:
+      - assertion: fixture
+        path: fixtures/specification/compose-entry/valid.yaml
+        check: compose_entry_shape
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/compose-entry/missing-template.yaml
+        check: compose_entry_shape
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/compose-entry/enter-without-on.yaml
+        check: compose_entry_shape
+        verdict: invalid
+
+  - id: R-MODEL-005
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST compose a machine as follows. For each
+      `compose` entry it declares every state of the included template
+      under the entry's `as` prefix; with `enter`, it adds the transition
+      from `enter.from` on `enter.on` to the template's start state, and a
+      host final state named by `enter.from` stops being final; it redirects
+      each transition into a final state that `exit` maps to the mapped
+      state; and it joins the template's signals to the host's. A
+      template's parameter is bound only by the entry's `args`, a value or
+      `$param` of the including template's own parameter passed through, or
+      by the parameter's default; a value bound higher up the including
+      chain never reaches it by name, and a parameter nothing binds leaves
+      the result open, which no machine may be. The processor then validates
+      the composed machine as one written by hand. It MUST reject an unknown argument, an `exit`
+      or `enter.from` naming a state the result lacks, a state name two
+      sources declare, and an inclusion chain deeper than four.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+      - assertion: fixture
+        path: fixtures/specification/compose-binding/valid.yaml
+        check: compose_param_binding
+        verdict: valid
+      - assertion: fixture
+        path: fixtures/specification/compose-binding/unbound.yaml
+        check: compose_param_binding
+        verdict: invalid
+      - assertion: fixture
+        path: fixtures/specification/compose-binding/captured.yaml
+        check: compose_param_binding
+        verdict: invalid
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.
+
+  - id: R-MODEL-006
+    target: processor
+    level: MUST
+    statement: >-
+      A conforming processor MUST run every transition's action as one
+      exchange on a channel: it sends the action's message and delivers the
+      reply to the machine as a signal and a message. An action that names
+      a tool implies a request-reply channel no specification declares, on
+      the `function` transport for a builtin tool and the `process`
+      transport for an exec tool or a child agent; an `action_channels`
+      entry (R-PROF-005) moves it to another transport with no edit to the
+      calling machine. On a network `request-reply` channel the action runs
+      at the listener and lands on the signal the listener's reply carries,
+      the listener run's outcome and the signal of its summary step;
+      on a `push-pull` or `publish-subscribe` channel it answers `Sent` or
+      `Dropped`; on a `survey` channel it answers `Answers` or `Deadline`;
+      a transport failure lands on `CommandError`. The command timeout,
+      cancellation, undo, and receipts are the same on every transport, a
+      rate limit on a local entry holds each exchange until the limit
+      admits it, and each exchange opens one span naming its channel and
+      transport.
+    acceptance:
+      - assertion: pending
+        note: >-
+          No test in this repository anchors this statement; the engine in
+          this repository implements the 1.0 language.

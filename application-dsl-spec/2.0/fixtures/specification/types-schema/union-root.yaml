@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Fixture for R-TOOL-002: a union stands as a schema's root.
+kind: tool-declaration
+schema_version: 1
+unit: union-example-types
+types:
+  - name: Implement
+    schema:
+      type: object
+      properties:
+        kind: {type: string, enum: [implement]}
+        path: {type: string}
+      required: [kind, path]
+  - name: Review
+    schema:
+      type: object
+      properties:
+        kind: {type: string, enum: [review]}
+        verdict: {type: string}
+      required: [kind, verdict]
+  - name: Work
+    schema:
+      oneOf: [{$type: union-example-types.Implement}, {$type: union-example-types.Review}]
+      discriminator: kind

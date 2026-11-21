@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Imports from a library root no profile declares.
+kind: tool-declaration
+schema_version: 1
+unit: closure-undeclared-root
+imports:
+  - /opt/other-lib/lib-tools.yaml
+tools: []
