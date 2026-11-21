@@ -17,7 +17,7 @@ implements version 1.0, and is the reference implementation of that version.
 | Directory | Contents |
 |---|---|
 | [`2.0/`](2.0/) | The current version: `language.yaml`, `fixtures/`, and a README. It has no prose chapters. |
-| [`1.0/`](1.0/) | The version the engine implements: chapters `00`–`06`, `language.yaml`, `fixtures/`, `references.yaml`. The chapters are the narrative introduction to the language. |
+| [`1.0/`](1.0/) | The version the engine implements: chapters `00`–`06`, `language.yaml`, `fixtures/`, `references.yaml`, and `COVERAGE.md`, which maps the engine's format references onto the statements. The chapters are the narrative introduction to the language. |
 | [`magefiles/`](magefiles/) | The audit and render harness that all versions share. |
 
 Version 1.0 is held to the full audit gate. Each statement has evidence that
@@ -26,6 +26,10 @@ to a reduced gate, covering its schema, fixture coverage and ownership,
 fixture shape, and reference resolution, because no engine here could back
 its fixture verdicts. A 2.0 statement that no test in this repository
 anchors records the gap as a `pending` entry.
+
+Version 1.0 is complete against the engine in this repository at `1.0.0`. It
+is frozen except for errata, and new language work belongs to the current
+revision.
 
 ## Statement ids
 

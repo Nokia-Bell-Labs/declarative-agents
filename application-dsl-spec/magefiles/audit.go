@@ -40,6 +40,9 @@ func auditVersion(moduleRoot string, version specVersion) error {
 	if err := checkRetiredFixturePlacement(language); err != nil {
 		return err
 	}
+	if err := checkCoverageMap(roots.Version, language); err != nil {
+		return err
+	}
 	if err := checkConstitutionCitations(roots.Repository, language); err != nil {
 		return err
 	}

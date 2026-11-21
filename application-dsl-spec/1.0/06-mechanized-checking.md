@@ -37,3 +37,21 @@ A conformance claim, then, is a set of statement identifiers checked against a
 particular version of this paper. The component constitutions under
 `docs/constitutions/` are standing claims of exactly this kind: each links a
 component to the statements it must satisfy, cited by identifier.
+
+## The coverage map
+
+The statements are complete only relative to something. `COVERAGE.md` beside
+`language.yaml` names that something: it takes each format reference the
+engine ships with, area by area, and gives every area a verdict. A covered
+area names the statements that state it. A detail area is behaviour the
+language deliberately leaves to the engine, and names its kind, such as
+presentation, engine policy, or deployment. A gap is a rule the engine has
+that no statement yet states, and names the issue that tracks it. The language
+gate checks the map as it checks the chapters: a covered row that names an
+unknown statement, a detail row that names no kind, or a gap row with no
+issue fails `mage audit`.
+
+The map stays true only if it moves with the engine. A change that alters what
+a conforming document, processor, runtime, or population must do therefore
+lands its statement, fixture, and coverage-row edits in the same pull request
+as the engine change.

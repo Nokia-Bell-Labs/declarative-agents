@@ -30,7 +30,9 @@
 #                                      named check applied and an expected
 #                                      verdict (valid or invalid)
 #                 assertion: go_test   a named Go test that must exist and
-#                                      pass, path relative to this directory
+#                                      pass, path relative to the module
+#                                      root (application-dsl-spec/), where
+#                                      the shared harness lives
 #                 assertion: rig       a named Go test in the wider repository
 #                                      (path relative to the repository root)
 #                                      anchoring a runtime or population
@@ -42,7 +44,7 @@
 language:
   id: application-dsl
   title: "A Domain-Specific Language for Agents"
-  version: 0.1.0
+  version: 1.0.0
   conformance_targets:
     - document
     - processor
