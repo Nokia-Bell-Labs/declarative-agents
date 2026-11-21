@@ -6,6 +6,8 @@ tools:
     type: builtin
     init: invoke_llm
     visibility: internal
+    output:
+      schema: {type: string}
     config:
       provider_url: http://localhost:11434
       manifest_state: Composing

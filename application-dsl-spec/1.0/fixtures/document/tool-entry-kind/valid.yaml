@@ -5,5 +5,7 @@ tools:
   - name: read
     type: builtin
     init: file_read
+    output:
+      schema: {type: string}
   - name: build
     binary: go

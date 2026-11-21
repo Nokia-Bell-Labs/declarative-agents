@@ -6,6 +6,8 @@ tools:
     type: builtin
     init: invoke_llm
     visibility: internal
+    output:
+      schema: {type: string}
     config:
       model: command-a-03-2025
       dialect: /opt/providers/chat-dialect.yaml
