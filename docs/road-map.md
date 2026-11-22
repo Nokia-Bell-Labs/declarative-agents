@@ -35,3 +35,27 @@ Release 01.0 delivers in001-scrum-run-repository#R1.1, in001-scrum-run-repositor
 
 - tag: corpus/v0.2.0
 - milestone: "01.0"
+
+<!-- release: 02.0 | status: specified -->
+## 02.0 - Release 02.0
+
+Release 02.0 delivers in002-agents-as-resources#R1.1, on milestone 02.0, tagged corpus/v0.3.0.
+
+<!-- field: deliverables -->
+### Deliverables
+
+- in002-agents-as-resources#R1.1
+
+<!-- field: srds -->
+### SRDs
+
+- srd001-system
+
+<!-- field: release -->
+### Release
+
+<!-- field: publication | form: "tree" -->
+#### Publication
+
+- tag: corpus/v0.3.0
+- milestone: "02.0"
