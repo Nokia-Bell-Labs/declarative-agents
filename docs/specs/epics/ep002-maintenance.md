@@ -375,3 +375,10 @@ dev
   - opened: "2026-11-22"
   - closed: "2026-11-22"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2965":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2965"
+  - title: "Plan release 02.0 from in002"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
