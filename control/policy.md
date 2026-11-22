@@ -105,7 +105,6 @@ warn
 | kind | environment | suite | command |
 | --- | --- | --- | --- |
 | tests | local | hierarchy | scrum-master backlog check |
-| peer-read |  |  |  |
 
 <!-- field: default -->
 ### Default
