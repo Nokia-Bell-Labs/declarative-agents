@@ -368,3 +368,10 @@ dev
   - opened: "2026-11-22"
   - closed: "2026-11-22"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2962":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2962"
+  - title: "The declarative-deployment theme, initiative, and chatbot-mesh epic are agreed"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
