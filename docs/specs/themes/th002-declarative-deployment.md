@@ -1,7 +1,7 @@
 ---
 id: th002-declarative-deployment
 title: Declarative deployment
-status: to_be_agreed
+status: agreed
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->

@@ -1,7 +1,7 @@
 ---
 id: ep003-chatbot-mesh-agents
 title: The chatbot-mesh's agents as Agent resources
-status: to_be_agreed
+status: agreed
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->
