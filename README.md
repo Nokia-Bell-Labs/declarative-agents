@@ -43,7 +43,8 @@ bin/agent --profile "$AGENT_CATALOG_ROOT/agents/executor/profile.yaml" --core-ro
 | [`design-patterns/`](design-patterns/) | White paper source: *Design Patterns for Declarative Agents* — eleven patterns for building reliable agents (markdown, PlantUML, IEEE build). |
 | [`application-dsl-spec/`](application-dsl-spec/) | The normative specification of the application DSL, one directory per version. `2.0/` is the current version of the language (statements and fixtures); `1.0/` is the version the engine implements: numbered statements in `language.yaml` with acceptance evidence, prose chapters that cite them, and a render/audit pipeline. Render locally with `mage site` in `application-dsl-spec/`. |
 | [`docs/guides/`](docs/guides/) | Cross-module guides, including the [agentic framework comparison for network applications](docs/guides/agentic-framework-comparison.md). |
-| [`docs/constitutions/`](docs/constitutions/) | Component constitutions binding agent-core, applications, the catalog, and the control plane to the language specification by statement ID. |
+| [`docs/conformance/`](docs/conformance/) | Component constitutions binding agent-core, applications, the catalog, and the control plane to the language specification by statement ID. |
+| [`docs/constitutions/`](docs/constitutions/) | The format constitution every document of the system corpus follows (scrum-master). |
 | [`docs/engineering/`](docs/engineering/) | Engineering guidelines that span modules and applications, starting with the standard kind rig for integration tests and demos. |
 | [`magefiles/`](magefiles/) | Repository-wide build targets: release tagging, stats aggregation, sub-module dispatch. |
 

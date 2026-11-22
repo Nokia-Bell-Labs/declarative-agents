@@ -1,6 +1,6 @@
 ---
 id: srd001-system
-title: "System: what the system does"
+title: "System: declarative-agents"
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->
@@ -14,25 +14,43 @@ authors: petar-djukic
 <!-- field: problem -->
 ## Problem
 
-The technical program manager writes here the problem the system solves and for whom.
+Agents whose workflow is code cannot be validated, reviewed, or changed without rebuilding them; the system makes an agent a declaration one runtime executes.
 
 <!-- field: goals -->
 ## Goals
 
-- G1: The technical program manager writes here each goal the system meets.
+- G1: Every agent the repository ships runs from its profile on the one runtime.
+- G2: The language agents are written in is specified, with evidence for each statement.
+- G3: Every component builds, passes its gates, and is released from main.
 
 <!-- req: R1 -->
-## R1 - First requirement group
+## R1 - The runtime
 
 <!-- req: R1.1 -->
 ### R1.1
 
-The technical program manager writes here one checkable requirement and the part that satisfies it.
+agent-core runs any agent from its profile, machine, and tool declarations, and rejects a profile its configuration check refuses.
+
+<!-- req: R2 -->
+## R2 - The language
+
+<!-- req: R2.1 -->
+### R2.1
+
+application-dsl-spec states the language version by version, and every statement of the version agent-core implements has acceptance evidence that passes.
+
+<!-- req: R3 -->
+## R3 - Releases
+
+<!-- req: R3.1 -->
+### R3.1
+
+mage audit passes on main, and a release is tagged only when every release gate passes.
 
 <!-- field: non_goals -->
 ## Non-goals
 
-- The technical program manager writes here what the system leaves out.
+- New features while the repository is in maintenance mode.
 
 <!-- field: acceptance_criteria -->
 ## Acceptance criteria
@@ -40,12 +58,32 @@ The technical program manager writes here one checkable requirement and the part
 <!-- ac: AC1 -->
 ### AC1
 
-The technical program manager writes here how R1.1 is shown to hold, naming its test and environment.
+Every shipped profile passes the runtime's configuration check (test: mage audit; environment: local).
 
 <!-- field: traces -->
 #### Traces
 
 - [R1.1](#r11)
+
+<!-- ac: AC2 -->
+### AC2
+
+The implemented language version's audit passes with every statement's evidence (test: mage -d application-dsl-spec audit; environment: local).
+
+<!-- field: traces -->
+#### Traces
+
+- [R2.1](#r21)
+
+<!-- ac: AC3 -->
+### AC3
+
+The release gate passes before a tag (test: mage tag; environment: local).
+
+<!-- field: traces -->
+#### Traces
+
+- [R3.1](#r31)
 
 <!-- field: implementation_targets -->
 ## Implementation targets
