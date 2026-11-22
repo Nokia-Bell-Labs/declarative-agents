@@ -2,6 +2,8 @@
 id: srd001-system
 title: "System: what the system does"
 ---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
 
 <!-- field: context | form: "tree" -->
 ## Context

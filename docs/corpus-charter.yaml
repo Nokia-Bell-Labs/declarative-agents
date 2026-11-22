@@ -1,3 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
 # The checks the parent's specification-corpus audit gates this corpus on.
 # The audit binds docs/corpus-charter.yaml relative to the directory it
 # audits, so this file decides what gates here. The init profile wrote it with the

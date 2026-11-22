@@ -2,6 +2,8 @@
 id: program-vision
 title: Program Vision
 ---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
 
 <!-- field: executive_summary -->
 ## Executive summary

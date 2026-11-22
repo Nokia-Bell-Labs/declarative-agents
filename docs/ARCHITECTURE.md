@@ -2,6 +2,8 @@
 id: program-architecture
 title: Program Architecture
 ---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
 
 <!-- field: overview -->
 ## Overview

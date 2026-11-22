@@ -1,3 +1,6 @@
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
+
 <!-- managed:begin: the init and onboard profiles write the text down to managed:end and refresh it on a rerun; write your own notes outside it -->
 # Initiatives
 

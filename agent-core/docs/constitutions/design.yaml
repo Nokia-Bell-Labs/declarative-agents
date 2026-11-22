@@ -5325,6 +5325,24 @@ document_types:
     - checks
     purpose: Names the specification-corpus checks this module's audit gates on.
     markdown: stays YAML; executable check plans the audit runs (spec.Charter), not prose a person reads.
+  planning_folder_readme:
+    location: docs/specs/name/README.md
+    format: markdown
+    required_fields: []
+    purpose: Says what the documents of one scrum-master planning folder (themes, initiatives, epics) are; laid down by scrum-master init (GH-2943).
+    markdown: native Markdown already (format markdown); it declares no structure, so it takes no rule data.
+  engineering_readme:
+    location: docs/engineering/README.md
+    format: markdown
+    required_fields: []
+    purpose: Says what the engineering documents are; laid down by scrum-master init (GH-2943).
+    markdown: native Markdown already (format markdown); it declares no structure, so it takes no rule data.
+  external_pins:
+    location: docs/external-pins.yaml
+    format: yaml
+    required_fields: []
+    purpose: Pins the scrum-master release whose format this corpus follows (srd043 R3.3); written by scrum-master init and upgrade (GH-2943).
+    markdown: stays YAML; a machine-read release pin, not prose a person reads.
 manual_invariant_schema:
   purpose: |
     A judge may adjudicate a manual pattern invariant only after the invariant

@@ -2,6 +2,8 @@
 id: reports
 title: Reports configuration
 ---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
 
 <!-- field: team -->
 ## Team

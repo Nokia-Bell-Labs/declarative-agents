@@ -2,6 +2,8 @@
 id: program-specifications
 title: Program Specification Index
 ---
+<!-- Copyright (c) 2026 Nokia -->
+<!-- SPDX-License-Identifier: BSD-3-Clause -->
 
 <!-- field: overview -->
 ## Overview
@@ -18,12 +20,12 @@ The technical program manager writes here how the specifications are organized a
 <!-- field: foundation_document_index -->
 ## Foundation document index
 
-| path | id |
+| id | path |
 | --- | --- |
-| docs/VISION.md | [program-vision](VISION.md) |
-| docs/ARCHITECTURE.md | [program-architecture](ARCHITECTURE.md) |
-| docs/constitutions/design.md | [design](constitutions/design.md) |
-| docs/road-map.md | [program-roadmap](road-map.md) |
+| [program-vision](VISION.md) | docs/VISION.md |
+| [program-architecture](ARCHITECTURE.md) | docs/ARCHITECTURE.md |
+| [design](constitutions/design.md) | docs/constitutions/design.md |
+| [program-roadmap](road-map.md) | docs/road-map.md |
 
 <!-- field: srd_index -->
 ## SRD index
