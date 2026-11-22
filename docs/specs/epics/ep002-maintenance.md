@@ -328,3 +328,38 @@ dev
   - opened: "2026-11-22"
   - closed: "2026-11-22"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2949":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2949"
+  - title: "Plan release 01.0 from the agreed planning documents"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2951":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2951"
+  - title: "A corpus release passes on the hierarchy check, with no peer read"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2955":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2955"
+  - title: "The control files record the program group"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2957":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2957"
+  - title: "The system corpus states its vision, requirements, and specification index"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2959":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2959"
+  - title: "The chatbot-mesh Agent conversion is planned as an epic of its own"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
