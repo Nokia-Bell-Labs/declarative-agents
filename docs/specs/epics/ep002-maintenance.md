@@ -1,7 +1,7 @@
 ---
 id: ep002-maintenance
 title: Maintenance
-status: to_be_agreed
+status: agreed
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->

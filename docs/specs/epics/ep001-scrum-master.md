@@ -1,7 +1,7 @@
 ---
 id: ep001-scrum-master
 title: The scrum-master implementation
-status: to_be_agreed
+status: agreed
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->

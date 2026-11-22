@@ -1,7 +1,7 @@
 ---
 id: th001-repository-operations
 title: Repository operations
-status: to_be_agreed
+status: agreed
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->
