@@ -1469,7 +1469,7 @@ document_types:
       prose_containment:
         keywords: [MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, OPTIONAL, shall, shall not]
         outside: [document_field, section]
-  srd: &srd_type
+  srd:
     location: docs/specs/software-requirements/srdNNN-short-name.md
     converts_from: docs/specs/software-requirements/srdNNN-short-name.yaml
     required_fields:
@@ -5331,30 +5331,35 @@ document_types:
     converts_from: docs/conformance/name.yaml
     purpose: Binds a component of this repository to the application DSL specification, citing each statement it upholds (application-dsl-spec 06); kept apart from docs/constitutions, which holds the corpus format constitution scrum-master lays down (GH-2943).
   planning_theme:
-    <<: *srd_type
     location: docs/specs/themes/thNNN-short-name.md
-    converts_from: docs/specs/themes/thNNN-short-name.yaml
-    purpose: A scrum-master planning theme, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+    format: markdown
+    required_fields: []
+    purpose: A scrum-master planning theme, an SRD in the format of the scrum-master release docs/external-pins.yaml pins; scrum-master check, which the merge gate runs, owns its shape (GH-2943, GH-2945).
+    markdown: native Markdown already (format markdown); scrum-master's pinned format declares its structure, so it takes no rule data here.
   planning_initiative:
-    <<: *srd_type
     location: docs/specs/initiatives/inNNN-short-name.md
-    converts_from: docs/specs/initiatives/inNNN-short-name.yaml
-    purpose: A scrum-master planning initiative, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+    format: markdown
+    required_fields: []
+    purpose: A scrum-master planning initiative, an SRD in the format of the scrum-master release docs/external-pins.yaml pins; scrum-master check, which the merge gate runs, owns its shape (GH-2943, GH-2945).
+    markdown: native Markdown already (format markdown); scrum-master's pinned format declares its structure, so it takes no rule data here.
   planning_epic:
-    <<: *srd_type
     location: docs/specs/epics/epNNN-short-name.md
-    converts_from: docs/specs/epics/epNNN-short-name.yaml
-    purpose: A scrum-master planning epic, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+    format: markdown
+    required_fields: []
+    purpose: A scrum-master planning epic, an SRD in the format of the scrum-master release docs/external-pins.yaml pins; scrum-master check, which the merge gate runs, owns its shape (GH-2943, GH-2945).
+    markdown: native Markdown already (format markdown); scrum-master's pinned format declares its structure, so it takes no rule data here.
   planning_feature:
-    <<: *srd_type
     location: docs/specs/features/ftNNN-short-name.md
-    converts_from: docs/specs/features/ftNNN-short-name.yaml
-    purpose: A scrum-master planning feature, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+    format: markdown
+    required_fields: []
+    purpose: A scrum-master planning feature, an SRD in the format of the scrum-master release docs/external-pins.yaml pins; scrum-master check, which the merge gate runs, owns its shape (GH-2943, GH-2945).
+    markdown: native Markdown already (format markdown); scrum-master's pinned format declares its structure, so it takes no rule data here.
   planning_story:
-    <<: *srd_type
     location: docs/specs/stories/stNNN-short-name.md
-    converts_from: docs/specs/stories/stNNN-short-name.yaml
-    purpose: A scrum-master planning story, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+    format: markdown
+    required_fields: []
+    purpose: A scrum-master planning story, an SRD in the format of the scrum-master release docs/external-pins.yaml pins; scrum-master check, which the merge gate runs, owns its shape (GH-2943, GH-2945).
+    markdown: native Markdown already (format markdown); scrum-master's pinned format declares its structure, so it takes no rule data here.
   planning_folder_readme:
     location: docs/specs/name/README.md
     format: markdown

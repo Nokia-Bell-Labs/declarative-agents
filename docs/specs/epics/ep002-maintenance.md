@@ -144,3 +144,168 @@ dev
 #### Applicability
 
 dev
+
+<!-- field: issues | form: "tree" -->
+## Issues
+
+- "Nokia-Bell-Labs/declarative-agents#2347":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2347"
+  - title: "Tech debt: defects found in passing"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2365":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2365"
+  - title: "Migrate the 328 grandfathered group citations to requirement items"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2372":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2372"
+  - title: "main is red: legacy-group-citations.txt matches no declared document type"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2373":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2373"
+  - title: "main is red: a Helm template still emits the retired instantiate keyname"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2375":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2375"
+  - title: "A go_test evidence selector that matches no test reports as passing"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2385":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2385"
+  - title: "Blueprint and capability-profile releases have no tests: 16 evidence selectors match nothing"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2392":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2392"
+  - title: "Narrow the enumerated citations where the prose names a subset"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2399":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2399"
+  - title: "Tech debt: specification corpora"
+  - who: petar-djukic
+  - opened: "2026-09-20"
+  - closed: "2026-09-20"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2427":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2427"
+  - title: "Tech debt: kindrig"
+  - who: petar-djukic
+  - opened: "2026-09-21"
+  - closed: "2026-09-21"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2441":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2441"
+  - title: "Tech debt: agent-core tests"
+  - who: petar-djukic
+  - opened: "2026-09-21"
+  - closed: "2026-09-21"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2459":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2459"
+  - title: "Tech debt: magefiles tests are red on main and outside mage audit"
+  - who: petar-djukic
+  - opened: "2026-09-21"
+  - closed: "2026-09-21"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2460":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2460"
+  - title: "Tech debt: TestDeployWarnsOnAnUnrecognizableHelmVersion flakes between two warning branches"
+  - who: petar-djukic
+  - opened: "2026-09-21"
+  - closed: "2026-09-21"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2461":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2461"
+  - title: "Tech debt: build tooling"
+  - who: petar-djukic
+  - opened: "2026-09-21"
+  - closed: "2026-09-21"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2546":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2546"
+  - title: "Tech debt epic: documentation corpus cleanup"
+  - who: petar-djukic
+  - opened: "2026-10-14"
+  - closed: "2026-10-14"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2568":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2568"
+  - title: "Shared kind session captures adopted scenario evidence after the scenario's kubeconfig is gone"
+  - who: petar-djukic
+  - opened: "2026-10-15"
+  - closed: "2026-10-16"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2592":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2592"
+  - title: "Tech debt"
+  - who: petar-djukic
+  - opened: "2026-10-16"
+  - closed: "2026-10-16"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2611":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2611"
+  - title: "ParseUseCase rejects flow steps that carry traces; six applications use cases escape the typed checks"
+  - who: petar-djukic
+  - opened: "2026-10-16"
+  - closed: "2026-10-16"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2627":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2627"
+  - title: "Applications test-suite commands parse Markdown corpus documents with yaml.safe_load"
+  - who: petar-djukic
+  - opened: "2026-10-16"
+  - closed: "2026-10-16"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2629":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2629"
+  - title: "Documentation curator renders the Markdown corpus as raw text; e2e and live integration not run since the migration"
+  - who: petar-djukic
+  - opened: "2026-10-16"
+  - closed: "2026-10-16"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2702":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2702"
+  - title: "Tech debt: UI dependency advisories"
+  - who: petar-djukic
+  - opened: "2026-10-22"
+  - closed: "2026-10-22"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2709":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2709"
+  - title: "Tech debt: release gate reproducibility"
+  - who: petar-djukic
+  - opened: "2026-10-22"
+  - closed: "2026-10-22"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2937":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2937"
+  - title: "Tech debt: application-dsl-spec 1.0 statements"
+  - who: petar-djukic
+  - opened: "2026-11-21"
+  - closed: "2026-11-21"
+  - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2943":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2943"
+  - title: "Adopt scrum-master for this repository's issue loop"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
