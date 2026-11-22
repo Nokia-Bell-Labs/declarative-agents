@@ -309,3 +309,10 @@ dev
   - opened: "2026-11-22"
   - closed: "2026-11-22"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2945":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2945"
+  - title: "The planning documents' issues record is rewritten by agent-core's SRD formatter"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
