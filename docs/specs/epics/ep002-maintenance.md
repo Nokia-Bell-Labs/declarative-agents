@@ -13,6 +13,11 @@ authors: petar-djukic
 - owner: technical program manager
 - horizon: 2026-W38..2026-W52
 - parent: in001-scrum-run-repository
+- architecture:
+  1. declarative-agents
+  1. magefiles
+  1. application-dsl-spec
+  1. agent-core
 
 <!-- field: problem -->
 ## Problem

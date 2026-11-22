@@ -1,6 +1,7 @@
 ---
 id: srd001-system
 title: "System: what the system does"
+authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->
 <!-- SPDX-License-Identifier: BSD-3-Clause -->
@@ -52,3 +53,14 @@ The technical program manager writes here how R1.1 is shown to hold, naming its 
 | name | repository | path |
 | --- | --- | --- |
 | declarative-agents | https://github.com/Nokia-Bell-Labs/declarative-agents.git | / |
+| agent-core | https://github.com/Nokia-Bell-Labs/declarative-agents.git | agent-core/ |
+| operator | https://github.com/Nokia-Bell-Labs/declarative-agents.git | operator/ |
+| application-dsl-spec | https://github.com/Nokia-Bell-Labs/declarative-agents.git | application-dsl-spec/ |
+| design-patterns | https://github.com/Nokia-Bell-Labs/declarative-agents.git | design-patterns/ |
+| applications | https://github.com/Nokia-Bell-Labs/declarative-agents.git | applications/ |
+| agent-architecture | https://github.com/Nokia-Bell-Labs/declarative-agents.git | applications/agent-architecture/ |
+| catalog | https://github.com/Nokia-Bell-Labs/declarative-agents.git | applications/catalog/ |
+| chatbot-mesh | https://github.com/Nokia-Bell-Labs/declarative-agents.git | applications/chatbot-mesh/ |
+| coding-agent | https://github.com/Nokia-Bell-Labs/declarative-agents.git | applications/coding-agent/ |
+| scrum-master | https://github.com/Nokia-Bell-Labs/declarative-agents.git | applications/scrum-master/ |
+| magefiles | https://github.com/Nokia-Bell-Labs/declarative-agents.git | magefiles/ |
