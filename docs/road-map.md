@@ -11,10 +11,10 @@ authors: petar-djukic
 
 Each release below names the objective items it delivers, in deliverables, and its milestone and tag, in release; the plan-write skill keeps them.
 
-<!-- release: 01.0 | status: specified -->
+<!-- release: 01.0 | status: released -->
 ## 01.0 - First release
 
-Release 01.0 delivers in001-scrum-run-repository#R1.1, in001-scrum-run-repository#R2.1, on milestone 01.0, tagged corpus/v0.1.0.
+Release 01.0 delivers in001-scrum-run-repository#R1.1, in001-scrum-run-repository#R2.1, on milestone 01.0, tagged corpus/v0.2.0.
 
 <!-- field: deliverables -->
 ### Deliverables
@@ -33,5 +33,5 @@ Release 01.0 delivers in001-scrum-run-repository#R1.1, in001-scrum-run-repositor
 <!-- field: publication | form: "tree" -->
 #### Publication
 
-- tag: corpus/v0.1.0
+- tag: corpus/v0.2.0
 - milestone: "01.0"
