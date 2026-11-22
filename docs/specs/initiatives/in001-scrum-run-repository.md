@@ -51,19 +51,6 @@ scrum-master is built, released, and installable, covering delivery, planning, r
 
 The repository's gates run green on main, and the debt found in passing is filed and retired.
 
-<!-- req: R3 -->
-## R3 - The agent-core public package
-
-<!-- field: applicability | form: "tree" -->
-### Applicability
-
-- due: "2027-01-29"
-
-<!-- req: R3.1 -->
-### R3.1
-
-agent-core offers a public package that runs the agent's command line and registers an application's in-process commands, and scrum-master builds its agent from its own main over it, with agent-core as an ordinary module dependency (#2756).
-
 <!-- field: non_goals -->
 ## Non-goals
 
@@ -106,26 +93,6 @@ mage audit passes on main.
 #### Tests
 
 - initiative_mage_audit_green
-
-<!-- field: applicability -->
-#### Applicability
-
-dev
-
-<!-- ac: AC3 -->
-### AC3
-
-A test binary registers an in-process command through the public package and a profile run calls it, and scrum-master's agent builds with no overlay.
-
-<!-- field: traces -->
-#### Traces
-
-- [R3.1](#r31)
-
-<!-- field: tests -->
-#### Tests
-
-- initiative_agent_core_public_package
 
 <!-- field: applicability -->
 #### Applicability
