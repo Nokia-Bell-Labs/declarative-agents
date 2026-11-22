@@ -13,6 +13,8 @@ authors: petar-djukic
 - owner: technical program manager
 - horizon: 2026-W44..2026-W48
 - parent: in001-scrum-run-repository
+- architecture:
+  1. scrum-master
 
 <!-- field: problem -->
 ## Problem
