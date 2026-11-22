@@ -342,8 +342,10 @@ dev
 - "Nokia-Bell-Labs/declarative-agents#2756":
   - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2756"
   - title: "agent-core: a public package to build the agent with an application's in-process commands"
+  - who: petar-djukic
   - opened: "2026-10-27"
-  - state: open
+  - closed: "2026-11-22"
+  - state: closed
 - "Nokia-Bell-Labs/declarative-agents#2759":
   - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2759"
   - title: "scrum-master release: the out-of-tree gate fails its own module-path guard"

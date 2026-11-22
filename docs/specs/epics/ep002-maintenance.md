@@ -389,3 +389,10 @@ dev
   - opened: "2026-11-22"
   - closed: "2026-11-22"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2972":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2972"
+  - title: "in001 drops R3.1, the agent-core public package item"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
