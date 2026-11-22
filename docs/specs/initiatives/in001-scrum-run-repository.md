@@ -1,7 +1,7 @@
 ---
 id: in001-scrum-run-repository
 title: Run this repository with an AI-native scrum process and keep it healthy
-status: to_be_agreed
+status: agreed
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->
