@@ -382,3 +382,10 @@ dev
   - opened: "2026-11-22"
   - closed: "2026-11-22"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2970":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2970"
+  - title: "in001 carries an item for the agent-core public package"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
