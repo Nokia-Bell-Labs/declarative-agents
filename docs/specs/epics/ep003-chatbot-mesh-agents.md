@@ -91,3 +91,17 @@ The revised srd005 and srd006 pass the chatbot-mesh audit.
 #### Applicability
 
 local
+
+<!-- field: issues | form: "tree" -->
+## Issues
+
+- "Nokia-Bell-Labs/declarative-agents#2689":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2689"
+  - title: "Epic: declare chatbot-mesh's creator, orchestrator, and rag-servers as Agent resources"
+  - opened: "2026-10-18"
+  - state: open
+- "Nokia-Bell-Labs/declarative-agents#2690":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2690"
+  - title: "Spec: should the creator create Agent resources directly, and what remains of the applier (srd005/srd006 revision)"
+  - opened: "2026-10-18"
+  - state: open

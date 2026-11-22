@@ -307,6 +307,11 @@ dev
   - opened: "2026-11-21"
   - closed: "2026-11-21"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2942":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2942"
+  - title: "Recurring: Run release push"
+  - opened: "2026-11-21"
+  - state: open
 - "Nokia-Bell-Labs/declarative-agents#2943":
   - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2943"
   - title: "Adopt scrum-master for this repository's issue loop"
