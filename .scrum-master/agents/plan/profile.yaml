@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan skill as a declarative-agents profile (GH-198, design.md D14):
+# the planning machine around the person's three choices, words as its tools.
+# scrum-master install renders the SKILL.md from this machine, and mage audit
+# validates the profile at the pin.
+name: plan
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_config_dirs:
+  - /opt/agent-core/tools/builtin/filesystem
+tool_declarations:
+  - declarations.yaml
+  - release-declarations.yaml
+  - llm/default.yaml
+  - /opt/agent-core/tools/builtin/report-parse-error.yaml
+  - /opt/agent-core/tools/builtin/reset-history.yaml
+  - /opt/agent-core/tools/builtin/nudge-reread.yaml
+  - /opt/agent-core/tools/builtin/done.yaml
+  - /opt/agent-core/tools/exec/stage-all.yaml
+  - /opt/agent-core/tools/exec/commit.yaml
+# The provider library invoke_llm reads its chat dialect from.
+libraries:
+  providers: /opt/agent-core/tools/providers/ollama

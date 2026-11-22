@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-record-point-failure
+tools:
+- name: record_point_failure
+  type: builtin
+  init: record_point_failure
+  visibility: internal
+  signature:
+    emits:
+    - PointFailureRecorded
+    - CommandError
+  description: Project a failed point command result into failure stage and cause fields.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: point_failure_recorded
+    description: Stores failure stage and cause from the preceding command result.
+  undo:
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
+  errors:
+  - signal: CommandError
+    condition: point state is unavailable
+    message_shape: 'record_point_failure: <error>'
+    state_after_failure: previous point context is preserved
+  output:
+    description: Recorded failure stage and cause.
+    schema:
+      type: string

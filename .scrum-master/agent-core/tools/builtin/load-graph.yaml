@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-load-graph
+tools:
+- name: load_graph
+  type: builtin
+  init: load_graph
+  description: Load the specification corpus and build the requirement dependency graph into pipeline state.
+  visibility: internal
+  signature:
+    emits:
+    - GraphLoaded
+    - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: requirement_graph_loaded
+    description: Loads the corpus and builds the requirement graph, seeding pipeline state for extraction.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore graph presence and receipt-recorded pipeline values captured before loading.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_presence, graph_status]
+  errors:
+  - signal: CommandError
+    condition: the corpus directory is missing or invalid, or the graph cannot be built
+    message_shape: 'load_graph: <error>'
+    state_after_failure: pipeline state is left unchanged
+  output:
+    description: Plain-text graph load summary.
+    schema:
+      type: string

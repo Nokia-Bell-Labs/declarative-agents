@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-record-oracle-result
+tools:
+- name: record_oracle_result
+  type: builtin
+  init: record_oracle_result
+  visibility: internal
+  signature:
+    emits:
+    - OracleCheckPassed
+    - OracleCheckFailed
+    - CommandError
+  description: Record the configured oracle exec result in the current point context.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: oracle_result_recorded
+    description: Stores pass/fail status and command output from the configured oracle exec word.
+  undo:
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
+  errors:
+  - signal: CommandError
+    condition: point state is unavailable
+    message_shape: 'record_oracle_result: <error>'
+    state_after_failure: previous point context is preserved
+  output:
+    description: Configured oracle command output.
+    schema:
+      type: string

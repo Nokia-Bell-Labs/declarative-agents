@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Specification validation builtin declarations.
+unit: builtin-spec-validation-all
+imports:
+  - ../load-corpus.yaml
+  - ../validate-specs.yaml
+  - ../format-report.yaml
+  - reduce-grep-checks.yaml
+  - reduce-ref-checks.yaml
+  - reduce-consistency-checks.yaml
+  - test-evidence.yaml
+
+tools: []

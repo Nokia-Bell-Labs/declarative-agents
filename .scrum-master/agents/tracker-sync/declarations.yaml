@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The tracker-sync machine's words (GH-37). the run starts in a checkout of the program; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-tracker-sync-declarations
+tools:
+- name: tracker_reconcile
+  type: exec
+  binary: scrum-master
+  args:
+  - tracker
+  - reconcile
+  - --json
+  visibility: internal
+  description: 'Push the provisional writes made offline and settle each against the tracker (srd042 R6).'
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The reconcile''s JSON report.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Pushes the provisional writes made offline.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'tracker_reconcile: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

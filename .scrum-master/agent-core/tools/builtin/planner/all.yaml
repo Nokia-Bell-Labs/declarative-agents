@@ -1,0 +1,19 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Planner builtin declarations.
+unit: builtin-planner-all
+imports:
+  - ../load-graph.yaml
+  - ../extract-task.yaml
+  - ../extract-all.yaml
+  - ../assemble-prompt.yaml
+  - ../parse-plan.yaml
+  - ../format-issue.yaml
+  - ../write.yaml
+  - ../record-tracker-issue.yaml
+  - ../execute-task.yaml
+  - ../mark-task-done.yaml
+  - ../mark-task-failed.yaml
+  - ../remaining-work.yaml
+
+tools: []

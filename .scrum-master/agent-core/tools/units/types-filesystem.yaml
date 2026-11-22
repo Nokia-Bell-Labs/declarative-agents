@@ -1,0 +1,69 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Request shapes the workspace words expose to a model.
+unit: builtin-types-filesystem
+types:
+- name: ReadRequest
+  description: The file and optional line range read publishes content from.
+  schema:
+    type: object
+    properties:
+      path:
+        type: string
+        description: File path relative to workspace root (must be a file, not a directory)
+      start_line:
+        type: integer
+        description: Start line (1-indexed, inclusive)
+      end_line:
+        type: integer
+        description: End line (1-indexed, inclusive)
+      raw:
+        type: boolean
+        description: Return exact file bytes without line-number prefixes.
+    required:
+    - path
+- name: WriteRequest
+  description: The file path and full content write replaces it with.
+  schema:
+    type: object
+    properties:
+      path:
+        type: string
+        description: File path relative to workspace root
+      content:
+        type: string
+        description: Full file content to write
+    required:
+    - path
+    - content
+- name: EditRequest
+  description: The file and the exact text edit replaces.
+  schema:
+    type: object
+    properties:
+      path:
+        type: string
+        description: File path relative to workspace root
+      old_string:
+        type: string
+        description: Exact text to find
+      new_string:
+        type: string
+        description: Replacement text
+    required:
+    - path
+    - old_string
+    - new_string
+- name: FindRequest
+  description: The pattern find searches for and the subtree it scopes the search to.
+  schema:
+    type: object
+    properties:
+      query:
+        type: string
+        description: 'Regex pattern (ripgrep syntax, not glob). Example: \.go$ for Go files, func main for function search'
+      path:
+        type: string
+        description: Subdirectory to scope the search (optional)
+    required:
+    - query

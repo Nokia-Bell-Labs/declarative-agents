@@ -1,0 +1,50 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-suspend
+tools:
+- name: suspend
+  type: builtin
+  contract: migrated
+  init: suspend
+  visibility: internal
+  signature:
+    emits:
+    - AwaitApproval
+    - CommandError
+  description: Suspend the run at an approval gate. The loop persists a checkpoint through the Checkpoint port when a persistent backend (--dolt-dsn) is configured.
+  category: boundary
+  config:
+    label: approval
+    reason: awaiting approval
+    require_checkpoint: false
+  side_effects:
+  - kind: state_mutation
+    target: lifecycle_checkpoint
+    state: suspended
+    description: Requests suspension; the loop persists a checkpoint through the Checkpoint port when a persistent backend is configured.
+  - kind: human_boundary
+    target: operator_approval
+    description: Hands control to an operator approval decision before resume.
+  reversibility:
+    classification: compensatable
+  undo:
+    strategy: compensating_action
+    description: Resume with Approved, reject with Rejected, or roll back to an earlier checkpoint.
+    payload: suspend_receipt
+    captures:
+    - label
+    - reason
+    - checkpoint_required
+    - checkpoint_configured
+    - checkpoint_reference_context
+    requires:
+    - operator_decision
+    - resume_signal_or_rollback_target
+  output:
+    description: The configured or default reason presented at the approval boundary; the opaque receipt carries rollback compensation context.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: require_checkpoint is true but the Checkpoint port is nil or the no-op backend
+    message_shape: suspend requires a persistent checkpoint backend for checkpoint persistence
+    state_after_failure: the run is not suspended and no approval handoff occurs

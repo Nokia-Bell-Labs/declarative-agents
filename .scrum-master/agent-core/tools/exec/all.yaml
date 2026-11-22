@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Full shared exec declaration bundle.
+unit: exec-all
+imports:
+  - go/all.yaml
+  - workspace/all.yaml
+  - git/all.yaml
+
+tools: []

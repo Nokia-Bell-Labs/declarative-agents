@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-render-each
+imports:
+- ../units/types-core.yaml
+tools:
+- name: render_each
+  type: builtin
+  init: render_each
+  category: word
+  visibility: internal
+  description: Render each value in an ordered array with one item template and join the parts.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-core.Text
+    emits: [Rendered, CommandError]
+  output:
+    description: Joined rendered text.
+  errors:
+  - signal: CommandError
+    condition: The array selector does not resolve, its value is not an array, or an item field or numeric index is absent.
+    message_shape: 'render_each: <error>'
+    state_after_failure: No successful rendered output is published.
+  relationships:
+    before: [compose, machine-selected successor]
+    after: [array-producing predecessor]
+  config:
+    items: $from(values).items
+    item_template: '{{ name }}'
+    separator: "\n"
+    signal: Rendered

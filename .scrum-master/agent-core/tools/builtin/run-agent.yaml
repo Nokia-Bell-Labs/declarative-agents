@@ -1,0 +1,61 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-run-agent
+tools:
+- name: run_agent
+  type: builtin
+  init: run_agent
+  visibility: internal
+  signature:
+    emits:
+    - HarnessFinished
+    - HarnessFailed
+    - HarnessTimedOut
+    - CommandError
+  description: Run the agent binary on the prepared workspace, record exit code and timing, and emit the result-artifact write parameters (path, content) for the following write word.
+  category: boundary
+  side_effects:
+  - kind: child_process
+    target: harness_agent
+    description: Runs the configured agent binary for the current point.
+  - kind: filesystem_write
+    target: point_workspace
+    description: The harness agent may mutate files in the point workspace.
+  - kind: state_mutation
+    target: point_context
+    state: harness_result_recorded
+    description: Records exit code, timing, and timeout in point context. The result.json artifact write is a separate declared write transition, not a side effect of this word.
+  reversibility:
+    classification: compensatable
+  undo:
+    strategy: compensating_action
+    description: Restore point context and workspace refs; external child process effects may require compensation. The result artifact is reversed by the write word's own receipt.
+    payload: boundary_compensation
+    captures:
+    - point_context_snapshot
+    - point_workspace
+    - trace_path
+    requires:
+    - Workspace
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'run_agent: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Write parameters for the following write word — the result.json path and the child agent's stdout content.
+    schema:
+      type: object
+      properties:
+        parameters:
+          type: object
+          properties:
+            path:
+              type: string
+            content:
+              type: string
+          required:
+          - path
+          - content
+      required:
+      - parameters

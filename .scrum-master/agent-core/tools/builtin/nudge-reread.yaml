@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-nudge-reread
+imports:
+- ../units/types-core.yaml
+tools:
+- name: nudge_reread
+  type: builtin
+  init: nudge_reread
+  visibility: internal
+  description: Append a re-read instruction after file edits to prompt the model to verify changes.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone]
+  category: word
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'nudge_reread: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Plain-text edit result followed by the reread instruction.
+  config:
+    nudge_text: "The file was modified successfully. IMPORTANT: You MUST call the read tool on the modified file to see its current contents before making any further edits. Do not assume you know what the file looks like — re-read it now."

@@ -1,0 +1,55 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: exec-copy-dir
+imports:
+- ../units/types-core.yaml
+tools:
+- name: copy_dir
+  type: exec
+  binary: cp
+  args:
+  - -a
+  description: Copy a directory tree. Provide source and destination paths.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_directory
+    description: Creates or overwrites files in the destination directory.
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace ref captured before the copy.
+    requires:
+    - Workspace
+  parameters:
+    type: object
+    properties:
+      source:
+        type: string
+        description: Source directory path (appends /. for contents)
+        positional: true
+        position: 1
+      destination:
+        type: string
+        description: Destination directory path
+        positional: true
+        position: 2
+    required:
+    - source
+    - destination
+  output:
+    description: Combined stdout and stderr from `cp -a`.
+  errors:
+  - signal: CommandError
+    condition: a required path is absent or the cp process cannot be started
+    message_shape: 'copy_dir: <error>'
+    state_after_failure: no child process mutation occurs when dispatch fails
+  - signal: ToolFailed
+    condition: "`cp -a` exits non-zero"
+    message_shape: '<captured cp output>'
+    state_after_failure: the destination may contain a partial copy and must be restored from the workspace checkpoint
+  relationships:
+    before: [create_point_dir, sample_docs]
+    after: [git_init, machine-selected successor]

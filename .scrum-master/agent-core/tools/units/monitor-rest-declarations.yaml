@@ -1,0 +1,72 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The monitor REST pair -- launch the read-only monitor server, stop it -- for
+# an agent that also has its own control server and await word. The monitor
+# server fragment names its server `monitor` whatever agent instantiates it
+# (srd052 R2.3), so these two words are the same in every agent and arrive by
+# import rather than instantiation.
+#
+# An agent whose control server is its monitor server composes a
+# launch/await/stop trio instead, and imports a different unit.
+unit: builtin-monitor-rest
+imports:
+  - types-core.yaml
+  - types-server.yaml
+tools:
+  - name: launch_monitor_rest
+    type: builtin
+    init: rest_server_launch
+    visibility: internal
+    category: boundary
+    description: Launch read-only REST endpoints for cached monitor state.
+    signature:
+      input: builtin-types-core.NoParameters
+      output: builtin-types-server.ServerLaunch
+      emits: [ServerLaunched, CommandError]
+    output:
+      description: Monitor REST server launch result.
+    side_effects:
+      - kind: network_listen
+        target: monitor_rest_server
+        state: listener_started
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Stop the monitor REST server if the launch owns the listener.
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server config, bind, route, or schema failure.
+        state_after_failure: No monitor route is exposed.
+    config:
+      rest_ref: monitor
+
+  - name: stop_monitor_rest
+    type: builtin
+    init: rest_server_stop
+    visibility: internal
+    category: boundary
+    description: Stop the owned monitor REST listener.
+    signature:
+      input: builtin-types-core.NoParameters
+      output: builtin-types-server.ServerStop
+      emits: [ServerStopped, CommandError]
+    output:
+      description: Monitor REST server stop result.
+    side_effects:
+      - kind: network_listener_shutdown
+        target: monitor_rest_server
+        state: listener_stopped
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: server_shutdown_or_user_action_compensation
+      description: The receipt records shutdown loss; MachineSpec must relaunch the trusted monitor definition.
+      payload: boundary_compensation
+      captures: [server, address, drained_events, dropped_events, relaunch_requirement]
+    errors:
+      - signal: CommandError
+        condition: Monitor REST server is missing, cleanup fails, or shutdown fails for a reason other than an expired drain budget.
+        state_after_failure: Monitor listener state may be partially stopped.
+    config:
+      rest_ref: monitor

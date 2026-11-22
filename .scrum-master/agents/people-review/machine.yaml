@@ -1,0 +1,76 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: people-review
+purpose: |-
+  Name who signs off on a scrum in control/people.md (srd013). Use
+  only when a person asks to name a scrum's reviewer, after confirming with them
+  which scrum and which person; an agent never names one on its own. A document
+  names its own, with the backlog-reviewer skill.
+
+  This machine has no model state: scrum-master people review (design.md D10,
+  D14; GH-2869). The run starts in the system repository's checkout, or one
+  beside it, and its request names the person.
+configuration:
+  machine: plugin/agents/people-review/machine.yaml
+  tools: plugin/agents/people-review/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Review (Seed): scrum-master people review
+  2. Review → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Review
+  meaning: |
+    The review word: scrum-master people review names the person in
+    control/people.md; a second identical run changes nothing.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The word refused — no scrum was named, another
+    person reviews it without force, or no system repository's checkout is at
+    or beside the directory — and its reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Review
+  action: people_review
+  summary: true
+- state: Review
+  signal: ToolFailed
+  next: Refused
+- state: Review
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Review
+  signal: CommandError
+  next: Failed

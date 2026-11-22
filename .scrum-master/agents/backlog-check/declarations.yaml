@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The backlog-check machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-backlog-check-declarations
+tools:
+- name: backlog_check
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - check
+  - --json
+  visibility: internal
+  description: Check the hierarchy documents and report every finding to fix (srd045).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The repository's checkout.
+        flag: --dir
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master backlog check's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the hierarchy documents; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_check: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the check finds problems or the word refuses, exiting non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

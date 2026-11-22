@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: reports-collect
+purpose: |-
+  Collect a team's or the program's merged reports and rollups, and the
+  period's open status and rollup issues, from the repositories where
+  they were written (GH-2725). Use when a model skill's rollup steps run
+  without a model, or a person asks what a level reported.
+
+  This machine has no model state: scrum-master reports collect (design.md
+  D10, D14; GH-2725).
+configuration:
+  machine: plugin/agents/reports-collect/machine.yaml
+  tools: plugin/agents/reports-collect/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Collect (Seed): scrum-master reports collect
+  2. Collect → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Collect
+  meaning: |
+    The collect word: scrum-master reports collect reads the level's
+    repositories, the subsystem SRDs' implementation targets, from each
+    host or a checkout beside this one, and names each report and rollup
+    with its repository and commit.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The collection was refused, and the word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Collect
+  action: reports_collect
+  summary: true
+- state: Collect
+  signal: ToolFailed
+  next: Refused
+- state: Collect
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Collect
+  signal: CommandError
+  next: Failed

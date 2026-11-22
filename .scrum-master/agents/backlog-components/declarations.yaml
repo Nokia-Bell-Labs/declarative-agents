@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The backlog-components machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-backlog-components-declarations
+tools:
+- name: backlog_components
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - components
+  - --json
+  description: List the component ids docs/ARCHITECTURE.md declares, so planning checks a component exists before naming it (srd045 R8.6, GH-58).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: The component ids, in ARCHITECTURE's order.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads ARCHITECTURE and writes nothing.
+  visibility: internal

@@ -1,0 +1,107 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The check machine's words (GH-35): each reads the checkout the run starts
+# in and writes nothing; a non-zero exit is a finding, and the machine ends
+# the run in the state that names it.
+unit: scrum-master-check-declarations
+tools:
+- name: gate
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - check
+  - --json
+  visibility: internal
+  description: Run the corpus gate over the checkout — the hierarchy, the SRDs, and every document's shape (srd045).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The gate's JSON report — the documents counted, each finding, and the unfilled documents.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the checkout and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'gate: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the gate finds a problem in a document
+    message_shape: <the findings, as printed>
+    state_after_failure: the checkout is unchanged
+
+- name: vendored
+  type: exec
+  binary: scrum-master
+  args:
+  - install
+  - --profiles
+  - --check
+  - --json
+  visibility: internal
+  description: 'Hold the vendored profiles in .scrum-master to their manifest: a file edited since it was vendored, or missing, is a finding (GH-35).'
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The check's JSON report — each vendored file that differs from the manifest.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the checkout and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'vendored: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: a vendored file was edited or is missing, or nothing is vendored
+    message_shape: <the findings, as printed>
+    state_after_failure: the checkout is unchanged
+
+- name: doctor
+  type: exec
+  binary: scrum-master
+  args:
+  - doctor
+  - --dry-run
+  - --json
+  - --fail-on-drift
+  visibility: internal
+  description: Report the repository's drift — orientation files, skills, the documents' canonical form, and the vendored release — writing nothing (srd043).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: doctor's JSON report of what a run would change.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the checkout and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'doctor: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: doctor cannot read the repository
+    message_shape: <the findings, as printed>
+    state_after_failure: the checkout is unchanged

@@ -1,0 +1,112 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: init
+purpose: |-
+  Lay down a program's system repository and install its skills (srd034,
+  srd037): the corpus, the control files, the orientation, and the skills,
+  then the profiles they run, vendored. Run it once with the agent to start
+  a program; rerun it to check the repository and take a new release.
+
+  This machine has no model state: two words (design.md D10, D14;
+  GH-29). The first lays the repository down and installs its skills; the
+  second vendors the release's profiles and agent-core declarations into
+  .scrum-master, which every skill runs with the agent. A rerun is the
+  repository's check: each word keeps what a person edited and reports
+  what drifted, so an up-to-date repository changes nothing.
+configuration:
+  machine: plugin/agents/init/machine.yaml
+  tools: plugin/agents/init/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A file a person edited is kept, by both words
+- A rerun of the whole machine on an up-to-date repository changes nothing
+lifecycle: |-
+  1. Idle → Scaffold (Seed): scrum-master init lays the repository down and installs
+     the skills
+  2. Scaffold → Vendor (ToolDone): scrum-master install --profiles vendors the
+     profiles into .scrum-master
+  3. Scaffold → Refused (ToolFailed): the word's reason ends the run
+  4. Vendor → Done (ToolDone); Vendor → NotVendored (ToolFailed)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the repository is laid down.
+- name: Scaffold
+  meaning: |
+    The init word: scrum-master init writes the system repository's corpus, control
+    files, and orientation, seeds the tracker when one is named, and
+    installs the skills for the named agents, all by default; a file a
+    person edited is kept.
+- name: Vendor
+  meaning: |
+    The vendor word: scrum-master install --profiles copies the release's profiles
+    into .scrum-master/agents and the agent-core declarations they read
+    into .scrum-master/agent-core, with a manifest naming the release, and
+    reports each file created, updated, unchanged, kept, or removed.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The repository is laid down, its skills are installed, and
+    the profiles they run are vendored; commit .scrum-master with the rest.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. scrum-master init refused, and its reason, as printed, is the run's
+    last output; nothing was vendored.
+- name: NotVendored
+  run_status: failed
+  meaning: |
+    Terminal. The repository is laid down, but the profiles did not vendor
+    — most often because the release's source is not on this host; the
+    reason is reported, and a rerun vendors them.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+terminal_states:
+- Done
+- Refused
+- NotVendored
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Scaffold
+  action: init
+  label: scaffold
+  summary: true
+- state: Scaffold
+  signal: ToolDone
+  next: Vendor
+  action: vendor
+  label: vendor
+  summary: true
+- state: Scaffold
+  signal: ToolFailed
+  next: Refused
+- state: Vendor
+  signal: ToolDone
+  next: Done
+- state: Vendor
+  signal: ToolFailed
+  next: NotVendored
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Scaffold
+  signal: CommandError
+  next: Failed
+- state: Vendor
+  signal: CommandError
+  next: Failed

@@ -1,0 +1,55 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the planner words publish while they assemble a task prompt.
+unit: builtin-types-planner
+types:
+- name: PlannerContext
+  description: Structured planner context fields.
+  schema:
+    type: object
+    properties:
+      task_id:
+        type: string
+      srd_id:
+        type: string
+      problem:
+        type: string
+      goals:
+        type: string
+      acceptance_criteria:
+        type: string
+      items:
+        type: string
+    required:
+    - task_id
+    - srd_id
+    - problem
+    - goals
+    - acceptance_criteria
+    - items
+- name: CapturedFailure
+  description: The preceding validation failure, labelled for the retry prompt.
+  schema:
+    type: object
+    properties:
+      output:
+        type: string
+    required:
+    - output
+- name: TaskFileWriteRequest
+  description: The path and rendered plan the write word receives.
+  schema:
+    type: object
+    properties:
+      parameters:
+        type: object
+        properties:
+          path:
+            type: string
+          content:
+            type: string
+        required:
+        - path
+        - content
+    required:
+    - parameters

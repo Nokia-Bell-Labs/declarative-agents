@@ -1,0 +1,112 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Filesystem builtin declarations.
+unit: builtin-filesystem-all
+imports:
+  - ../read.yaml
+  - ../write.yaml
+  - ../edit.yaml
+  - ../find.yaml
+  - ../list-files.yaml
+
+tools:
+  - name: list_resource
+    type: builtin
+    category: boundary
+    init: list_resource
+    description: Shape externally discovered paths from a configured filesystem resource.
+    parameters:
+      type: object
+      properties: {}
+      additionalProperties: false
+    signature:
+      emits: [DocumentListReady, DocumentResourceDenied, CommandError]
+    output:
+      description: Structured document list entries from the configured resource.
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            path: {type: string}
+            name: {type: string}
+            category: {type: string}
+            extension: {type: string}
+            size: {type: integer}
+    side_effects:
+      - kind: filesystem_read
+        target: configured_document_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Resource listing is read-only.
+    config:
+      resources: {}
+
+    errors:
+    - signal: DocumentResourceDenied
+      condition: a candidate path is absolute, contains traversal, or resolves outside the configured resource root
+      message_shape: 'resource_denied: <reason>'
+      state_after_failure: no resource content or runtime state is changed
+    - signal: CommandError
+      condition: the configured resource is unknown or filesystem metadata cannot be read or encoded
+      message_shape: 'list_resource: <error>'
+      state_after_failure: no successful document list is published
+  - name: read_resource
+    type: builtin
+    category: boundary
+    init: read_resource
+    description: Read one document from a configured filesystem resource.
+    parameters:
+      type: object
+      properties:
+        resource:
+          type: string
+          description: Configured resource name.
+        path:
+          type: string
+          description: Resource-relative document path.
+      required: [resource, path]
+    signature:
+      emits: [DocumentReady, DocumentMissing, DocumentResourceDenied, DocumentParseFailed, CommandError]
+    output:
+      description: Structured document detail from the configured resource.
+      schema:
+        type: object
+        properties:
+          path: {type: string}
+          raw: {type: string}
+          parsed: {type: object}
+          content_type: {type: string}
+          extension: {type: string}
+          size: {type: integer}
+    side_effects:
+      - kind: filesystem_read
+        target: configured_document_resource
+        state: read_only
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Resource reading is read-only.
+    config:
+      resources: {}
+    errors:
+    - signal: DocumentMissing
+      condition: the selected resource-relative file does not exist
+      message_shape: resource not found
+      state_after_failure: no document content or runtime state is changed
+    - signal: DocumentResourceDenied
+      condition: the path, extension, size, file kind, or include policy denies the read
+      message_shape: 'resource_denied: <reason>'
+      state_after_failure: no document content is returned
+    - signal: DocumentParseFailed
+      condition: configured parsed-YAML mode cannot decode the document
+      message_shape: 'parse_failed: <yaml error>'
+      state_after_failure: no successful document detail is published
+    - signal: CommandError
+      condition: the resource is unknown or an unclassified filesystem or encoding failure occurs
+      message_shape: 'read_resource: <error>'
+      state_after_failure: no runtime or filesystem state is changed

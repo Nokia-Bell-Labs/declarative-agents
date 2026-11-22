@@ -1,0 +1,63 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The status-issues machine's words (GH-37). With control, the roster in the
+# system repository files each person's status issue where they report and
+# the team and program rollup issues (GH-2725); without it, the word reads
+# the central reports repository SCRUM_MASTER_REPORTS names. Optional flags
+# are parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-status-issues-declarations
+tools:
+- name: reports_status_issues
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - status-issues
+  - --json
+  visibility: internal
+  description: 'File one status issue per listed person for the coming week, and with control the team and program rollup issues, once (srd018 R7; GH-2725).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      date:
+        type: string
+        description: 'A day of the coming week, YYYY-MM-DD; empty is today.'
+        flag: --date
+      ref:
+        type: string
+        description: 'The ref of the control files; empty is main.'
+        flag: --ref
+      control:
+        type: string
+        description: 'The system repository holding control/reports.md, the roster of who reports and where.'
+        flag: --control
+      reports:
+        type: string
+        description: 'A central reports repository''s project path, without control; empty is SCRUM_MASTER_REPORTS.'
+        flag: --reports
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The status issues'' JSON report.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Files the week''s status issues, one per person, once.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'reports_status_issues: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

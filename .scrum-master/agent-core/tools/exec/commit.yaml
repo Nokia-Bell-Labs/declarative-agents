@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: exec-commit
+tools:
+- name: commit
+  type: exec
+  binary: git
+  args:
+  - commit
+  description: Create a git commit from staged changes. Fails if nothing is staged.
+  precondition: git_repo
+  category: boundary
+  side_effects:
+  - kind: filesystem_write
+    target: git_repository
+    description: Creates a commit object and moves the current branch ref.
+  reversibility:
+    classification: compensatable
+  undo:
+    strategy: compensating_action
+    description: Restore the workspace ref when checkpointed; otherwise compensate with an explicit revert/reset policy.
+    payload: boundary_compensation
+    captures:
+    - workspace_paths
+    - git_ref
+    requires:
+    - Workspace
+    - git_ref
+  parameters:
+    type: object
+    properties:
+      message:
+        type: string
+        description: Commit message
+        flag: -m
+    required:
+    - message
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Combined stdout and stderr from `git commit`.
+    schema: {type: string}
+  errors:
+  - signal: CommandError
+    condition: the message cannot be resolved or the git process cannot be started
+    message_shape: 'commit: <error>'
+    state_after_failure: no commit is created by a process that did not start
+  - signal: ToolFailed
+    condition: the workspace is not a Git repository or `git commit` exits non-zero
+    message_shape: '<captured git output>'
+    state_after_failure: Git may leave its own documented commit or hook state; the staged index remains available for inspection

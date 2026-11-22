@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The period push as a declarative-agents profile (GH-206, design.md D14):
+# the third model-free machine — the milestone, the sprint issue, the
+# sprint-end issues, and the planned events, each a word that upserts,
+# so a re-run of the machine changes nothing. scrum-master plan push runs the same
+# code as one command. mage audit validates the profile at the pin, and a
+# run starts in the system repository's checkout with SCRUM_MASTER_SYSTEM,
+# SCRUM_MASTER_VERSION, and SCRUM_MASTER_END set (SCRUM_MASTER_REF defaults to main).
+name: plan-push
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

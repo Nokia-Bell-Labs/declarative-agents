@@ -1,0 +1,162 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Objectstore boundary word declarations (srd059-objectstore-tools). Profiles
+# opt in explicitly, as with the dolt family; the group is not imported into
+# tools/builtin/all.yaml. The bucket URL flows through the declaration
+# templating pipeline, so moving a workload between the kind rig, GCS, and S3
+# changes a values overlay and never this file.
+unit: builtin-objectstore
+imports:
+- ../../units/types-core.yaml
+- ../../units/types-objectstore.yaml
+tools:
+- name: object_read
+  type: builtin
+  category: boundary
+  init: object_read
+  description: Read one object from the configured bucket and publish its content as text.
+  signature:
+    input: builtin-types-objectstore.ReadRequest
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The object content as plain text.
+  side_effects:
+  - kind: external_api
+    target: configured_object_bucket
+    state: read_only
+    description: Reads one object from the bucket the connection declares; changes nothing.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: The read only observes bucket state.
+  errors:
+  - signal: ToolFailed
+    condition: The key parameter is missing or empty.
+    message_shape: 'object_read requires parameter "key"'
+    state_after_failure: No bucket call is made.
+  - signal: CommandError
+    condition: The connection is undeclared, the bucket URL is invalid, or the object cannot be read.
+    message_shape: 'object_read: <named fault>'
+    state_after_failure: No bucket state is changed.
+  config:
+    connection: default
+    connections:
+      default:
+        bucket_url: "${OBJECT_BUCKET_URL:-mem://agents}"
+        endpoint: "${OBJECT_ENDPOINT:-}"
+
+- name: object_write
+  type: builtin
+  category: boundary
+  init: object_write
+  description: Create or overwrite one object in the configured bucket with the full content given.
+  signature:
+    input: builtin-types-objectstore.WriteRequest
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Plain-text write confirmation naming the key and byte count.
+  side_effects:
+  - kind: external_api
+    target: configured_object_bucket
+    state: object_written
+    description: Creates or replaces one object in the bucket the connection declares.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: object_snapshot_restore
+    description: Restore the prior object bytes carried in the write receipt, or delete the object the write created.
+    requires:
+    - Receipt
+  errors:
+  - signal: ToolFailed
+    condition: The key or content parameter is missing.
+    message_shape: 'object_write requires parameter "<name>"'
+    state_after_failure: No bucket call is made.
+  - signal: CommandError
+    condition: The connection is undeclared, the prior object cannot be snapshotted, or the write fails.
+    message_shape: 'object_write: <named fault>'
+    state_after_failure: The object is unchanged when the snapshot or write fails; a failed write is never reported as done.
+  config:
+    connection: default
+    connections:
+      default:
+        bucket_url: "${OBJECT_BUCKET_URL:-mem://agents}"
+        endpoint: "${OBJECT_ENDPOINT:-}"
+
+- name: object_list
+  type: builtin
+  category: boundary
+  init: object_list
+  description: List object keys under a prefix in the configured bucket.
+  signature:
+    input: builtin-types-objectstore.ListRequest
+    output: builtin-types-core.Text
+    emits: [ToolDone, CommandError]
+  output:
+    description: One key per line, or a sentence naming the empty prefix.
+  side_effects:
+  - kind: external_api
+    target: configured_object_bucket
+    state: read_only
+    description: Enumerates keys in the bucket the connection declares; changes nothing.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: The listing only observes bucket state.
+  errors:
+  - signal: CommandError
+    condition: The connection is undeclared, the bucket URL is invalid, or the listing fails.
+    message_shape: 'object_list: <named fault>'
+    state_after_failure: No bucket state is changed.
+  config:
+    connection: default
+    connections:
+      default:
+        bucket_url: "${OBJECT_BUCKET_URL:-mem://agents}"
+        endpoint: "${OBJECT_ENDPOINT:-}"
+
+- name: object_delete_prefix
+  type: builtin
+  category: boundary
+  init: object_delete_prefix
+  visibility: internal
+  description: Delete and verify one declaration-authorized object prefix under a bounded policy, writing an external audit record.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-objectstore.DeletePrefixOutcome
+    emits: [ToolDone, CommandError]
+  output:
+    description: Purged, partial, or refused result with bounded counts and a hash of the pre-delete key set.
+  side_effects:
+  - kind: external_api
+    target: configured_object_bucket_prefix
+    state: objects_deleted
+    description: Irreversibly deletes only the bucket prefix fixed in declaration config; request data cannot select storage authority.
+  - kind: filesystem_write
+    target: configured_external_purge_audit
+    state: audit_appended
+    description: Appends the non-secret purge outcome outside the target bucket.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: Deleted retained evidence cannot be restored by the word.
+  errors:
+  - signal: CommandError
+    condition: The connection, listing, verification, or external audit write fails.
+    state_after_failure: Success is not reported; the external audit records a bounded delete outcome when one was produced.
+  config:
+    connection: default
+    connections:
+      default:
+        bucket_url: "${OBJECT_BUCKET_URL:-mem://agents}"
+        endpoint: "${OBJECT_ENDPOINT:-}"
+    prefix: "${OBJECT_PREFIX:-application/}"
+    max_objects: 10000
+    application: "${OBJECT_APPLICATION:-application}"
+    audit_path: "${OBJECT_PURGE_AUDIT_PATH:-build/purge/audit.ndjson}"

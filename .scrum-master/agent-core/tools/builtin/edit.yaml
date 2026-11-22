@@ -1,0 +1,46 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-edit
+imports:
+- ../units/types-core.yaml
+- ../units/types-filesystem.yaml
+tools:
+- name: edit
+  type: builtin
+  category: word
+  init: file_edit
+  description: Replace the first occurrence of an exact string in a file. Use read first to see the current content, then provide the exact old_string to match.
+  signature:
+    input: builtin-types-filesystem.EditRequest
+    output: builtin-types-core.Text
+    emits: [EditDone, ToolFailed]
+  output:
+    description: Plain-text edit confirmation.
+  metrics:
+    instruments:
+    - name: filesystem.bytes_changed
+      kind: histogram
+      unit: By
+      description: Absolute byte delta for one file edit.
+      value_source: bytes_changed
+      attributes:
+      - operation
+    attributes:
+    - name: operation
+      source: tool_name
+      cardinality: low
+      redaction: none
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_file
+    description: Replaces text in one workspace file.
+  undo:
+    strategy: file_snapshot_restore
+    description: Restore the prior file bytes and mode captured in the edit receipt.
+    requires:
+    - Receipt
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'edit: <error>'
+    state_after_failure: no additional workflow step is executed by this tool

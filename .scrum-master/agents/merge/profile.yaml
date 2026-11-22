@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The merge delivery as a declarative-agents profile (GH-201, design.md
+# D14): the first machine with no model state — delivery is deterministic,
+# words all the way down. scrum-master issue merge runs the same code as one
+# command; this machine runs it as explicit states, so a close that fails
+# after the push is a state a person can see and finish, not a buried
+# error. mage audit validates the profile at the pin, and a run starts in
+# the issue's worktree with SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE set.
+name: merge
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

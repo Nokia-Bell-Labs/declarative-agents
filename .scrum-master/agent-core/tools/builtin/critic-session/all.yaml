@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Evaluator session builtin declarations.
+unit: builtin-critic-session-all
+imports:
+  - ../parse-suite-config.yaml
+  - ../discover-suite-samples.yaml
+  - ../expand-eval-grid.yaml
+  - ../init-eval-session.yaml
+  - ../report-suite-summary.yaml
+  - ../materialize-eval-points.yaml
+  - ../run-point.yaml
+  - ../report-session.yaml
+
+tools: []

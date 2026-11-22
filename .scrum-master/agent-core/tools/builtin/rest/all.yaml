@@ -1,0 +1,10 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# REST builtin declarations, one file per word family (E11, GH-2377).
+unit: builtin-rest-all
+imports:
+  - client.yaml
+  - client-async.yaml
+  - server.yaml
+
+tools: []

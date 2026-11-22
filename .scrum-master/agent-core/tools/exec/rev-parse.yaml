@@ -1,0 +1,42 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: exec-rev-parse
+tools:
+- name: rev_parse
+  binary: git
+  args:
+  - rev-parse
+  - --short
+  - HEAD
+  description: Return the short hash of HEAD.
+  precondition: git_repo
+  type: exec
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: Short object name for HEAD, followed by Git's newline.
+    schema: {type: string}
+  side_effects:
+  - kind: child_process
+    target: git
+    state: read_only
+    description: Executes one read-only Git subprocess.
+  - kind: filesystem_read
+    target: git_repository
+    state: read_only
+    description: Reads repository metadata and workspace state required by Git.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Read-only Git inspection has no repository effects to reverse.
+  errors:
+  - signal: CommandError
+    condition: the git process cannot be started
+    message_shape: 'rev_parse: <error>'
+    state_after_failure: repository state is unchanged
+  - signal: ToolFailed
+    condition: the workspace is not a Git repository or the Git command exits non-zero
+    message_shape: '<captured git output>'
+    state_after_failure: repository state is unchanged

@@ -1,0 +1,85 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: reconcile
+purpose: |-
+  Sweep the program for drift from the system checkout (GH-2822): every
+  registered repository checked against the forge — unreachable, or
+  redirected as a moved project is — and against what its documents
+  declare: a checkout whose origin names another project, a parent or
+  initiative pinned to what is not there, and the repository's doctor
+  drift, run dry. Where the tracking system's host lists the group's
+  projects, one the registry does not name is a finding too. Use on an
+  existing installation that may have drifted, as when the forge's
+  groups and repositories move through infrastructure tooling.
+
+  This machine has no model state: scrum-master reconcile (design.md
+  D10, D14). It files one issue per repository with findings, in the
+  system repository, never a second while one is open, and it changes no
+  repository and never creates, moves, or deletes one on the forge.
+configuration:
+  machine: plugin/agents/reconcile/machine.yaml
+  tools: plugin/agents/reconcile/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- Nothing on the forge is created, moved, or deleted; the issues carry the findings
+lifecycle: |-
+  1. Idle → Reconcile (Seed): scrum-master reconcile
+  2. Reconcile → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Reconcile
+  meaning: |
+    The reconcile word: from the system checkout, scrum-master reconcile
+    reads the registry, checks every registered repository against the
+    forge and its documents, sweeps the group where the host lists it,
+    and files one issue per repository with findings; each is reported
+    ok, filed, open, or failed with the reason.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The directory is no system checkout, has no forge origin,
+    or its registry names no repositories, and the word's reason is the
+    run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Reconcile
+  action: reconcile
+  summary: true
+- state: Reconcile
+  signal: ToolFailed
+  next: Refused
+- state: Reconcile
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Reconcile
+  signal: CommandError
+  next: Failed

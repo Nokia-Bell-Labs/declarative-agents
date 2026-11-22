@@ -1,0 +1,40 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The backlog-guide machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-backlog-guide-declarations
+tools:
+- name: backlog_guide
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - guide
+  description: Print a guide this release ships, such as plan-vs-architecture (GH-59).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      name:
+        type: string
+        description: The guide, such as plan-vs-architecture.
+        flag: --name
+    required:
+    - name
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: The guide's text.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the guide and writes nothing.
+  visibility: internal

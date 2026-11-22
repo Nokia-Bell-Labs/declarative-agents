@@ -1,0 +1,74 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: reports-previous
+purpose: |-
+  Find a person's last report before this week, its blockers and what
+  they committed to next (GH-2725). Use when a model skill's status-
+  report steps run without a model, or a person asks what they said last
+  week.
+
+  This machine has no model state: scrum-master reports previous (design.md
+  D10, D14; GH-2725).
+configuration:
+  machine: plugin/agents/reports-previous/machine.yaml
+  tools: plugin/agents/reports-previous/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Previous (Seed): scrum-master reports previous
+  2. Previous → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Previous
+  meaning: |
+    The previous word: scrum-master reports previous reads the person's
+    latest report before this week in the repository they report in,
+    with its repository and commit.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The previous report could not be read, and the word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Previous
+  action: reports_previous
+  summary: true
+- state: Previous
+  signal: ToolFailed
+  next: Refused
+- state: Previous
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Previous
+  signal: CommandError
+  next: Failed

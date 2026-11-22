@@ -1,0 +1,148 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: specify
+purpose: |-
+  Turn one request into one admitted issue in this repository (srd035). Use
+  when a person describes work, a bug, or a requirements change and asks to
+  file, push, or open an issue for it.
+
+  Invoking this profile files the issue. scrum-master picks the labels, files, and
+  lints; the one model step is writing the body (design.md D10, srd035). The
+  input is the request, the project path of this repository, and the system
+  repository path. A question the skill allows is asked in the conversation
+  that invoked it.
+configuration:
+  machine: plugin/agents/specify/machine.yaml
+  tools: plugin/agents/specify/tools.yaml
+  llm_configs: plugin/agents/specify/llm/*.yaml
+invariants:
+- the word sets the plane, kind, and component from the paths; the model never does
+- The model acts only in the Draft state, through the declared tools
+- A the word refusal is fed back to the model, which fixes the body and lints again
+- Nothing is asked of the person but the kind of project work and a missing test
+lifecycle: |-
+  1. Idle → Guide (Seed): scrum-master backlog guide puts the plan-vs-architecture
+     guide before the request (GH-59)
+  2. Guide → Draft (ToolDone): the model writes the body and files through
+     scrum-master
+  3. Draft ↔ Parse: the model loop — invoke_llm, parse_response, $tool
+  4. Parse → Done (TaskCompleted): the model called done with the issue's
+     reference and admission verdict
+external_labels:
+- seed
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the request is read.
+- name: Guide
+  meaning: |
+    The guide word: scrum-master backlog guide prints the plan-vs-architecture
+    guide followed by the request, the model's first message, so the model
+    plans against the architecture before it acts (GH-59).
+- name: Draft
+  meaning: |
+    Write the request as a title and a body with ## Requirements (numbered
+    steps) and ## Acceptance Criteria, each criterion ending
+    (test: <name>; environment: <local|dev|staging>); add ## Design Decisions
+    only for choices already made. Save the body to issue.md. List the paths
+    the request changes, as the request names them. Ask the person only for
+    what is missing — the kind of project work when no path is under docs/ or
+    control/, and the test of a criterion that names none — and nothing else.
+    File with issue_file (--project, --system, --title, --body-file, one
+    --path per named path, --kind when asked); the word sets the plane, kind, and
+    component from the paths. When admission did not admit it, the reasons
+    come back: fix the body and run issue_lint, then call done.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call ends the run.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The issue's URL, its plane, kind, and component, and whether
+    admission admitted it are the run's report (srd035).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for words, a refusal the model fixes.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the issue filed.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Guide
+  action: backlog_guide
+  label: guide
+- state: Guide
+  signal: ToolDone
+  next: Draft
+  action: invoke_llm
+- state: Guide
+  signal: ToolFailed
+  next: Failed
+- state: Guide
+  signal: CommandError
+  next: Failed
+- state: Draft
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Draft
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Draft
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Done
+- state: Draft
+  signal: ToolDone
+  next: Draft
+  action: invoke_llm
+- state: Draft
+  signal: ToolFailed
+  next: Draft
+  action: invoke_llm
+- state: Draft
+  signal: EditDone
+  next: Draft
+  action: nudge_reread
+- state: Draft
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Draft
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed

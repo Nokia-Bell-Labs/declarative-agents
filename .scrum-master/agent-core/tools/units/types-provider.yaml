@@ -1,0 +1,69 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes a provider library's operations publish, whichever provider is bound:
+# an embedding, a rerank ordering, and token usage (srd058 R1.4). The provider
+# words import this unit, so a stage that reads a result reads the same shape
+# from every library.
+unit: builtin-types-provider
+types:
+- name: Embedding
+  description: One flat embedding vector.
+  schema:
+    type: object
+    properties:
+      embedding:
+        type: array
+        items:
+          type: number
+    required:
+    - embedding
+- name: EmbeddingResult
+  description: An embed word's Result, the provider's embedding under mapped.embedding; normalized, it is one flat vector.
+  schema:
+    type: object
+    properties:
+      mapped:
+        type: object
+        properties:
+          embedding:
+            type: array
+        required:
+        - embedding
+    required:
+    - mapped
+- name: RerankResult
+  description: The rerank word's Result, documents reordered by relevance under mapped.results; index addresses the request's documents.
+  schema:
+    type: object
+    properties:
+      mapped:
+        type: object
+        properties:
+          results:
+            type: array
+            items:
+              type: object
+              properties:
+                index:
+                  type: integer
+                relevance_score:
+                  type: number
+              required:
+              - index
+              - relevance_score
+        required:
+        - results
+    required:
+    - mapped
+- name: TokenUsage
+  description: Input and output token counts a provider reports for one call.
+  schema:
+    type: object
+    properties:
+      input_tokens:
+        type: integer
+      output_tokens:
+        type: integer
+    required:
+    - input_tokens
+    - output_tokens

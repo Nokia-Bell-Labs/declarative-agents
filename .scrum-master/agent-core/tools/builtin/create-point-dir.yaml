@@ -1,0 +1,40 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-create-point-dir
+imports:
+- ../units/types-eval.yaml
+tools:
+- name: create_point_dir
+  type: builtin
+  init: create_point_dir
+  visibility: internal
+  description: Create the per-point evaluation directory and record trace artifact paths.
+  signature:
+    output: builtin-types-eval.PointDirRequest
+    emits: [PointDirCreated, CommandError]
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_artifacts
+    description: Creates the point output directory under the evaluator session directory.
+  - kind: state_mutation
+    target: point_context
+    state: point_dir_and_trace_path_set
+    description: Sets PointContext.PointDir and PointContext.TracePath for later point tools.
+  undo:
+    strategy: owned_artifact_removal_and_point_context_restore
+    description: Remove the receipt-recorded point directory and restore PointContext.
+    payload: evaluator_point_snapshot
+    captures: [point_context, owned_artifact_paths]
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'create_point_dir: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  relationships:
+    before:
+    - machine-selected predecessor
+    after:
+    - copy_dir
+  output:
+    description: Shared copy_dir parameters for the sample workspace and point directory.

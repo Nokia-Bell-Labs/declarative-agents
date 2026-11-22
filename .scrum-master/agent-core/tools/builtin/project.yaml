@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-project
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
+tools:
+- name: project
+  type: builtin
+  init: project
+  category: word
+  visibility: internal
+  description: Extract one configured field from each member of an ordered array.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.Projection
+    emits: [Projected, CommandError]
+  output:
+    description: Ordered projected values and their count.
+  errors:
+  - signal: CommandError
+    condition: The selector does not resolve to an array or an item path cannot be read.
+    message_shape: 'project: <error>'
+    state_after_failure: No successful projected output is published.
+  relationships:
+    before: [select_subset, render_each, machine-selected successor]
+    after: [structured-row-producing predecessor]
+  config:
+    items: $from(rows).items
+    field: id
+    signal: Projected

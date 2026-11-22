@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Workspace filesystem exec declarations.
+unit: exec-workspace-all
+imports:
+  - ../copy-dir.yaml
+  - ../make-dir.yaml
+
+tools: []

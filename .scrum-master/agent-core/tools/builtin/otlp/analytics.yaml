@@ -1,0 +1,175 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Aggregate spooled spans: heatmaps, groupings, and breakdowns (srd045).
+unit: builtin-otlp-analytics
+tools:
+- name: spool_span_heatmap
+  type: builtin
+  init: spool_span_heatmap
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [SpanHeatmapReady, CommandError]
+  description: Filter spooled spans and return a duration-over-time heatmap.
+  parameters:
+    type: object
+    properties:
+      start_ms: {type: integer}
+      end_ms: {type: integer}
+      service: {type: string}
+      span_name: {type: string}
+      min_duration_ms: {type: integer}
+      max_duration_ms: {type: integer}
+      attributes: {type: object}
+      time_buckets: {type: integer}
+  output:
+    description: A duration-over-time heatmap over the filtered spans.
+    schema:
+      type: object
+      properties:
+        heatmap:
+          type: object
+          properties:
+            time_bucket_boundaries: {type: array, items: {type: integer}}
+            duration_bucket_boundaries: {type: array, items: {type: integer}}
+            cells: {type: array, items: {type: array, items: {type: integer}}}
+          required: [time_bucket_boundaries, duration_bucket_boundaries, cells]
+        matched: {type: integer}
+        exemplar_trace_ids: {type: array, items: {type: string}}
+        skipped_lines: {type: integer}
+      required: [heatmap, matched, exemplar_trace_ids, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  config:
+    path: traces/collector.ndjson
+    time_buckets: 24
+    duration_edges_ms: [0, 1, 10, 50, 100, 500, 1000, 5000]
+    exemplar_cap: 20
+- name: spool_span_group_by
+  type: builtin
+  init: spool_span_group_by
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [SpanGroupByReady, CommandError]
+  description: Filter spooled spans and count them by one requested key.
+  parameters:
+    type: object
+    properties:
+      start_ms: {type: integer}
+      end_ms: {type: integer}
+      service: {type: string}
+      span_name: {type: string}
+      min_duration_ms: {type: integer}
+      max_duration_ms: {type: integer}
+      attributes: {type: object}
+      group_by: {type: string}
+      top_n: {type: integer}
+  output:
+    description: Bounded group-by counts over filtered spans.
+    schema:
+      type: object
+      properties:
+        matched: {type: integer}
+        exemplar_trace_ids: {type: array, items: {type: string}}
+        skipped_lines: {type: integer}
+        group_by: {type: string}
+        groups:
+          type: array
+          items:
+            type: object
+            properties:
+              value: {type: string}
+              count: {type: integer}
+            required: [value, count]
+        dropped_groups: {type: integer}
+        dropped_span_total: {type: integer}
+      required: [matched, exemplar_trace_ids, skipped_lines, group_by, groups, dropped_groups, dropped_span_total]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: group_by is missing or the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  config:
+    path: traces/collector.ndjson
+    group_by: ""
+    top_n: 20
+    max_top_n: 100
+    exemplar_cap: 20
+- name: spool_span_breakdown
+  type: builtin
+  init: spool_span_breakdown
+  category: boundary
+  visibility: internal
+  signature:
+    emits: [SpanBreakdownReady, CommandError]
+  description: Rank the attributes that most distinguish a selected span region from its complement.
+  parameters:
+    type: object
+    properties:
+      baseline: {type: object}
+      selection: {type: object}
+      top_n: {type: integer}
+  output:
+    description: The ranked attribute divergence between the selection and its complement.
+    schema:
+      type: object
+      properties:
+        inside_total: {type: integer}
+        outside_total: {type: integer}
+        exemplar_trace_ids: {type: array, items: {type: string}}
+        ranked:
+          type: array
+          items:
+            type: object
+            properties:
+              key: {type: string}
+              value: {type: string}
+              inside_count: {type: integer}
+              outside_count: {type: integer}
+              inside_proportion: {type: number}
+              outside_proportion: {type: number}
+              score: {type: number}
+        dropped: {type: integer}
+        skipped_lines: {type: integer}
+      required: [inside_total, outside_total, exemplar_trace_ids, ranked, dropped, skipped_lines]
+  side_effects:
+  - kind: filesystem_read
+    target: configured spool path and rotated files
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Reading a spool changes nothing.
+  errors:
+  - signal: CommandError
+    condition: the configured spool path cannot be read
+    message_shape: 'tool <name>: <cause>'
+    state_after_failure: no output is returned
+  config:
+    path: traces/collector.ndjson
+    top_n: 20
+    max_top_n: 100
+    exemplar_cap: 20

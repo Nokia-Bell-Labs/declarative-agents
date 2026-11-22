@@ -1,0 +1,73 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: reports-path
+purpose: |-
+  Name where this week's report or rollup goes, and the branch its
+  issue's work goes on (GH-2725). Use when a model skill's status steps
+  run without a model.
+
+  This machine has no model state: scrum-master reports path (design.md
+  D10, D14; GH-2725).
+configuration:
+  machine: plugin/agents/reports-path/machine.yaml
+  tools: plugin/agents/reports-path/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Path (Seed): scrum-master reports path
+  2. Path → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Path
+  meaning: |
+    The path word: scrum-master reports path names the report's path
+    under status/reports, or the rollup's under status/rollups, and its
+    branch.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The path could not be named, and the word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Path
+  action: reports_path
+  summary: true
+- state: Path
+  signal: ToolFailed
+  next: Refused
+- state: Path
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Path
+  signal: CommandError
+  next: Failed

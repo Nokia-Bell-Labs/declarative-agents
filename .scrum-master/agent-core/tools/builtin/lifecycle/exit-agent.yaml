@@ -1,0 +1,59 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: lifecycle-exit
+tools:
+- name: exit_agent
+  type: builtin
+  contract: migrated
+  init: exit_agent
+  visibility: internal
+  signature:
+    emits:
+    - AgentExited
+    - CommandError
+  description: Request a controlled agent exit through lifecycle vocabulary.
+  category: boundary
+  parameters:
+    type: object
+    properties: {}
+  output:
+    description: Agent exit request summary.
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+        reason:
+          type: string
+        drain_policy:
+          type: string
+        signal:
+          type: string
+        drain_result:
+          type: string
+        checkpoint_id:
+          type: string
+  side_effects:
+  - kind: state_mutation
+    target: lifecycle_state
+    state: exited
+    description: Completes controlled shutdown through an injected runtime dependency.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: true
+  undo:
+    strategy: irreversible
+    description: A completed process shutdown cannot be automatically reversed; rollback reports an explicit irreversible skip.
+  errors:
+  - signal: CommandError
+    condition: shutdown dependency is missing
+    message_shape: "exit_agent requires shutdown dependency"
+    state_after_failure: run continues until MachineSpec handles CommandError
+  - signal: CommandError
+    condition: previous Result output is malformed or contains non-string lifecycle payload fields
+    message_shape: "decode exit_agent previous result: <error>"
+    state_after_failure: run continues until MachineSpec handles CommandError
+  config:
+    reason: operator requested shutdown
+    status: success
+    drain_policy: stop_servers

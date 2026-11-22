@@ -1,0 +1,52 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-run-point
+tools:
+- name: run_point
+  type: builtin
+  init: run_point
+  visibility: internal
+  signature:
+    emits:
+    - PointDone
+    - CommandError
+  description: Run the per-point evaluation pipeline via a nested core.Loop with the point machine.
+  category: boundary
+  side_effects:
+  - kind: nested_machine_execution
+    target: evaluator_point_machine
+    description: Runs a nested point machine that may mutate point state and workspace artifacts.
+  - kind: state_mutation
+    target: eval_session_state
+    state: point_result_recorded
+    description: Records exactly one completed or failed point outcome.
+  - kind: stderr_write
+    target: evaluator_progress
+    description: Reports point start, failure, and terminal progress.
+  reversibility:
+    classification: compensatable
+  undo:
+    strategy: compensating_action
+    description: Restore evaluator session state and surface required nested-machine and workspace compensation.
+    payload: boundary_compensation
+    captures:
+    - evaluator_session_snapshot
+    - nested_machine_history
+    - point_workspace
+  output:
+    description: Structured nested point-machine result.
+    schema:
+      type: object
+      properties:
+        point_id: {type: string}
+        machine: {type: string}
+        status: {type: string}
+        terminal_state: {type: string}
+        elapsed_ms: {type: integer}
+        artifact_dir: {type: string}
+      required: [point_id, machine, status, terminal_state, elapsed_ms, artifact_dir]
+  errors:
+  - signal: CommandError
+    condition: the iterator point cannot be bound, no current point exists, or the nested point loop returns an error
+    message_shape: 'run_point: <error>'
+    state_after_failure: nested execution history and any point workspace effects are retained in the compensation receipt when available

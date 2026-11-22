@@ -1,0 +1,12 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The repository's check as a declarative-agents profile (GH-35, design.md
+# D14): a model-free machine of three words — the corpus gate, the vendored
+# profiles against their manifest, and the drift doctor reports — that a CI
+# job runs over its checkout with the image's agent. It writes nothing.
+name: check
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

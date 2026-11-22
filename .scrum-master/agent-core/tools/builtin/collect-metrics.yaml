@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-collect-metrics
+imports:
+- ../units/types-core.yaml
+tools:
+- name: collect_metrics
+  type: builtin
+  init: collect_metrics
+  visibility: internal
+  description: Write evaluation metadata (exit code, duration, test results, tokens) to meta.json.
+  signature:
+    output: builtin-types-core.CommandSummary
+    emits: [MetricsCollected, CommandError]
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: point_metrics
+    paths:
+    - meta.json
+    description: Writes point metadata to meta.json.
+  undo:
+    strategy: owned_artifact_removal_and_point_context_restore
+    description: Remove the receipt-recorded metrics artifact and restore PointContext.
+    payload: evaluator_point_snapshot
+    captures: [point_context, owned_artifact_paths]
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'collect_metrics: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: collect_metrics command result summary.

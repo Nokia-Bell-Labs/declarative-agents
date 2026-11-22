@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-collect-trace-tokens
+imports:
+- ../units/types-core.yaml
+tools:
+- name: collect_trace_tokens
+  type: builtin
+  init: collect_trace_tokens
+  visibility: internal
+  description: Read the point trace file and record total GenAI input/output token usage.
+  signature:
+    output: builtin-types-core.CommandSummary
+    emits: [TraceTokensCollected, CommandError]
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: trace_tokens_recorded
+    description: Sets PointContext.Tokens from gen_ai.usage input and output token attributes in the trace file.
+  undo:
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'collect_trace_tokens: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: collect_trace_tokens command result summary.

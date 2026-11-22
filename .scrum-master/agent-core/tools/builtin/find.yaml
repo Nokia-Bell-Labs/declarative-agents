@@ -1,0 +1,28 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-find
+imports:
+- ../units/types-core.yaml
+- ../units/types-filesystem.yaml
+tools:
+- name: find
+  type: builtin
+  category: word
+  init: file_find
+  output_cap: 200
+  description: "Search for text patterns in the workspace using ripgrep. The query is a regex, not a glob \u2014 use \\.go$ to find Go files, not *.go. Returns matching lines with file paths and line numbers."
+  signature:
+    input: builtin-types-filesystem.FindRequest
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed]
+  side_effects:
+  - kind: filesystem_read
+    target: workspace_tree
+    description: Reads matching file paths and lines from the workspace without mutating state.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'find: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Plain-text ripgrep matches with paths and line numbers.

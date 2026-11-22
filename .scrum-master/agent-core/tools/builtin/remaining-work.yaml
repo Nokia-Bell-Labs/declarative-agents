@@ -1,0 +1,25 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-remaining-work
+imports:
+- ../units/types-core.yaml
+tools:
+- name: remaining_work
+  type: builtin
+  init: remaining_work
+  description: Query ready, completed, or blocked planner graph state.
+  signature:
+    output: builtin-types-core.Text
+    emits: [WorkRemaining, AllDone, Blocked, CommandError]
+  visibility: internal
+  category: word
+  output:
+    description: Human-readable ready, complete, or blocked graph summary.
+  errors:
+  - signal: CommandError
+    condition: No planner graph is loaded.
+    message_shape: 'remaining_work: graph is required'
+    state_after_failure: Graph and planner state remain unchanged.
+  relationships:
+    before: [mark_task_done, mark_task_failed]
+    after: [extract_task]

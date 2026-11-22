@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-mark-task-failed
+tools:
+- name: mark_task_failed
+  type: builtin
+  init: mark_task_failed
+  description: Mark only the current planner task's graph nodes failed after retry exhaustion.
+  visibility: internal
+  signature:
+    emits: [TaskFailed, CommandError]
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: requirement_graph
+    state: current_task_failed
+    description: Advances current-task nodes from Executing to Failed.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded graph status before failure marking.
+    payload: pipeline_state_snapshot
+    captures: [current_task, graph_status]
+  errors:
+  - signal: CommandError
+    condition: current task or graph is missing, or a node cannot transition to Failed
+    message_shape: 'mark_task_failed: <error>'
+    state_after_failure: rollback restores graph nodes changed before the error
+  output:
+    description: Explicit graph failure mutation summary.
+    schema:
+      type: object
+      properties:
+        message: {type: string}
+      required: [message]

@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The release-gate machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-release-gate-declarations
+tools:
+- name: release_gate
+  type: exec
+  binary: scrum-master
+  args:
+  - release
+  - gate
+  - --json
+  visibility: internal
+  description: Run the release gate for the plan's tag (srd015).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      artifact:
+        type: string
+        description: Artifact a subsystem SRD declares.
+        flag: --artifact
+      version:
+        type: string
+        description: Candidate version.
+        flag: --version
+      issue:
+        type: string
+        description: Release issue as project#iid, or its iid with project.
+        flag: --issue
+      project:
+        type: string
+        description: The project a bare issue iid is in.
+        flag: --project
+      control:
+        type: string
+        description: Program repository holding control/policy.md.
+        flag: --control
+      dir:
+        type: string
+        description: The artifact repository's local checkout.
+        flag: --dir
+    required:
+    - artifact
+    - version
+    - issue
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master release gate's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Runs the gates and records evidence events on the release issue.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'release_gate: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: a gate fails or the word refuses, exiting non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

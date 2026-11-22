@@ -1,0 +1,73 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: tracker-export
+purpose: |-
+  Write every issue in the program's tracker as bd's JSONL (srd042 R3.1),
+  for bd import, from either layout. Use when a person asks to export the
+  tracker for bd.
+
+  This machine has no model state: scrum-master tracker export (design.md
+  D10, D14; GH-38). The run starts in a checkout of the program.
+configuration:
+  machine: plugin/agents/tracker-export/machine.yaml
+  tools: plugin/agents/tracker-export/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Export (Seed): scrum-master tracker export
+  2. Export → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Export
+  meaning: |
+    The export word: scrum-master tracker export writes every issue in the
+    tracker as bd's JSONL.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The export failed, and the word's reason is the run's last
+    output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Export
+  action: tracker_export
+  summary: true
+- state: Export
+  signal: ToolFailed
+  next: Refused
+- state: Export
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Export
+  signal: CommandError
+  next: Failed

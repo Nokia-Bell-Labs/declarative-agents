@@ -1,0 +1,13 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# LLM pipeline and completion builtin declarations.
+unit: builtin-llm-all
+imports:
+  - ../parse-response.yaml
+  - ../parse-structured.yaml
+  - ../report-parse-error.yaml
+  - ../reset-history.yaml
+  - ../nudge-reread.yaml
+  - ../done.yaml
+
+tools: []

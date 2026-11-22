@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: people-release
+purpose: |-
+  Take a person off a scrum or epic in control/people.md (srd045). Use when
+  a person asks to release someone from a scrum or epic. It changes no
+  issue's assignee.
+
+  This machine has no model state: scrum-master people release (design.md
+  D10, D14; GH-2871). The run starts in the system repository's checkout, or
+  one beside it, and its request names the person.
+configuration:
+  machine: plugin/agents/people-release/machine.yaml
+  tools: plugin/agents/people-release/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Release (Seed): scrum-master people release
+  2. Release → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Release
+  meaning: |
+    The release word: scrum-master people release takes the person off in
+    control/people.md, and a person on nothing leaves the document.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The word refused — no scrum or epic was named, the name is not
+    a username, or no system repository's checkout is at or beside the
+    directory — and its reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Release
+  action: people_release
+  summary: true
+- state: Release
+  signal: ToolFailed
+  next: Refused
+- state: Release
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Release
+  signal: CommandError
+  next: Failed

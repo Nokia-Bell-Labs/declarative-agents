@@ -1,0 +1,14 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The init as a declarative-agents profile (GH-29, design.md D14): a
+# model-free machine of two words — lay down the repository and install
+# its skills, then vendor the profiles and agent-core declarations the
+# skills run into .scrum-master. It is the one workflow a person runs
+# directly with the agent; every other runs from a skill. A rerun is the
+# repository's check: it reports what drifted and refreshes it.
+name: init
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

@@ -1,0 +1,44 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# OpenRouter's chat dialect (srd058 R1.3, GH-2807): one OpenAI-compatible
+# endpoint over many hosted model families, POST /api/v1/chat/completions with
+# a bearer credential named OPENROUTER_API_KEY; a deployment sets provider_url
+# to https://openrouter.ai and model to a vendor-prefixed name such as
+# anthropic/claude-opus-5-5. An exhausted balance answers 402, a credential
+# failure like the others. The library parses the frontier families by their
+# vendor prefixes; other families resolve against the embedded profiles, whose
+# prefixes the vendor-prefixed names already match (qwen/..., deepseek/...,
+# mistralai/...).
+unit: provider-openrouter-chat-dialect
+provider_name: openrouter
+path: /api/v1/chat/completions
+auth:
+  type: bearer
+  token_ref: OPENROUTER_API_KEY
+body:
+  model: "{{ params.model }}"
+  messages: "{{ params.messages }}"
+  stream: false
+  temperature: "{{ params.temperature }}"
+  seed: "{{ params.seed }}"
+response:
+  text: $.choices.0.message.content
+  text_required: true
+  input_tokens: $.usage.prompt_tokens
+  output_tokens: $.usage.completion_tokens
+failures:
+- status: [401, 402, 403]
+  signal: ProviderUnauthorized
+- status: [429]
+  signal: ProviderThrottled
+- status: [500, 502, 503, 504]
+  signal: ProviderUnavailable
+# The frontier families answer tool calls inside the same [tool_call] envelope
+# the default profile reads, and may wrap them in a code fence.
+parser_profiles:
+- name: openrouter
+  match_prefixes: ["anthropic/", "openai/", "google/"]
+  envelope: {open: "[tool_call]", close: "[/tool_call]"}
+  extraction_pipeline:
+  - strip_code_fences
+  - extract_envelope: {open: "[tool_call]", close: "[/tool_call]"}

@@ -1,0 +1,73 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the specification-validation words publish. LoadedCorpus is what
+# load_corpus returns: a summary plus the search plans later words iterate. The
+# plan fields mirror pkg/spec's GrepSearchPlan, RefSearchPlan, and
+# ConsistencyScanPlan JSON (GH-2108).
+unit: builtin-types-spec-validation
+types:
+- name: GrepCheck
+  description: One grep check lowered to a ripgrep query, path, and globs.
+  schema:
+    type: object
+    properties:
+      suite_id: {type: string}
+      check_id: {type: string}
+      kind: {type: string}
+      severity: {type: string}
+      message: {type: string}
+      mode: {type: string}
+      patterns: {type: array, items: {type: string}}
+      regex: {type: boolean}
+      query: {type: string}
+      path: {type: string}
+      display_root: {type: string}
+      include_glob: {type: string}
+      exclude_glob: {type: string}
+    required: [suite_id, check_id, kind, severity, mode, patterns, regex, query, path, display_root, include_glob, exclude_glob]
+- name: RefCheck
+  description: One reference check lowered to a search plan and its allowed reference inventory.
+  schema:
+    type: object
+    properties:
+      suite_id: {type: string}
+      check_id: {type: string}
+      kind: {type: string}
+      severity: {type: string}
+      message: {type: string}
+      path: {type: string}
+      display_root: {type: string}
+      include_glob: {type: string}
+      exclude_glob: {type: string}
+      query: {type: string}
+      group: {type: integer}
+      allow_missing: {type: boolean}
+      allowed: {type: array, items: {type: string}}
+      reference_file: {type: string}
+      reference_dir: {type: string}
+      reference_format: {type: string}
+    required: [suite_id, check_id, kind, severity, path, display_root, include_glob, exclude_glob, query, group, allow_missing, allowed, reference_file, reference_dir, reference_format]
+- name: ConsistencyCheck
+  description: One consistency scan with its source paths validated.
+  schema:
+    type: object
+    properties:
+      suite_id: {type: string}
+      check:
+        description: The charter check the scan evaluates, as the charter declares it.
+      path: {type: string}
+      display_root: {type: string}
+      include_glob: {type: string}
+      exclude_glob: {type: string}
+      source_glob: {type: string}
+    required: [suite_id, check, path, display_root, include_glob, exclude_glob, source_glob]
+- name: LoadedCorpus
+  description: The corpus summary and the search plans load_corpus prepares.
+  schema:
+    type: object
+    properties:
+      summary: {type: string}
+      grep_checks: {type: array, items: {$type: builtin-types-spec-validation.GrepCheck}}
+      ref_checks: {type: array, items: {$type: builtin-types-spec-validation.RefCheck}}
+      consistency_checks: {type: array, items: {$type: builtin-types-spec-validation.ConsistencyCheck}}
+    required: [summary, grep_checks, ref_checks, consistency_checks]

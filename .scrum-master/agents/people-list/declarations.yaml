@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The people-list machine's words (GH-2871). the run starts in the system repository's checkout, or one beside it; its one flag is a
+# parameter from the run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-people-list-declarations
+tools:
+- name: people_list
+  type: exec
+  binary: scrum-master
+  args:
+  - people
+  - list
+  - --json
+  visibility: internal
+  description: 'Who control/people.md names on which scrums and epics (srd045 R2.5).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: 'The system repository''s checkout, or a checkout beside it.'
+        flag: --dir
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: "The list word's JSON report: the people and what each is on."
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_read
+    target: control/people.md
+    description: 'Reads control/people.md; writes nothing.'
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'people_list: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the program is as the word's refusal left it

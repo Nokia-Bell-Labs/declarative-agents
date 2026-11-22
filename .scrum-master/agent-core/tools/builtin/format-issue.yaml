@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-format-issue
+tools:
+- name: format_issue
+  type: builtin
+  init: format_issue
+  description: Format planner state as tracker-agnostic issue parameters.
+  visibility: internal
+  signature:
+    emits:
+    - IssueFormatted
+    - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_read
+    target: planner_pipeline_state
+    description: Reads the current plan, workspace directory, and dependency IDs without mutating them.
+  errors:
+  - signal: CommandError
+    condition: current plan state is unavailable or cannot be serialized
+    message_shape: 'format_issue: <error>'
+    state_after_failure: planner state is preserved
+  output:
+    description: Parameters consumed by the issue-body write and configured tracker exec words.
+    schema:
+      type: object
+      properties:
+        parameters:
+          type: object
+          properties:
+            title:
+              type: string
+            path:
+              type: string
+            body_file:
+              type: string
+            content:
+              type: string
+            directory:
+              type: string
+            deps:
+              type: string
+          required: [title, path, body_file, content, directory, deps]
+      required: [parameters]
+  config:
+    body_path: .git/agent-planner/issue-body.yaml
+    deliverable_type: code

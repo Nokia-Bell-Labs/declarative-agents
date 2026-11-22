@@ -1,0 +1,106 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-extract-all
+tools:
+- name: select_all_ready
+  type: builtin
+  init: select_all_ready
+  description: Select all ready requirements as one pass-through task without changing graph lifecycle.
+  visibility: internal
+  signature:
+    emits:
+    - ReadySelected
+    - NoTask
+    - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: passthrough_task_selected
+    description: Updates only the current task to represent all ready requirements.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded pipeline state captured before extraction.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'select_all_ready: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: select_all_ready command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message
+
+- name: seed_passthrough_plan
+  type: builtin
+  init: seed_passthrough_plan
+  description: Seed the selected pass-through task with profile-configured plan text.
+  visibility: internal
+  signature:
+    emits: [PassThroughPlanSeeded, CommandError]
+  category: stateful_internal
+  config:
+    title: Execute all ready requirements
+    summary: Pass-through execution for the selected ready graph nodes.
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: current_plan_seeded
+    description: Sets only the current implementation plan from trusted profile configuration.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded pipeline state captured before plan seeding.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+  errors:
+  - signal: CommandError
+    condition: current task or configured plan text is missing
+    message_shape: 'seed_passthrough_plan: <error>'
+    state_after_failure: no graph lifecycle change occurs
+  output:
+    description: Profile-configured pass-through plan seeding summary.
+    schema:
+      type: object
+      properties:
+        message: {type: string}
+      required: [message]
+
+- name: mark_nodes_planning
+  type: builtin
+  init: mark_nodes_planning
+  description: Advance only the selected task nodes to Planning.
+  visibility: internal
+  signature:
+    emits: [NodesMarkedPlanning, CommandError]
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: requirement_graph
+    state: selected_nodes_planning
+    description: Advances selected current-task nodes to Planning.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded graph lifecycle before the mutation.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+  errors:
+  - signal: CommandError
+    condition: current task is missing or a selected node cannot advance to Planning
+    message_shape: 'mark_nodes_planning: <error>'
+    state_after_failure: receipt-backed graph state can be restored
+  output:
+    description: Graph lifecycle mutation summary.
+    schema:
+      type: object
+      properties:
+        message: {type: string}
+      required: [message]

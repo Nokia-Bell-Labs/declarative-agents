@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-report-suite-summary
+imports:
+- ../units/types-core.yaml
+tools:
+- name: report_suite_summary
+  type: builtin
+  init: report_suite_summary
+  visibility: internal
+  description: Report suite point count after config parsing, sample discovery, grid expansion, and session initialization.
+  signature:
+    output: builtin-types-core.CommandSummary
+    emits: [SuiteLoaded, CommandError]
+  category: word
+  side_effects:
+  - kind: stderr_write
+    target: evaluator_output
+    description: Prints suite summary to evaluator stderr.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'report_suite_summary: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: report_suite_summary command result summary.

@@ -1,0 +1,22 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-done
+imports:
+- ../units/types-core.yaml
+tools:
+- name: done
+  type: builtin
+  init: done
+  visibility: internal
+  description: Signal that the generation task is complete.
+  signature:
+    output: builtin-types-core.CommandSummary
+    emits: [TaskCompleted]
+  category: word
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'done: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: done command result summary.

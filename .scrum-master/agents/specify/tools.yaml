@@ -1,0 +1,29 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the specify workflow. The words and file words are
+# model-invoked in the Draft state via $tool dispatch (design.md D10, D14).
+tools:
+  # words -- model-invoked
+  - backlog_components
+  - issue_file
+  - issue_lint
+
+  # File words -- the body is written to issue.md
+  - read
+  - write
+  - edit
+  - find
+  - list_files
+
+  # The guide the model reads first, with the request (GH-59)
+  - backlog_guide
+
+  # Model loop -- direct transition actions
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+  - reset_history
+  - nudge_reread
+
+  # Completion -- emits TaskCompleted via parse_response
+  - done

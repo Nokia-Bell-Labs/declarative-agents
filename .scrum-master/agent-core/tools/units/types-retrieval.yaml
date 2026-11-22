@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The retrieval query contract (srd060 R1): the request a client sends a
+# retrieval server and the QueryResult it gets back. Applications that serve
+# retrieval share these shapes; an application whose server adds clearance or
+# facets imports QueryResult and writes that operation itself (srd060 R3.4).
+unit: builtin-types-retrieval
+types:
+- name: RetrievalQuery
+  description: A client-computed query vector and how many results to return; the server does not embed.
+  schema:
+    type: object
+    properties:
+      query_embeddings:
+        type: array
+      n_results:
+        type: integer
+    required:
+    - query_embeddings
+    - n_results
+- name: QueryResult
+  description: The parallel arrays the server's collection returns for a query, plus the server's embedding identity.
+  schema:
+    type: object
+    properties:
+      ids:
+        type: array
+      documents:
+        type: array
+      distances:
+        type: array
+      metadatas:
+        type: array
+      embedding_model:
+        type: string
+    required:
+    - ids
+    - documents
+    - distances
+    - metadatas
+    - embedding_model

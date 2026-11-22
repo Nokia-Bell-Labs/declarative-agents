@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-report-session
+imports:
+- ../units/types-core.yaml
+tools:
+- name: report_session
+  type: builtin
+  init: report_session
+  visibility: internal
+  description: Print session summary with pass/fail/timeout counts and total duration.
+  signature:
+    output: builtin-types-core.CommandSummary
+    emits: [SessionReported, CommandError]
+  category: word
+  side_effects:
+  - kind: stderr_write
+    target: evaluator_output
+    description: Prints evaluator session summary.
+  - kind: state_mutation
+    target: eval_session_state
+    state: session_duration_finalized
+    description: Sets the final session duration on EvalSessionState.Result.
+  undo:
+    strategy: evaluator_session_restore
+    description: Restore evaluator session state from the persisted pre-command receipt.
+    payload: evaluator_session_snapshot
+    captures: [suite, session_dir, result, point_context, iterator_state]
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'report_session: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: report_session command result summary.

@@ -1,0 +1,47 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-value-predicate
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
+tools:
+- name: value_predicate
+  type: builtin
+  init: value_predicate
+  category: word
+  visibility: internal
+  description: Compare two operands and emit one of two declared signals, so a machine can branch on a value rather than only on a call's success.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.Comparison
+    emits: [Satisfied, Unsatisfied, CommandError]
+  output:
+    description: The comparison as selectable fields; right is absent for unary empty and non_empty operations.
+  errors:
+  - signal: CommandError
+    condition: an operand selector does not resolve against the previous Result, or an operand does not coerce under the declared operand type
+    message_shape: '<tool>: operand <selector> did not resolve against the previous result'
+    state_after_failure: no comparison was made and no signal outcome is reported; the machine routes the fault apart from the unsatisfied branch
+  relationships:
+    before:
+    - machine-selected successor
+    after:
+    - the word whose Result the operands select from
+  config:
+    # The operands, the comparison, and both outcome signal names. left and
+    # right resolve against the previous Result when they begin with "$.",
+    # against an earlier labelled step when they begin with "$from(", and are
+    # literals otherwise. The $from form is what lets a predicate compare across
+    # a word whose Result carries nothing forward -- an exec word running a
+    # child, for instance -- which is how a machine measures a change rather
+    # than a level (GH-774).
+    # operand_type defaults to number when absent, so a count that arrives from
+    # a REST read as the string "6" compares as six rather than as text.
+    # The values below are a valid default so the declaration loads standalone;
+    # a profile overrides them.
+    left: "$.output"
+    op: non_empty
+    right: ""
+    operand_type: string
+    satisfied: Satisfied
+    unsatisfied: Unsatisfied

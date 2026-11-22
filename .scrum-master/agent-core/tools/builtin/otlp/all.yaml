@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# OTLP builtin declarations, one file per word family (E11, GH-2377).
+unit: builtin-otlp-all
+imports:
+  - receiver.yaml
+  - spool.yaml
+  - query.yaml
+  - analytics.yaml
+
+tools: []

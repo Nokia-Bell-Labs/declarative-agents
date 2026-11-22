@@ -1,0 +1,93 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: reports-init
+purpose: |-
+  Lay down a program's reports repository (srd018): the team who report,
+  the reminder weekday, and the report format. Use when the program
+  manager asks to set up the weekly status reports.
+
+  This machine has no model state: scrum-master reports init (design.md
+  D10, D14; GH-37). SCRUM_MASTER_SYSTEM names the system repository; the run starts
+  in the reports repository's checkout.
+configuration:
+  machine: plugin/agents/reports-init/machine.yaml
+  tools: plugin/agents/reports-init/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Init (Seed): scrum-master reports init
+  2. Init → Vendor (ToolDone): scrum-master install --profiles vendors the
+     profiles the installed skills run into .scrum-master (GH-68)
+  3. Vendor → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Init
+  meaning: |
+    The reports init word: scrum-master reports init lays down the reports
+    repository's config for the listed team and its reminder weekday.
+- name: Vendor
+  meaning: |
+    The vendor word: scrum-master install --profiles vendors the release's
+    profiles into .scrum-master, which the skills reports init installed
+    run (GH-68).
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The reports repository could not be laid down, and the
+    word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Init
+  action: reports_init
+  summary: true
+- state: Init
+  signal: ToolFailed
+  next: Refused
+- state: Init
+  signal: ToolDone
+  next: Vendor
+  action: vendor
+  label: vendor
+  summary: true
+- state: Vendor
+  signal: ToolFailed
+  next: Refused
+- state: Vendor
+  signal: ToolDone
+  next: Done
+- state: Vendor
+  signal: CommandError
+  next: Failed
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Init
+  signal: CommandError
+  next: Failed

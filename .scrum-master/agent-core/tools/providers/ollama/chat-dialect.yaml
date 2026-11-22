@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Ollama's chat dialect (srd058 R2, R5.1): POST /api/chat with the
+# conversation as messages and the decoding options under options, the reply
+# at message.content, and usage as the prompt and eval counts. Ollama takes no
+# credential. Parsing resolves by model prefix against the embedded profiles,
+# since one Ollama server serves many model families.
+unit: provider-ollama-chat-dialect
+provider_name: ollama
+path: /api/chat
+auth:
+  type: none
+body:
+  model: "{{ params.model }}"
+  messages: "{{ params.messages }}"
+  stream: false
+  options:
+    temperature: "{{ params.temperature }}"
+    seed: "{{ params.seed }}"
+    num_ctx: "{{ params.num_ctx }}"
+response:
+  text: $.message.content
+  input_tokens: $.prompt_eval_count
+  output_tokens: $.eval_count
+failures:
+- status: [401, 403]
+  signal: ProviderUnauthorized
+- status: [429]
+  signal: ProviderThrottled
+- status: [500, 502, 503, 504]
+  signal: ProviderUnavailable

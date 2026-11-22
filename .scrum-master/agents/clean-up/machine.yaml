@@ -1,0 +1,77 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: clean-up
+purpose: |-
+  Remove a delivered issue's worktree and its branch, in the main checkout
+  and on origin (GH-2796): what pop opened, once the merge has landed. Use
+  when a person asks to clean up after a merge, or a skill that runs words
+  after its merge kept the worktree for them.
+
+  This machine has no model state: scrum-master issue clean-up (design.md
+  D10, D14). It runs in the issue's worktree, or names the branch. A
+  worktree holding a change git status shows is kept, and so is a branch
+  the main checkout has not merged, each with the reason.
+configuration:
+  machine: plugin/agents/clean-up/machine.yaml
+  tools: plugin/agents/clean-up/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- Nothing a person changed is removed, and no branch git has not merged is deleted
+lifecycle: |-
+  1. Idle → CleanUp (Seed): scrum-master issue clean-up
+  2. CleanUp → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: CleanUp
+  meaning: |
+    The clean-up word: from the main checkout, scrum-master issue clean-up
+    removes the worktree that has the branch checked out, deletes the branch
+    with git branch -d, and deletes it on origin, naming what it kept and why.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The directory is no checkout of the repository, or names no
+    branch, and the word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: CleanUp
+  action: clean_up
+  summary: true
+- state: CleanUp
+  signal: ToolFailed
+  next: Refused
+- state: CleanUp
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: CleanUp
+  signal: CommandError
+  next: Failed

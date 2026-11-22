@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-parse-response
+imports:
+- ../units/types-core.yaml
+tools:
+- name: parse_response
+  type: builtin
+  contract: legacy
+  init: parse_response
+  visibility: internal
+  description: Parse raw LLM output into a tool call or task-completed signal.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, TaskCompleted, ParseFailed, CommandError]
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Parses the prior command output and may reset the parse retry counter after a non-ParseFailed result.
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before parsing.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'parse_response: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Parsed tool-request JSON or a plain completion summary.
+  config:
+    manifest_state: Composing

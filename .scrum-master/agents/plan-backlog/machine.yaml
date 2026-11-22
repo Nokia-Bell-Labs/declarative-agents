@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: plan-backlog
+purpose: |-
+  Rank the backlog's stories for the next release (srd036). Use when a
+  model skill's planning steps run without a model.
+
+  This machine has no model state: scrum-master plan backlog (design.md
+  D10, D14; GH-48). The run starts in a checkout of the program.
+configuration:
+  machine: plugin/agents/plan-backlog/machine.yaml
+  tools: plugin/agents/plan-backlog/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Word (Seed): scrum-master plan backlog
+  2. Word → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Word
+  meaning: |
+    The backlog word: scrum-master plan backlog writes the release's story
+    ranking.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The word ran and reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The word refused, and its reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: The word executed successfully.
+- name: ToolFailed
+  trigger: The word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Word
+  action: plan_backlog
+  summary: true
+- state: Word
+  signal: ToolFailed
+  next: Refused
+- state: Word
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Word
+  signal: CommandError
+  next: Failed

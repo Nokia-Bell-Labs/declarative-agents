@@ -1,0 +1,191 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Request-response REST client words.
+unit: builtin-rest-client
+tools:
+  - name: rest_client_get
+    type: builtin
+    init: rest_client_get
+    category: boundary
+    description: Read a configured REST resource through trusted REST config.
+    parameters:
+      type: object
+      properties:
+        params:
+          type: object
+          description: Declared operation parameters.
+    signature:
+      emits: [RESTResourceRead, RESTMissing, RESTDomainFailed, CommandError]
+    output:
+      description: Structured REST read result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+          resource_id: {type: string}
+          body: {type: object}
+    metrics:
+      instruments:
+        - name: rest.http_status_code
+          kind: gauge
+          unit: "1"
+          description: HTTP status returned by one configured REST operation.
+          value_source: http_status_code
+          attributes: [operation]
+        - name: rest.retry_count
+          kind: counter
+          unit: "{retry}"
+          description: Retries attempted for one configured REST operation.
+          value_source: retry_count
+          attributes: [operation]
+        - name: rest.request_bytes
+          kind: histogram
+          unit: By
+          description: Serialized request body size for one configured REST operation.
+          value_source: request_bytes
+          attributes: [operation]
+        - name: rest.response_bytes
+          kind: histogram
+          unit: By
+          description: Response body bytes read from one configured REST operation.
+          value_source: response_bytes
+          attributes: [operation]
+      attributes:
+        - name: operation
+          source: configured_operation
+          cardinality: bounded
+          allowed_values: [get]
+          redaction: none
+    side_effects:
+      - kind: external_api
+        target: configured_rest_client
+        state: read_only
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: REST reads do not mutate local or remote state.
+    errors:
+      - signal: CommandError
+        condition: REST definition, schema, auth, network, timeout, or mapping failure.
+        message_shape: "rest_client_get: <stage>: <redacted diagnostic>"
+        state_after_failure: No REST command state changes.
+    config:
+      rest_ref: ""
+      resource: ""
+      operation: get
+  - name: rest_client_set
+    type: builtin
+    init: rest_client_set
+    category: boundary
+    description: Update a configured REST resource through trusted REST config.
+    parameters:
+      type: object
+      properties:
+        params: {type: object}
+    signature:
+      emits: [RESTResourceWritten, RESTMissing, RESTDomainFailed, CommandError]
+    output:
+      description: Structured REST write result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+          resource_id: {type: string}
+          body: {type: object}
+    side_effects:
+      - kind: external_api
+        target: configured_rest_client
+        state: resource_updated
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Use configured compensation or previous-state restore when available.
+    errors:
+      - signal: CommandError
+        condition: REST definition, schema, auth, network, timeout, or mapping failure.
+        message_shape: "rest_client_set: <stage>: <redacted diagnostic>"
+        state_after_failure: Remote state changes only when the configured request reached the service.
+    config:
+      rest_ref: ""
+      resource: ""
+      operation: set
+  - name: rest_client_create
+    type: builtin
+    init: rest_client_create
+    category: boundary
+    description: Create a configured REST resource through trusted REST config.
+    parameters:
+      type: object
+      properties:
+        params: {type: object}
+    signature:
+      emits: [RESTResourceWritten, RESTDomainFailed, CommandError]
+    output:
+      description: Structured REST create result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+          resource_id: {type: string}
+          body: {type: object}
+    side_effects:
+      - kind: external_api
+        target: configured_rest_client
+        state: resource_created
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Use configured delete or deactivate compensation when resource identity is available.
+    errors:
+      - signal: CommandError
+        condition: REST definition, schema, auth, network, timeout, or mapping failure.
+        message_shape: "rest_client_create: <stage>: <redacted diagnostic>"
+        state_after_failure: Remote state may contain a submitted resource.
+    config:
+      rest_ref: ""
+      resource: ""
+      operation: create
+  - name: rest_client_delete
+    type: builtin
+    init: rest_client_delete
+    category: boundary
+    description: Delete or deactivate a configured REST resource.
+    parameters:
+      type: object
+      properties:
+        params: {type: object}
+    signature:
+      emits: [RESTResourceWritten, RESTMissing, RESTDomainFailed, CommandError]
+    output:
+      description: Structured REST delete result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+          resource_id: {type: string}
+          body: {type: object}
+    side_effects:
+      - kind: external_api
+        target: configured_rest_client
+        state: resource_deleted
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Use configured restore or recreate compensation when prior state is available.
+    errors:
+      - signal: CommandError
+        condition: REST definition, schema, auth, network, timeout, or mapping failure.
+        message_shape: "rest_client_delete: <stage>: <redacted diagnostic>"
+        state_after_failure: Remote state may have removed or deactivated a resource.
+    config:
+      rest_ref: ""
+      resource: ""
+      operation: delete
