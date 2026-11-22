@@ -1,7 +1,7 @@
 ---
 id: in002-agents-as-resources
 title: Applications declare their agents as Agent resources
-status: to_be_agreed
+status: agreed
 authors: petar-djukic
 ---
 <!-- Copyright (c) 2026 Nokia -->
