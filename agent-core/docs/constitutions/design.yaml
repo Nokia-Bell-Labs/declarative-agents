@@ -5360,6 +5360,12 @@ document_types:
     required_fields: []
     purpose: A scrum-master planning story, an SRD in the format of the scrum-master release docs/external-pins.yaml pins; scrum-master check, which the merge gate runs, owns its shape (GH-2943, GH-2945).
     markdown: native Markdown already (format markdown); scrum-master's pinned format declares its structure, so it takes no rule data here.
+  sprint_end_summary:
+    location: docs/sprint-ends/name.md
+    format: markdown
+    required_fields: []
+    purpose: Closes a scrum-master period, written by the sprint-end skill (srd038 R2.4; GH-2954).
+    markdown: native Markdown already (format markdown); scrum-master's format declares its sections, so it takes no rule data here.
   planning_folder_readme:
     location: docs/specs/name/README.md
     format: markdown
