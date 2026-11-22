@@ -321,3 +321,10 @@ dev
   - opened: "2026-11-22"
   - closed: "2026-11-22"
   - state: closed
+- "Nokia-Bell-Labs/declarative-agents#2947":
+  - url: "https://github.com/Nokia-Bell-Labs/declarative-agents/issues/2947"
+  - title: "The system architecture indexes the repository's modules as components, and the corpus names its author"
+  - who: petar-djukic
+  - opened: "2026-11-22"
+  - closed: "2026-11-22"
+  - state: closed
