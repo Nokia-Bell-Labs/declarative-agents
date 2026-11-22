@@ -216,7 +216,7 @@ func checkEvidenceReferences(roots evidenceRoots, language languageFile) error {
 
 // constitutionsDir is where component constitutions bind themselves to the
 // specification, relative to the repository root.
-const constitutionsDir = "docs/constitutions"
+const constitutionsDir = "docs/conformance"
 
 // citationIDPattern finds statement identifiers inside constitution prose;
 // statementIDPattern is anchored for validating whole ids and cannot scan.

@@ -106,7 +106,7 @@ func TestConstitutionCitations(t *testing.T) {
 	})
 	t.Run("resolvable citation passes", func(t *testing.T) {
 		repo := t.TempDir()
-		writeEvidenceFile(t, repo, "docs/constitutions/agent-core.md",
+		writeEvidenceFile(t, repo, "docs/conformance/agent-core.md",
 			"id: agent-core\nobligations:\n  - Upholds R-INTRO-001.\n")
 		if err := checkConstitutionCitations(repo, language); err != nil {
 			t.Fatal(err)
@@ -114,7 +114,7 @@ func TestConstitutionCitations(t *testing.T) {
 	})
 	t.Run("citation-free constitution fails", func(t *testing.T) {
 		repo := t.TempDir()
-		writeEvidenceFile(t, repo, "docs/constitutions/empty.md", "id: empty\n")
+		writeEvidenceFile(t, repo, "docs/conformance/empty.md", "id: empty\n")
 		err := checkConstitutionCitations(repo, language)
 		if err == nil || !strings.Contains(err.Error(), "cites no statement identifier") {
 			t.Fatalf("citation error = %v, want cites no statement identifier", err)
@@ -122,7 +122,7 @@ func TestConstitutionCitations(t *testing.T) {
 	})
 	t.Run("unresolvable citation fails", func(t *testing.T) {
 		repo := t.TempDir()
-		writeEvidenceFile(t, repo, "docs/constitutions/ghost.md",
+		writeEvidenceFile(t, repo, "docs/conformance/ghost.md",
 			"id: ghost\nobligations:\n  - Upholds R-GHOST-999.\n")
 		err := checkConstitutionCitations(repo, language)
 		if err == nil || !strings.Contains(err.Error(), "R-GHOST-999 resolves to no statement") {
