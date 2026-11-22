@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The goals-push machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-goals-push-declarations
+tools:
+- name: goals_push
+  type: exec
+  binary: scrum-master
+  args:
+  - goals
+  - push
+  - --json
+  visibility: internal
+  description: File one Sprint Goal per outcome from the confirmed plan (srd022).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      system:
+        type: string
+        description: System repository path.
+        flag: --system
+      release:
+        type: string
+        description: Road-map release version.
+        flag: --release
+      plan:
+        type: string
+        description: Confirmed plan JSON file from goals_plan.
+        flag: --plan
+      control:
+        type: string
+        description: Program repository holding control/ files.
+        flag: --control
+    required:
+    - system
+    - release
+    - plan
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master goals push's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Files the Sprint Goals in the tracker; a filed one comes back unchanged.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'goals_push: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses an outcome and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

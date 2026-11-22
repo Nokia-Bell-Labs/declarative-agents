@@ -1,0 +1,29 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-sample-docs
+imports:
+- ../units/types-eval.yaml
+tools:
+- name: sample_docs
+  type: builtin
+  init: sample_docs
+  visibility: internal
+  description: Report whether optional sample docs exist and expose copy_dir parameters when present.
+  signature:
+    output: builtin-types-eval.SampleDocsPresence
+    emits: [SampleDocsPresent, SampleDocsAbsent, CommandError]
+  category: word
+  side_effects:
+  - kind: filesystem_read
+    target: point_context
+    description: Reads the configured sample documentation path.
+  output:
+    description: Optional-docs presence and shared copy_dir parameters.
+  errors:
+  - signal: CommandError
+    condition: point context is absent or its point directory has not been initialized, or copy parameters cannot be encoded
+    message_shape: 'sample_docs: <error>'
+    state_after_failure: point context and filesystem remain unchanged
+  relationships:
+    before: [create_point_dir]
+    after: [copy_dir, git_init]

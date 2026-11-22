@@ -44,7 +44,7 @@ Run these from this directory:
 
 - `mage audit` runs each version's gate. For 1.0, it validates the statement
   schema, checks that every fixture has an owner, runs the acceptance
-  evidence, checks the citations in `docs/constitutions/`, and renders the
+  evidence, checks the citations in `docs/conformance/`, and renders the
   chapters. A citation that does not resolve, a statement no chapter cites,
   or failing evidence fails the gate. For 2.0, it runs the reduced gate.
 - `mage render` writes the rendered chapters to `1.0/generated-files/`.

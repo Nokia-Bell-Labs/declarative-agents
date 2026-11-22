@@ -1,0 +1,43 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The doctor machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-doctor-declarations
+tools:
+- name: doctor
+  type: exec
+  binary: scrum-master
+  args:
+  - doctor
+  - --json
+  visibility: internal
+  description: Add the orientation files a repository lacks, refresh the managed blocks, and repair the documents' canonical form, reporting each (srd043 R4).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: doctor's JSON report of what it changed.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes missing orientation files, refreshed managed blocks, and repaired documents; nothing is committed.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The changes are files in the checkout, the person's to commit or discard.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'doctor: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: doctor cannot read the repository
+    message_shape: <the findings, as printed>
+    state_after_failure: the checkout is unchanged

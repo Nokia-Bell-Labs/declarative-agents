@@ -1,0 +1,30 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-normalize-vector
+imports:
+- ../units/types-core.yaml
+tools:
+- name: normalize_vector
+  type: builtin
+  init: normalize_vector
+  category: word
+  visibility: internal
+  description: Preserve a flat numeric vector or unwrap exactly one numeric matrix row.
+  signature:
+    input: builtin-types-core.NoParameters
+    emits: [VectorNormalized, CommandError]
+  output:
+    description: The previous JSON object with the selected vector normalized in place.
+    schema:
+      type: object
+  errors:
+  - signal: CommandError
+    condition: The previous output, configured path, vector shape, or vector member type is invalid.
+    message_shape: 'normalize_vector: <error>'
+    state_after_failure: No normalized output is published.
+  relationships:
+    before: [machine-selected successor]
+    after: [vector-producing predecessor]
+  config:
+    path: mapped.embedding
+    signal: VectorNormalized

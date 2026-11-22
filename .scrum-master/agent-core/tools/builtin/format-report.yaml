@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-format-report
+imports:
+- ../units/types-core.yaml
+tools:
+- name: format_report
+  type: builtin
+  init: format_report
+  visibility: internal
+  description: Format the validation results as a human-readable report.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed]
+  category: word
+  side_effects:
+  - kind: stderr_write
+    target: process_stderr
+    description: Prints the human-readable validation report to stderr.
+  errors:
+  - signal: ToolFailed
+    condition: the validation finding set contains one or more error-level findings
+    message_shape: '<human-readable validation report>'
+    state_after_failure: the complete report is printed and returned
+  output:
+    description: Plain-text human-readable validation report.

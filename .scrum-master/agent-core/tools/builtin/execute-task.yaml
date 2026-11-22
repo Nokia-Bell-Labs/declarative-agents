@@ -1,0 +1,42 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-execute-task
+imports:
+- ../units/types-planner.yaml
+tools:
+- name: mark_nodes_executing
+  type: builtin
+  init: mark_nodes_executing
+  description: Advance the selected task nodes to Executing.
+  visibility: internal
+  signature:
+    emits:
+    - NodesMarkedExecuting
+    - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: requirement_graph
+    state: selected_nodes_executing
+    description: Advances only current-task graph nodes to Executing.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded graph lifecycle.
+    payload: pipeline_state_snapshot
+    captures: [current_task, graph_status]
+  errors: [{signal: CommandError, condition: Task or graph state is invalid, state_after_failure: Receipt-backed state remains recoverable.}]
+  output: {description: Graph lifecycle summary, schema: {type: object}}
+
+- name: format_task_file
+  type: builtin
+  init: format_task_file
+  description: Project the current plan into one profile-configured write request.
+  signature:
+    output: builtin-types-planner.TaskFileWriteRequest
+    emits: [TaskFileFormatted, CommandError]
+  visibility: internal
+  category: word
+  errors: [{signal: CommandError, condition: Current plan is absent or cannot serialize, state_after_failure: No state or file changes.}]
+  relationships: {before: [mark_nodes_executing], after: [write]}
+  output: {description: Write parameters for the configured task path}
+  config: {path: doc/task.yaml}

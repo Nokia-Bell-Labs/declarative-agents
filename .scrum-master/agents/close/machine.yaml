@@ -1,0 +1,75 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: close
+purpose: |-
+  Close an issue on the local merge that delivered it (srd013 R5): the
+  step a merge that merged but closed nothing leaves, finding the merge
+  commit that cites the issue. Use when a person asks to close an issue
+  whose work is already merged.
+
+  This machine has no model state: scrum-master issue close (design.md
+  D10, D14; GH-37). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the issue.
+configuration:
+  machine: plugin/agents/close/machine.yaml
+  tools: plugin/agents/close/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Close (Seed): scrum-master issue close
+  2. Close → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Close
+  meaning: |
+    The close word: scrum-master issue close finds the merge commit on the
+    default branch that delivered the issue, or its pop branch's, and
+    closes the issue on it.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. No merge delivered the issue, or it is closed already, and
+    the word's reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Close
+  action: issue_close
+  summary: true
+- state: Close
+  signal: ToolFailed
+  next: Refused
+- state: Close
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Close
+  signal: CommandError
+  next: Failed

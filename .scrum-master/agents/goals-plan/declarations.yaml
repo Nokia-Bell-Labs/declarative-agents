@@ -1,0 +1,58 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The goals-plan machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-goals-plan-declarations
+tools:
+- name: goals_plan
+  type: exec
+  binary: scrum-master
+  args:
+  - goals
+  - plan
+  - --json
+  visibility: internal
+  description: Compute the release's outcomes and candidate repositories as plan JSON (srd022, srd019).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      system:
+        type: string
+        description: System repository path.
+        flag: --system
+      release:
+        type: string
+        description: Road-map release version.
+        flag: --release
+    required:
+    - system
+    - release
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master goals plan's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the road map and hierarchy; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'goals_plan: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the plan and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

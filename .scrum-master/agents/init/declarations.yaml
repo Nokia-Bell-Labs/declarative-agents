@@ -1,0 +1,105 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The init machine's words (GH-29): lay down the system repository and
+# install its skills, then vendor the profiles. Optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-init-declarations
+tools:
+- name: init
+  type: exec
+  binary: scrum-master
+  args:
+  - init
+  - --json
+  - --require-profiles
+  visibility: internal
+  description: Lay down the program's system repository — corpus, control files, orientation — and install the skills for the named agents (srd034, srd037); a rerun changes only what drifted.
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      agent:
+        type: string
+        description: The agents whose skills install, cursor, claude, copilot, or all; empty is the agents the repository already uses, refused when it uses none.
+        flag: --agent
+        default: detect
+      tracker:
+        type: string
+        description: A tracker repository to seed when it has no commits.
+        flag: --tracker
+      tracker_branch:
+        type: string
+        description: The branch of the tracker repository holding the tracker, main when empty; a dedicated branch of the program's own repository, seeded as an orphan, keeps code and tracker in one repository.
+        flag: --tracker-branch
+      group:
+        type: string
+        description: The program group whose labels the tracker gets.
+        flag: --group
+      prefix:
+        type: string
+        description: The issue ID prefix the tracker gets.
+        flag: --prefix
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master init's JSON report — every file it wrote or kept, the skills, and the tracker.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes the corpus, the control files, the orientation files, and the skills; an edited file is kept.
+  - kind: external_api_call
+    target: tracker
+    description: Seeds the tracker repository when one is named and empty.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The files are the person's to commit or discard.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'init: <error>'
+    state_after_failure: nothing written by a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the init and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the repository is as the word's refusal left it
+
+- name: vendor
+  type: exec
+  binary: scrum-master
+  args:
+  - install
+  - --profiles
+  - --json
+  visibility: internal
+  description: Vendor the release's profiles and agent-core declarations into .scrum-master, which the installed skills run, and report what drifted (GH-29).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The vendoring's JSON report — the release and each file's action, created, updated, unchanged, kept, or removed.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes .scrum-master/agents, .scrum-master/agent-core/tools, and .scrum-master/manifest.json; an edited file is kept.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The vendored tree is the person's to commit or discard; a rerun rewrites what nobody edited.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'vendor: <error>'
+    state_after_failure: nothing written by a process that did not start
+  - signal: ToolFailed
+    condition: the release's source is not on this host, or a write fails
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the repository is laid down; a rerun vendors what is missing

@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-parse-plan
+tools:
+- name: parse_plan
+  type: builtin
+  init: parse_plan
+  description: Parse the LLM YAML response into an ImplementationPlan.
+  visibility: internal
+  signature:
+    emits:
+    - PlanReady
+    - ParseFailed
+    - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: current_plan_parsed
+    description: Sets the parsed implementation plan on pipeline state.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded pipeline and parse-retry state captured before parsing.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status, parse_retry_count]
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'parse_plan: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: parse_plan command result summary.
+    schema:
+      type: object
+      properties:
+        message:
+          type: string
+        signal:
+          type: string
+      required:
+      - message

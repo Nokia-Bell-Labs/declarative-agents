@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: exec-stage-all
+imports:
+- ../units/types-core.yaml
+tools:
+- name: stage_all
+  type: exec
+  binary: git
+  args:
+  - add
+  - -A
+  description: Stage all changes including untracked files (git add -A).
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
+  precondition: git_repo
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: git_index
+    description: Moves working tree changes into the Git index.
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace ref and index captured before staging.
+    requires:
+    - Workspace
+  output:
+    description: Combined stdout and stderr from `git add -A`.
+  errors:
+  - signal: CommandError
+    condition: the git process cannot be started
+    message_shape: 'stage_all: <error>'
+    state_after_failure: the index is unchanged by a process that did not start
+  - signal: ToolFailed
+    condition: the workspace is not a Git repository or `git add -A` exits non-zero
+    message_shape: '<captured git output>'
+    state_after_failure: the index may be partially updated and must be restored from the workspace checkpoint
+  relationships:
+    before: [git_init, machine-selected predecessor]
+    after: [commit, commit_workspace_baseline]

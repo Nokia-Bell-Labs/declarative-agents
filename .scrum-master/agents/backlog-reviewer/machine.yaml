@@ -1,0 +1,76 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: backlog-reviewer
+purpose: |-
+  Name who signs off on a document, in its frontmatter (srd013): the vision, the
+  architecture, the road map, an SRD, a use case, or a planning document. Use only
+  when a person asks to name a document's reviewer, after confirming with them
+  which document and which person; an agent never names one on its own.
+
+  This machine has no model state: scrum-master backlog reviewer (design.md D10,
+  D14; GH-2869). The run starts in a checkout of the repository holding the
+  document, and its request names the document and the person.
+configuration:
+  machine: plugin/agents/backlog-reviewer/machine.yaml
+  tools: plugin/agents/backlog-reviewer/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- A refusal ends the run in the state that names it, with the word's reason
+lifecycle: |-
+  1. Idle → Name (Seed): scrum-master backlog reviewer
+  2. Name → Done (ToolDone)
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the first word.
+- name: Name
+  meaning: |
+    The reviewer word: scrum-master backlog reviewer writes the document's
+    reviewer; a second identical run changes nothing.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. Every word ran, and the last one reported what it did.
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The word refused — the repository holds no such document, it
+    carries no reviewer, or it names someone else without force — and its
+    reason is the run's last output.
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the words' refusals.
+terminal_states:
+- Done
+- Refused
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Name
+  action: backlog_reviewer
+  summary: true
+- state: Name
+  signal: ToolFailed
+  next: Refused
+- state: Name
+  signal: ToolDone
+  next: Done
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Name
+  signal: CommandError
+  next: Failed

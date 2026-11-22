@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the epic-issues machine: no model anywhere (GH-2865).
+tools:
+  - backlog_epic_issues

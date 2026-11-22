@@ -1,0 +1,46 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-write
+imports:
+- ../units/types-core.yaml
+- ../units/types-filesystem.yaml
+tools:
+- name: write
+  type: builtin
+  category: word
+  init: file_write
+  description: "Create or overwrite a file. Provide the complete file content \u2014 this replaces the entire file. Parent directories are created automatically."
+  signature:
+    input: builtin-types-filesystem.WriteRequest
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed]
+  output:
+    description: Plain-text write confirmation.
+  metrics:
+    instruments:
+    - name: filesystem.bytes_written
+      kind: histogram
+      unit: By
+      description: Bytes written to one workspace file.
+      value_source: bytes_written
+      attributes:
+      - operation
+    attributes:
+    - name: operation
+      source: tool_name
+      cardinality: low
+      redaction: none
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_file
+    description: Creates or overwrites one workspace file and may create parent directories.
+  undo:
+    strategy: file_snapshot_restore
+    description: Restore the prior file bytes and mode captured in the write receipt.
+    requires:
+    - Receipt
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'write: <error>'
+    state_after_failure: no additional workflow step is executed by this tool

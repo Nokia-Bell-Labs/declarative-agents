@@ -1,0 +1,44 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Google Vertex AI's chat dialect (srd058 R1.3, GH-2805), through the
+# OpenAI-compatible endpoint Vertex serves under a project: a deployment sets
+# provider_url to
+# https://aiplatform.googleapis.com/v1/projects/<project>/locations/<location>/endpoints/openapi
+# and model to a google/-prefixed name such as google/gemini-2.5-flash. The
+# credential named VERTEX_ACCESS_TOKEN is a Google Cloud OAuth access token
+# (gcloud auth print-access-token), which expires after an hour; a long-running
+# deployment keeps it fresh outside the process or binds a gateway that signs
+# requests itself. gen_ai.provider.name carries the registered gcp.vertex_ai.
+unit: provider-vertex-chat-dialect
+provider_name: gcp.vertex_ai
+path: /chat/completions
+auth:
+  type: bearer
+  token_ref: VERTEX_ACCESS_TOKEN
+body:
+  model: "{{ params.model }}"
+  messages: "{{ params.messages }}"
+  stream: false
+  temperature: "{{ params.temperature }}"
+  seed: "{{ params.seed }}"
+response:
+  text: $.choices.0.message.content
+  text_required: true
+  input_tokens: $.usage.prompt_tokens
+  output_tokens: $.usage.completion_tokens
+failures:
+- status: [401, 403]
+  signal: ProviderUnauthorized
+- status: [429]
+  signal: ProviderThrottled
+- status: [500, 502, 503, 504]
+  signal: ProviderUnavailable
+# Gemini models answer tool calls inside the same [tool_call] envelope the
+# default profile reads, and may wrap them in a code fence.
+parser_profiles:
+- name: vertex
+  match_prefixes: ["google/"]
+  envelope: {open: "[tool_call]", close: "[/tool_call]"}
+  extraction_pipeline:
+  - strip_code_fences
+  - extract_envelope: {open: "[tool_call]", close: "[/tool_call]"}

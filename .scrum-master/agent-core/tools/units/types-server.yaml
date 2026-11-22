@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Shapes the shipped REST server words publish: what a launch and a stop
+# report, and the control event an await selected. The empty parameter object
+# these words take stays in builtin-types-core, because every word whose input
+# arrives through config shares it.
+unit: builtin-types-server
+types:
+- name: ServerLaunch
+  description: What a REST server launch reports.
+  schema:
+    type: object
+    properties:
+      server: {type: string}
+      address: {type: string}
+      route_count: {type: integer}
+- name: ServerStop
+  description: What a REST server stop reports.
+  schema:
+    type: object
+    properties:
+      server: {type: string}
+      status: {type: string}
+      connection_drain: {type: string}
+- name: ControlEvent
+  description: The control event an await selected.
+  schema:
+    type: object
+    properties:
+      source: {type: string}
+      route: {type: string}
+      signal: {type: string}
+      payload: {type: object}
+      request_id: {type: string}

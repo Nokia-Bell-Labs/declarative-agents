@@ -1,0 +1,139 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-list-files
+tools:
+- name: list_files
+  type: exec
+  category: boundary
+  binary: bash
+  args:
+  - -o
+  - pipefail
+  - -c
+  - |
+    path=$1
+    depth=$2
+
+    numeric_depth=${depth#-}
+    case "$numeric_depth" in
+      ''|*[!0-9]*)
+        printf 'list_files: invalid max_depth: %s\n' "$depth" >&2
+        exit 1
+        ;;
+    esac
+    if [ "$depth" -le 0 ]; then
+      depth=4
+    fi
+
+    if [ ! -e "$path" ]; then
+      printf 'list_files: path not found: %s\n' "$path" >&2
+      exit 1
+    fi
+    if [ ! -d "$path" ]; then
+      printf 'list_files: not a directory: %s\n' "$path" >&2
+      exit 1
+    fi
+
+    workspace=$(pwd -P)
+    if ! cd -- "$path" 2>/dev/null; then
+      printf 'list_files: path not found: %s\n' "$path" >&2
+      exit 1
+    fi
+    target=$(pwd -P)
+    case "$target" in
+      "$workspace") target_rel=. ;;
+      "$workspace"/*) target_rel=${target#"$workspace"/} ;;
+      *)
+        printf 'list_files: path rejected: path %s is outside the workspace\n' "$path" >&2
+        exit 1
+        ;;
+    esac
+    cd "$workspace" || exit 1
+
+    start=.
+    if [ "$target_rel" != . ]; then
+      start=./$target_rel
+    fi
+    tab=$(printf '\t')
+    find -P "$start" -mindepth 1 -maxdepth "$depth" -print |
+      awk '{ key=$0; gsub("/", "\001", key); print key "\001\t" $0 }' |
+      LC_ALL=C sort |
+      while IFS="$tab" read -r _ entry; do
+        workspace_rel=${entry#./}
+        if [ "$target_rel" = . ]; then
+          local_path=$workspace_rel
+        else
+          local_path=${workspace_rel#"$target_rel"/}
+        fi
+        indent=
+        rest=$local_path
+        while [ "${rest#*/}" != "$rest" ]; do
+          indent="$indent  "
+          rest=${rest#*/}
+        done
+        suffix=
+        if [ -d "$entry" ] && [ ! -L "$entry" ]; then
+          suffix=/
+        fi
+        printf '%s%s%s\n' "$indent" "$workspace_rel" "$suffix"
+      done
+  - list_files
+  output_cap: 200
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+  description: List files and directories in a tree format. Use this first to understand the workspace layout before reading files.
+  parameters:
+    type: object
+    properties:
+      path:
+        type: string
+        description: 'Subdirectory to list (default: workspace root)'
+        positional: true
+        position: 1
+        default: .
+      max_depth:
+        type: integer
+        description: 'Maximum directory depth to traverse (default: 4)'
+        positional: true
+        position: 2
+        default: '4'
+  side_effects:
+  - kind: child_process
+    target: bash
+    state: read_only
+    description: Hosts the read-only listing pipeline from the fixed workspace working directory.
+  - kind: child_process
+    target: find
+    state: read_only
+    description: Enumerates entries without following symlinks and with bounded depth.
+  - kind: child_process
+    target: awk
+    state: read_only
+    description: Shapes deterministic sort keys and indentation input.
+  - kind: child_process
+    target: sort
+    state: read_only
+    description: Orders listed entries under the C locale.
+  - kind: filesystem_read
+    target: workspace_tree
+    description: Reads workspace directory entries without mutating state.
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Directory listing is read-only and has no effects to reverse.
+  errors:
+  - signal: CommandError
+    condition: bash, find, awk, or sort cannot be started
+    message_shape: 'list_files: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  - signal: ToolFailed
+    condition: the path is missing, not a directory, outside the workspace, or find exits non-zero
+    message_shape: 'list_files: <error>'
+    state_after_failure: workspace unchanged
+  output:
+    description: Deterministically ordered, workspace-relative tree text.
+    schema:
+      type: string

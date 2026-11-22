@@ -1,0 +1,60 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The recur machine's words (GH-37). SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE name the recurring issue; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-recur-declarations
+tools:
+- name: issue_recur
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - recur
+  - --json
+  - --project
+  - ${SCRUM_MASTER_PROJECT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  visibility: internal
+  description: 'Close the recurring issue with its summary and open the next instance, once (srd013 R8).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      summary_file:
+        type: string
+        description: 'A file holding the run''s summary.'
+        flag: --summary-file
+      due:
+        type: string
+        description: 'The next instance''s due date; empty follows the cadence.'
+        flag: --due
+      control:
+        type: string
+        description: 'Program repository holding control/ files, when not the project.'
+        flag: --control
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The recur word''s JSON report: the closed instance and the next.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Closes the instance and opens the next, once.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'issue_recur: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

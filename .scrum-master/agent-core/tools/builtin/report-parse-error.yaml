@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-report-parse-error
+imports:
+- ../units/types-core.yaml
+tools:
+- name: report_parse_error
+  type: builtin
+  init: report_parse_error
+  visibility: internal
+  description: Report a parse error back to the LLM for correction.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, BudgetExhausted]
+  category: word
+  side_effects:
+  - kind: command_state
+    description: Increments the parse retry counter and emits BudgetExhausted when the configured retry limit is reached.
+  undo:
+    strategy: parse_retry_counter_restore
+    description: Restores the parse retry counter snapshot captured before reporting the parse error.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'report_parse_error: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Plain-text feedback requesting a corrected model response.
+  config:
+    feedback_template: |-
+      Your previous response was invalid. {{error}}
+
+      Please respond with a single JSON object: {"tool": "<tool_name>", "parameters": {<params>}}

@@ -1,0 +1,35 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-assemble-prompt
+imports:
+- ../units/types-planner.yaml
+tools:
+- name: project_planner_context
+  type: builtin
+  init: project_planner_context
+  description: Project task and SRD data without owning planner prompt wording.
+  signature:
+    output: builtin-types-planner.PlannerContext
+    emits: [PlannerContextProjected, CommandError]
+  visibility: internal
+  category: word
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'project_planner_context: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Structured planner context fields.
+
+- name: capture_planner_failure
+  type: builtin
+  init: capture_planner_failure
+  description: Publish the preceding validation failure under a stable command-state label.
+  signature:
+    output: builtin-types-planner.CapturedFailure
+    emits: [FailureCaptured, CommandError]
+  visibility: internal
+  category: word
+  errors: [{signal: CommandError, condition: Failure context cannot encode, state_after_failure: No domain state changes.}]
+  relationships: {before: [vet, build, test], after: [increment_retry, compose_planner_prompt]}
+  output: {description: Labelled prior failure context}

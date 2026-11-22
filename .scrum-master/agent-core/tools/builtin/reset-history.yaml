@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-reset-history
+tools:
+- name: reset_history
+  type: builtin
+  init: reset_history
+  visibility: internal
+  signature:
+    emits:
+    - ToolDone
+    - CommandError
+  description: Clear the conversation history and restart the LLM context.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: conversation_history
+    state: reset_to_empty
+    description: Clears the in-memory LLM conversation history.
+  undo:
+    strategy: conversation_restore
+    description: Restore the conversation snapshot captured before clearing history.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'reset_history: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: The literal plain-text reset prompt.
+    schema:
+      type: string

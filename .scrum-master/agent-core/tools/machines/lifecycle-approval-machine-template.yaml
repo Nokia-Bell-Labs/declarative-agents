@@ -1,0 +1,78 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The approval lifecycle (srd054): suspend for approval, apply on Approved, and
+# end on Rejected, budget exhaustion, or failure. catalog's conformance approval
+# profile and agent-core's lifecycle fixture instantiate it.
+unit: lifecycle-approval-machine-template
+params:
+  - {name: machine, type: string, description: The machine path the configuration block records.}
+  - {name: tools, type: string, description: The tool selection path the configuration block records.}
+machine:
+  name: lifecycle-approval
+  purpose: Suspend for approval and apply the approved task.
+  configuration:
+    machine: $param(machine)
+    tools: $param(tools)
+  invariants:
+  - Suspend is a machine action, not a hidden CLI branch.
+  - Approved resume continues through an explicit machine signal.
+  - Rejected resume stops without running the approved path.
+  initial_state: Idle
+  resume_signal: Approved
+  budget:
+    command_timeout: 1m
+    max_iterations: 5
+  states:
+  - name: Idle
+    meaning: Initial state before the approval gate.
+  - name: AwaitingApproval
+    meaning: The first run suspended and waits for an operator signal.
+  - name: ApplyingApproval
+    meaning: The approved path is running after resume.
+  - name: Succeeded
+    run_status: succeeded
+    meaning: Terminal. The approved path completed.
+  - name: Rejected
+    run_status: failed
+    meaning: Terminal. The operator rejected the risky action.
+  - name: Failed
+    run_status: failed
+    meaning: Terminal. Suspend or resume failed.
+  terminal_states:
+  - Succeeded
+  - Rejected
+  - Failed
+  signals:
+  - name: Seed
+    trigger: Loop initialization.
+  - name: AwaitApproval
+    trigger: suspend requested an approval checkpoint.
+  - name: Approved
+    trigger: Operator approved the suspended action during resume.
+  - name: Rejected
+    trigger: Operator rejected the suspended action during resume.
+  - name: TaskCompleted
+    trigger: done completed the approved path.
+  - name: CommandError
+    trigger: Runtime or command infrastructure failed.
+  transitions:
+  - state: Idle
+    signal: Seed
+    next: AwaitingApproval
+    action: suspend
+  - state: AwaitingApproval
+    signal: AwaitApproval
+    next: AwaitingApproval
+  - state: AwaitingApproval
+    signal: Approved
+    next: ApplyingApproval
+    action: done
+  - state: AwaitingApproval
+    signal: Rejected
+    next: Rejected
+  - state: AwaitingApproval
+    signal: CommandError
+    next: Failed
+  - state: ApplyingApproval
+    signal: TaskCompleted
+    next: Succeeded

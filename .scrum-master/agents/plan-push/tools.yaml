@@ -1,0 +1,9 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the plan-push machine: four words, no model
+# anywhere (design.md D10, D14; GH-206).
+tools:
+  - plan_milestone
+  - plan_sprint_issue
+  - plan_sprint_ends
+  - plan_events

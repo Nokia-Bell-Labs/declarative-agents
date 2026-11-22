@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-spec-validation-reduce-grep-checks
+tools:
+  - name: reduce_grep_checks
+    type: builtin
+    init: reduce_grep_checks
+    visibility: internal
+    signature:
+      emits: [ValidationPassed, ValidationFailed, CommandError]
+    description: Shape joined ripgrep events into deterministic jurist findings.
+    category: stateful_internal
+    config:
+      results_from: $from(grep_results).items
+    output:
+      description: Plain-text aggregate jurist finding and error count.
+      schema:
+        type: string
+    side_effects:
+      - kind: state_mutation
+        target: validation_state
+        state: grep_findings_recorded
+        description: Appends reduced grep findings to validation state.
+    undo:
+      strategy: session_state_restore
+      description: Restore validation state to the snapshot before grep reduction.
+    errors:
+      - signal: CommandError
+        condition: Joined rg output is malformed or reports an exit code above one.
+        message_shape: "reduce grep checks failed: <error>"
+        state_after_failure: No additional workflow step is executed.

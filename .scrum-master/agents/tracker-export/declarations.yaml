@@ -1,0 +1,48 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The tracker-export machine's words (GH-38). the run starts in a checkout of the program; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-tracker-export-declarations
+tools:
+- name: tracker_export
+  type: exec
+  binary: scrum-master
+  args:
+  - tracker
+  - export
+  - --json
+  visibility: internal
+  description: 'Write every issue as bd''s JSONL, to the out file or as the output (srd042 R3.1).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      out:
+        type: string
+        description: 'The file to write; empty makes the JSONL the run''s output.'
+        flag: --out
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The JSONL, or with out the file written and its size.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: 'With out, writes the JSONL to that file.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'tracker_export: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

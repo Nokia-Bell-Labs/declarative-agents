@@ -1,0 +1,152 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The release machine's words (GH-37). SCRUM_MASTER_ARTIFACT names the artifact and SCRUM_MASTER_ISSUE its release issue, project#iid or a bare iid in SCRUM_MASTER_PROJECT as every other profile takes it (GH-109); SCRUM_MASTER_PROJECT, SCRUM_MASTER_CONTROL and SCRUM_MASTER_REF, when set, are --flag=value args the loader drops whole when unset; optional flags are
+# parameters from the run's request, never ${VAR} args (GH-135).
+unit: scrum-master-release-declarations
+tools:
+- name: release_next
+  type: exec
+  binary: scrum-master
+  args:
+  - release
+  - next
+  - --json
+  - --require-version
+  - --artifact
+  - ${SCRUM_MASTER_ARTIFACT}
+  - --control=${SCRUM_MASTER_CONTROL}
+  - --ref=${SCRUM_MASTER_REF}
+  visibility: internal
+  description: 'Name the release''s candidates and the one the commits since the latest tag call for (srd015 R3.1), or the candidate the request chose.'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      version:
+        type: string
+        description: 'A candidate version to release in place of the recommendation, such as a patch republish against a minor recommendation; the gate and tag then read it.'
+        flag: --version
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The next word''s JSON report, with the recommended version the gate and tag read.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'release_next: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it
+
+- name: release_gate
+  type: exec
+  binary: scrum-master
+  args:
+  - release
+  - gate
+  - --json
+  - --artifact
+  - ${SCRUM_MASTER_ARTIFACT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --control=${SCRUM_MASTER_CONTROL}
+  - --ref=${SCRUM_MASTER_REF}
+  visibility: internal
+  description: 'Run the release''s gates for the recommended version and post their evidence on the release issue (srd015 R1).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      version:
+        type: string
+        description: 'The version to gate, the one next recommends.'
+        flag: --version
+        source: $from(next).recommended_version
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The gate''s JSON report: each gate and its result.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: 'Posts the gates'' evidence events on the release issue.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'release_gate: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it
+
+- name: release_tag
+  type: exec
+  binary: scrum-master
+  args:
+  - release
+  - tag
+  - --json
+  - --artifact
+  - ${SCRUM_MASTER_ARTIFACT}
+  - --issue
+  - ${SCRUM_MASTER_ISSUE}
+  - --project=${SCRUM_MASTER_PROJECT}
+  - --control=${SCRUM_MASTER_CONTROL}
+  - --ref=${SCRUM_MASTER_REF}
+  visibility: internal
+  description: 'Tag the release once its gate passed (srd015 R2).'
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      version:
+        type: string
+        description: 'The version to tag, the one next recommends.'
+        flag: --version
+        source: $from(next).recommended_version
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: 'The tag word''s JSON report.'
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: repository
+    description: 'Creates and pushes the release tag.'
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word's write is a person's to reverse with the tracker.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'release_tag: <error>'
+    state_after_failure: nothing ran in a word that did not start
+  - signal: ToolFailed
+    condition: the word refuses and exits non-zero
+    message_shape: <the word's reason, as printed>
+    state_after_failure: the tracker is as the word's refusal left it

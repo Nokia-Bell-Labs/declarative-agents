@@ -1,0 +1,51 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The clean-up machine's word (GH-2796); the branch is a parameter from the
+# run's request, never a ${VAR} arg (GH-135).
+unit: scrum-master-clean-up-declarations
+tools:
+- name: clean_up
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - clean-up
+  - --json
+  visibility: internal
+  description: Remove a delivered issue's worktree and its merged branch, here and on origin; a worktree with changes or an unmerged branch is kept with its reason (GH-2796).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      branch:
+        type: string
+        description: The merged branch; empty is the worktree's own.
+        flag: --branch
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The clean-up word's JSON report — the worktree, the branch, and origin's branch, each removed, kept with its reason, or none.
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: the issue's worktree
+    description: Removes the worktree pop opened for the issue, from the main checkout.
+  - kind: external_api_call
+    target: origin
+    description: Deletes the merged branch on origin.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The branch is merged into the default branch; pop opens a new worktree when one is needed.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'clean_up: <error>'
+    state_after_failure: nothing removed by a process that did not start
+  - signal: ToolFailed
+    condition: the word cannot read the repository the worktree belongs to
+    message_shape: 'clean-up needs a local checkout: <reason>'
+    state_after_failure: the worktree and branches are as they were

@@ -1,0 +1,45 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The reports-validate machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-reports-validate-declarations
+tools:
+- name: reports_validate
+  type: exec
+  binary: scrum-master
+  args:
+  - reports
+  - validate
+  - --json
+  description: Check the reports repository's reports against the report format (srd018 R2).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      dir:
+        type: string
+        description: The reports repository's checkout; empty is the run's directory.
+        flag: --dir
+      report:
+        type: array
+        items:
+          type: string
+        description: Reports to check; none checks them all.
+        positional: true
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The validation''s JSON report: each report and its findings.'
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word reads the reports and writes nothing.
+  visibility: internal

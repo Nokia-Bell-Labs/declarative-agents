@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-summarize-point-results
+imports:
+- ../units/types-core.yaml
+tools:
+- name: summarize_point_results
+  type: builtin
+  init: summarize_point_results
+  visibility: internal
+  description: Summarize previously collected point oracle, trace, and version state.
+  signature:
+    output: builtin-types-core.CommandSummary
+    emits: [ResultsCollected, CommandError]
+  category: word
+  side_effects:
+  - kind: state_read
+    target: point_context
+    description: Reads PointContext test, token, and version fields without mutating them.
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'summarize_point_results: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: summarize_point_results command result summary.

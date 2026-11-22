@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-flat-map
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
+tools:
+- name: flat_map
+  type: builtin
+  init: flat_map
+  category: word
+  visibility: internal
+  description: Flatten parallel nested arrays into ordered rows while carrying parent fields.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.FlattenedObjects
+    emits: [Flattened, CommandError]
+  output:
+    description: Ordered flattened objects and their count.
+  errors:
+  - signal: CommandError
+    condition: A selector or item path does not resolve, an element field is not an array, or parallel lengths differ.
+    message_shape: 'flat_map: <error>'
+    state_after_failure: No successful flattened output is published.
+  relationships:
+    before: [render_each, reorder_by_index, machine-selected successor]
+    after: [nested-array-producing predecessor]
+  config:
+    items: $from(join_fanout).sources
+    element_fields: {id: ids.0, text: documents.0}
+    carry_fields: {source: name}
+    signal: Flattened

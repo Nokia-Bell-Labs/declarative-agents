@@ -1,0 +1,39 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-checkpoint-history
+tools:
+- name: checkpoint_history
+  type: builtin
+  contract: migrated
+  init: checkpoint_history
+  visibility: internal
+  # Target run id arrives through the universal --request file, not a CLI flag;
+  # declare it as a request source the composition root resolves.
+  config:
+    checkpoint: $request.checkpoint
+  signature:
+    emits:
+    - ToolDone
+    - CommandError
+  description: Read a run's execution history from the Dolt checkpoint backend.
+  category: stateful_internal
+  output:
+    description: Human-readable execution history digest.
+    schema:
+      type: object
+      properties:
+        run:
+          type: string
+        history:
+          type: string
+      required:
+      - history
+  side_effects:
+  - kind: state_read
+    target: checkpoint_backend
+    description: Reads the run's execution_steps, tool_outputs, and receipts from Dolt commit history through the checkpoint port Load.
+  errors:
+  - signal: CommandError
+    condition: run cannot be resolved or its history loaded
+    message_shape: "no runs found | load run <id>: <error>"
+    state_after_failure: checkpoint backend unchanged

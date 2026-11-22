@@ -1,0 +1,32 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-reorder-by-index
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
+tools:
+- name: reorder_by_index
+  type: builtin
+  init: reorder_by_index
+  category: word
+  visibility: internal
+  description: Reorder candidate values by indexes from an ordered result array.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.ReorderedCandidates
+    emits: [Reordered, CommandError]
+  output:
+    description: Candidates in result-row order with aligned provider rows.
+  errors:
+  - signal: CommandError
+    condition: A selector or index field does not resolve, or an index is not one unique candidate address.
+    message_shape: 'reorder_by_index: <error>'
+    state_after_failure: No successful reordered output is published.
+  relationships:
+    before: [render_each, machine-selected successor]
+    after: [flat_map, ranking-result-producing predecessor]
+  config:
+    items: $from(flatten).items
+    order: $from(rerank).results
+    index_field: index
+    signal: Reordered

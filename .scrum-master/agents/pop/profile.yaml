@@ -1,0 +1,15 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The pop as a declarative-agents profile (GH-204, design.md D14): a
+# model-free machine — claim, branch, worktree, install, each a word,
+# the branch and paths flowing between words through $from selectors. scrum-master
+# issue pop runs the same code as one command; this machine runs it as
+# explicit states, so a failure after the claim is a partial state a re-run
+# finishes. mage audit validates the profile at the pin, and a run starts
+# in the project's clone with SCRUM_MASTER_PROJECT and SCRUM_MASTER_ISSUE set.
+name: pop
+machine: machine.yaml
+tools:
+  - tools.yaml
+tool_declarations:
+  - declarations.yaml

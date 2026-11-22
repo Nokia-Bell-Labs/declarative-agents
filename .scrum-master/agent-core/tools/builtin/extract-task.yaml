@@ -1,0 +1,36 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-extract-task
+tools:
+- name: extract_task
+  type: builtin
+  init: extract_task
+  description: Extract the next unblocked task from the dependency graph.
+  visibility: internal
+  signature:
+    emits:
+    - TaskExtracted
+    - NoTask
+    - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: pipeline_state
+    state: current_task_selected
+    description: Updates only the current task cursor.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore the receipt-recorded pipeline state captured before extraction.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps]
+  errors:
+  - signal: CommandError
+    condition: required input, configuration, or runtime state is invalid
+    message_shape: 'extract_task: <error>'
+    state_after_failure: no additional workflow step is executed by this tool
+  output:
+    description: Plain-text extracted task summary.
+    schema:
+      type: string
+  config:
+    max_weight: 0

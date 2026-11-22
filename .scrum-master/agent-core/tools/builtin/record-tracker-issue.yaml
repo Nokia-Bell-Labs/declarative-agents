@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-record-tracker-issue
+tools:
+- name: record_tracker_issue
+  type: builtin
+  init: record_tracker_issue
+  description: Record an issue ID returned by the configured tracker exec word.
+  visibility: internal
+  signature:
+    emits:
+    - Materialized
+    - CommandError
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: planner_pipeline_state
+    state: issue_id_recorded
+    description: Records the created issue ID for task execution and dependent issues.
+  undo:
+    strategy: pipeline_state_restore
+    description: Restore IssueID and TaskDeps from the receipt-recorded planner snapshot.
+    payload: pipeline_state_snapshot
+    captures: [current_task, current_plan, issue_id, task_deps, graph_status]
+  errors:
+  - signal: CommandError
+    condition: tracker result failed, is malformed JSON, or contains an empty id
+    message_shape: 'record_tracker_issue: <error>'
+    state_after_failure: previous planner state is preserved
+  output:
+    description: The issue ID recorded in planner state.
+    schema:
+      type: object
+      properties:
+        issue_id:
+          type: string
+      required: [issue_id]

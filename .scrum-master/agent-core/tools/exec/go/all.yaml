@@ -1,0 +1,11 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Go toolchain exec declarations.
+unit: exec-go-all
+imports:
+  - ../build.yaml
+  - ../vet.yaml
+  - ../lint.yaml
+  - ../test.yaml
+
+tools: []

@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-partition
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
+tools:
+- name: partition
+  type: builtin
+  init: partition
+  category: word
+  visibility: internal
+  description: Split an ordered array into matched and unmatched values using one declared field comparison.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.Partition
+    emits: [Partitioned, CommandError]
+  output:
+    description: Ordered matched and unmatched values with their counts.
+  errors:
+  - signal: CommandError
+    condition: A selector does not resolve, the selected value is not an array, a field is absent, or coercion fails.
+    message_shape: 'partition: <error>'
+    state_after_failure: No successful partition output is published.
+  relationships:
+    before: [machine-selected successor]
+    after: [array-producing predecessor]
+  config:
+    items: $from(values).items
+    field: value
+    op: eq
+    right: accepted
+    operand_type: string
+    satisfied: Partitioned

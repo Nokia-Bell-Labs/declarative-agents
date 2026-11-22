@@ -1,0 +1,76 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The words the document-embedding stage runs (srd058 R4.1): embed_document calls
+# the embed_document operation the bound provider library's
+# embed-document-fragment.yaml produces on the document_embedder client, and
+# normalize_document_embedding reduces the result to one flat vector. They name
+# no provider: the library the profile binds to the providers root decides
+# which service answers.
+unit: builtin-embed-document-words
+imports:
+- types-core.yaml
+- types-provider.yaml
+tools:
+- name: embed_document
+  type: builtin
+  init: rest_client_invoke
+  visibility: internal
+  category: boundary
+  description: Embed the document text at the bound provider.
+  parameters:
+    type: object
+    properties:
+      input: {type: string}
+  signature:
+    output: builtin-types-provider.EmbeddingResult
+    emits: [DocumentEmbedded, ProviderUnauthorized, ProviderThrottled, ProviderUnavailable, CommandError]
+  output:
+    description: The provider's embedding under mapped.embedding, a flat vector or one row.
+  side_effects:
+  - kind: external_api
+    target: embedding_provider.document
+    state: read_only
+  reversibility:
+    classification: reversible
+  undo:
+    strategy: noop
+    description: Computing an embedding does not mutate state.
+  errors:
+  - signal: ProviderUnauthorized
+    condition: The provider rejects the credential (401 or 403).
+    state_after_failure: No embedding is produced and no state changes.
+  - signal: ProviderThrottled
+    condition: The provider rate-limits the call (429).
+    state_after_failure: No embedding is produced and no state changes.
+  - signal: ProviderUnavailable
+    condition: The provider fails (500, 502, 503, or 504).
+    state_after_failure: No embedding is produced and no state changes.
+  - signal: CommandError
+    condition: The call fails on network, timeout, schema, or mapping.
+    state_after_failure: No embedding is produced and no state changes.
+  config:
+    rest_ref: document_embedder
+    operation: embed_document
+- name: normalize_document_embedding
+  type: builtin
+  init: normalize_vector
+  category: word
+  visibility: internal
+  description: Preserve a flat document vector or unwrap exactly one provider row.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-provider.EmbeddingResult
+    emits: [DocumentEmbeddingNormalized, CommandError]
+  output:
+    description: The embed result with mapped.embedding normalized to one flat vector.
+  errors:
+  - signal: CommandError
+    condition: The embedding is missing or is not a flat vector or a single row.
+    message_shape: 'normalize_vector: <error>'
+    state_after_failure: No normalized embedding is published.
+  relationships:
+    after: [embed_document]
+    before: [machine-selected successor]
+  config:
+    path: mapped.embedding
+    signal: DocumentEmbeddingNormalized

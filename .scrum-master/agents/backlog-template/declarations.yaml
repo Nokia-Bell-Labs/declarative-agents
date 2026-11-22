@@ -1,0 +1,50 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The backlog-template machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-backlog-template-declarations
+tools:
+- name: backlog_template
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - template
+  - --json
+  visibility: internal
+  description: Print a document of one hierarchy level, or VISION or ARCHITECTURE, in the layout the gate reads, to copy and fill (GH-20, GH-22).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      kind:
+        type: string
+        description: The document — theme, initiative, epic, feature, story, vision, or architecture.
+        flag: --kind
+    required:
+    - kind
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: The template word's JSON report, the document in its layout.
+    schema:
+      type: string
+  side_effects: []
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The word prints a template and writes nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'backlog_template: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the kind names no template
+    message_shape: <the word's reason, as printed>
+    state_after_failure: nothing was written

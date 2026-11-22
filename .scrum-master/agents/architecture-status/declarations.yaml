@@ -1,0 +1,36 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The architecture-status machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-architecture-status-declarations
+tools:
+- name: backlog_architecture
+  type: exec
+  binary: scrum-master
+  args:
+  - backlog
+  - architecture
+  - --write
+  - --json
+  description: Report each ARCHITECTURE component's state, actual, in transition, or intended, and write docs/architecture-status.md (srd045 R8.5, GH-57).
+  category: boundary
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: 'The view''s JSON: each component, its state, and the documents moving it.'
+    schema:
+      type: string
+  side_effects:
+  - kind: filesystem_write
+    target: repository
+    description: Writes docs/architecture-status.md, a generated page; nothing is committed.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: The page is regenerated on every run, the person's to commit or discard.
+  visibility: internal

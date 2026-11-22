@@ -1,0 +1,128 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The issue words of the tasks workflow: listing the team's open issues and
+# filing the stories' tasks. Kept apart from declarations.yaml, which holds
+# the workflow's planning words, so neither file outgrows the
+# declaration-style limit (GH-112). Optional flags are parameters, never
+# ${VAR} args (GH-135).
+unit: scrum-master-tasks-issue-declarations
+tools:
+- name: issue_list
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - list
+  - --json
+  visibility: external
+  description: List the open issues implementing a story, in the order implement works them (srd036 R5.1).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: Project path.
+        flag: --project
+      implements:
+        type: string
+        description: The story the issues implement, by id.
+        flag: --implements
+      epic:
+        type: string
+        description: Every story under this epic, by id.
+        flag: --epic
+      dir:
+        type: string
+        description: The checkout holding the stories, for --epic.
+        flag: --dir
+    required: [project]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue list's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Reads the tracker; writes nothing.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'issue_list: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the listing and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them
+
+- name: issue_file
+  type: exec
+  binary: scrum-master
+  args:
+  - issue
+  - file
+  - --json
+  visibility: external
+  description: File one agreed issue and lint it (srd022, srd013).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: Project path.
+        flag: --project
+      system:
+        type: string
+        description: System repository whose subsystem SRDs give the component.
+        flag: --system
+      title:
+        type: string
+        description: Issue title.
+        flag: --title
+      body_file:
+        type: string
+        description: File holding the body.
+        flag: --body-file
+      milestone:
+        type: string
+        description: Milestone title.
+        flag: --milestone
+      kind:
+        type: string
+        description: Kind, on data issues.
+        flag: --kind
+    required: [project, title, body_file]
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: scrum-master issue file's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Files the issue and its labels in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'issue_file: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the filing and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

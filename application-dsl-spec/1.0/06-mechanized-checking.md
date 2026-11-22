@@ -35,7 +35,7 @@ disagrees with its check fails `mage audit`.
 
 A conformance claim, then, is a set of statement identifiers checked against a
 particular version of this paper. The component constitutions under
-`docs/constitutions/` are standing claims of exactly this kind: each links a
+`docs/conformance/` are standing claims of exactly this kind: each links a
 component to the statements it must satisfy, cited by identifier.
 
 ## The coverage map

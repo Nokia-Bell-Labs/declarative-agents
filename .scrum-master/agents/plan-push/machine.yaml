@@ -1,0 +1,167 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: plan-push
+purpose: |-
+  Date the period and push its issues (srd031 R4): the release's milestone
+  in every group it serves, the sprint issue with its exit checklist, one
+  sprint-end issue per releasing repository, and a planned event on each
+  open Sprint Goal the release moves — each a word. Use when the
+  technical program manager asks to push or date a planned release's
+  period.
+
+  This machine has no model state: the push is deterministic, words all
+  the way down (design.md D10, D14; GH-201, GH-206). The run starts in the
+  system repository's checkout holding the written road map; SCRUM_MASTER_SYSTEM,
+  SCRUM_MASTER_VERSION, and SCRUM_MASTER_END name the release and its end date. A road map
+  without the release ends the run in Refused with the word's reason; every word
+  upserts, so a failure after the milestone is a partial state a re-run
+  finishes.
+configuration:
+  machine: plugin/agents/plan-push/machine.yaml
+  tools: plugin/agents/plan-push/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- Each word rereads the road map and recomputes its scope, and each upserts,
+  so a re-run of any word or of the whole machine changes nothing
+- A ticked checklist item stays ticked; no word ticks or closes the sprint
+  issue (srd001 R7.4)
+- A failure after the milestone is an explicit partial state naming what a
+  re-run finishes, never a buried error
+lifecycle: |-
+  1. Idle → Milestone (Seed): scrum-master plan milestone dates the release's
+     milestone in every group it serves
+  2. Milestone → SprintIssue (ToolDone): scrum-master plan sprint-issue keeps the
+     release's one sprint issue
+  3. Milestone → Refused (ToolFailed): the road map names no such release,
+     or its publication is incomplete; the reason ends the run
+  4. SprintIssue → SprintEnds (ToolDone): scrum-master plan sprint-ends keeps one
+     sprint-end issue per releasing repository
+  5. SprintEnds → Events (ToolDone): scrum-master plan events posts a planned event
+     on each open Sprint Goal the release moves
+  6. Events → Done (ToolDone): the period is pushed
+  7. SprintIssue → NoSprintIssue, SprintEnds → SprintEndsMissing, Events →
+     EventsMissing (ToolFailed): partial states a re-run finishes
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 20
+states:
+- name: Idle
+  meaning: Initial state before the push.
+- name: Milestone
+  meaning: |
+    The milestone word: scrum-master plan milestone reads the release from the road
+    map and dates its milestone in the program group and each releasing
+    repository's group outside it, so every issue finds it (srd031 R4.2).
+- name: SprintIssue
+  meaning: |
+    The sprint word: scrum-master plan sprint-issue keeps the release's one sprint
+    issue with one checklist item per objective, found by its marker; an
+    item a person ticked stays ticked (srd001 R7.2, R7.4).
+- name: SprintEnds
+  meaning: |
+    The sprint-ends word: scrum-master plan sprint-ends keeps one sprint-end issue
+    per releasing repository, each found by its marker, labeled a recurring
+    release data issue (srd038 R1.1).
+- name: Events
+  meaning: |
+    The events word: scrum-master plan events posts a planned event on each open
+    Sprint Goal that serves an outcome of the release but was filed for
+    another, once (srd031 R4.3).
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The period is pushed — the milestone, the sprint issue, the
+    sprint-end issues, and the planned events are the run's report
+    (srd031 R4).
+- name: Refused
+  run_status: failed
+  meaning: |
+    Terminal. The road map names no such release, or its publication has no
+    milestone or tag, and the word's reason, as printed, is the run's last
+    output. Nothing was pushed.
+- name: NoSprintIssue
+  run_status: failed
+  meaning: |
+    Terminal. The milestone is dated but the sprint issue did not land; a
+    re-run finishes the push, since every word upserts (GH-206).
+- name: SprintEndsMissing
+  run_status: failed
+  meaning: |
+    Terminal. The milestone and sprint issue stand but a sprint-end issue
+    did not land; a re-run finishes the push (GH-206).
+- name: EventsMissing
+  run_status: failed
+  meaning: |
+    Terminal. The issues stand but a planned event did not post; a re-run
+    finishes the push (GH-206).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+terminal_states:
+- Done
+- Refused
+- NoSprintIssue
+- SprintEndsMissing
+- EventsMissing
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported failure — a refusal with its reason.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Milestone
+  action: plan_milestone
+  summary: true
+- state: Milestone
+  signal: ToolDone
+  next: SprintIssue
+  action: plan_sprint_issue
+  summary: true
+- state: Milestone
+  signal: ToolFailed
+  next: Refused
+- state: SprintIssue
+  signal: ToolDone
+  next: SprintEnds
+  action: plan_sprint_ends
+  summary: true
+- state: SprintIssue
+  signal: ToolFailed
+  next: NoSprintIssue
+- state: SprintEnds
+  signal: ToolDone
+  next: Events
+  action: plan_events
+  summary: true
+- state: SprintEnds
+  signal: ToolFailed
+  next: SprintEndsMissing
+- state: Events
+  signal: ToolDone
+  next: Done
+- state: Events
+  signal: ToolFailed
+  next: EventsMissing
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Milestone
+  signal: CommandError
+  next: Failed
+- state: SprintIssue
+  signal: CommandError
+  next: Failed
+- state: SprintEnds
+  signal: CommandError
+  next: Failed
+- state: Events
+  signal: CommandError
+  next: Failed

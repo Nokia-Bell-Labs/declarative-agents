@@ -1,0 +1,33 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-record-agent-commit
+tools:
+- name: record_agent_commit
+  type: builtin
+  init: record_agent_commit
+  visibility: internal
+  signature:
+    emits:
+    - AgentCommitRecorded
+    - CommandError
+  description: Record a configured rev_parse result in the current point context.
+  category: stateful_internal
+  side_effects:
+  - kind: state_mutation
+    target: point_context
+    state: agent_commit_recorded
+    description: Stores commit provenance from the configured rev_parse exec word.
+  undo:
+    strategy: point_context_restore
+    description: Restore PointContext from the persisted pre-command receipt.
+    payload: point_context_snapshot
+    captures: [point_context]
+  errors:
+  - signal: CommandError
+    condition: point state is unavailable
+    message_shape: 'record_agent_commit: <error>'
+    state_after_failure: previous point context is preserved
+  output:
+    description: Normalized commit provenance value.
+    schema:
+      type: string

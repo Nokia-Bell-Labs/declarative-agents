@@ -1,0 +1,130 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: check
+purpose: |-
+  Check a program repository the way CI does (srd045, srd043): the corpus
+  gate, the vendored profiles against their manifest, and the drift doctor
+  reports, each a word, writing nothing. Use when a CI job or a person asks
+  whether the repository is in order.
+
+  This machine has no model state: three words (design.md D10, D14;
+  GH-35). The gate's finding ends the run in GateFailed and an edited or
+  missing vendored file in VendoredDrifted, each with the findings as
+  printed; doctor's report closes a run that passed both.
+configuration:
+  machine: plugin/agents/check/machine.yaml
+  tools: plugin/agents/check/tools.yaml
+invariants:
+- Every step is a word; no model acts anywhere in this machine
+- Nothing in the checkout is written
+- A finding ends the run in the state that names it, with the findings
+lifecycle: |-
+  1. Idle → Gate (Seed): backlog check runs the corpus gate
+  2. Gate → Vendored (ToolDone): install --profiles --check holds the
+     vendored profiles to their manifest
+  3. Gate → GateFailed (ToolFailed)
+  4. Vendored → Doctor (ToolDone): doctor --dry-run reports the drift
+  5. Vendored → VendoredDrifted (ToolFailed)
+  6. Doctor → Done (ToolDone): no drift; Doctor → Drifted (ToolFailed): drift to repair
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 10
+states:
+- name: Idle
+  meaning: Initial state before the gate.
+- name: Gate
+  meaning: |
+    The gate word: backlog check runs the corpus gate over the checkout —
+    the hierarchy, the SRDs' traces, and every document's shape — and
+    names the documents that still hold init's placeholder text.
+- name: Vendored
+  meaning: |
+    The vendored word: install --profiles --check holds every file in
+    .scrum-master to the digest its manifest records; an edited or missing
+    file is a finding.
+- name: Doctor
+  meaning: |
+    The doctor word: doctor --dry-run reports what a run would change —
+    orientation files, skills, the documents' canonical form — and the
+    release the repository vendored, writing nothing.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The gate passed, the vendored profiles match their manifest,
+    and doctor's report is the run's last output.
+- name: GateFailed
+  run_status: failed
+  meaning: |
+    Terminal. The corpus gate found a problem; its findings, as printed,
+    are the run's last output.
+- name: VendoredDrifted
+  run_status: failed
+  meaning: |
+    Terminal. A vendored file was edited or is missing, or nothing is
+    vendored; the findings name each, and a rerun of the init or onboard
+    profile restores them.
+- name: Drifted
+  run_status: failed
+  meaning: |
+    Terminal. doctor's dry run found drift, or a subsystem plan the system's
+    ARCHITECTURE does not name yet: the doctor skill repairs the drift, and
+    its findings are the run's last output (GH-64).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error, or doctor could not read the repository.
+terminal_states:
+- Done
+- GateFailed
+- VendoredDrifted
+- Drifted
+- Failed
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: ToolDone
+  trigger: A word executed successfully.
+- name: ToolFailed
+  trigger: A word reported a finding.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+transitions:
+- state: Idle
+  signal: Seed
+  next: Gate
+  action: gate
+  summary: true
+- state: Gate
+  signal: ToolDone
+  next: Vendored
+  action: vendored
+  summary: true
+- state: Gate
+  signal: ToolFailed
+  next: GateFailed
+- state: Vendored
+  signal: ToolDone
+  next: Doctor
+  action: doctor
+  summary: true
+- state: Vendored
+  signal: ToolFailed
+  next: VendoredDrifted
+- state: Doctor
+  signal: ToolDone
+  next: Done
+- state: Doctor
+  signal: ToolFailed
+  next: Drifted
+- state: Idle
+  signal: CommandError
+  next: Failed
+- state: Gate
+  signal: CommandError
+  next: Failed
+- state: Vendored
+  signal: CommandError
+  next: Failed
+- state: Doctor
+  signal: CommandError
+  next: Failed

@@ -1,0 +1,34 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-select-subset
+imports:
+- ../units/types-collections.yaml
+- ../units/types-core.yaml
+tools:
+- name: select_subset
+  type: builtin
+  init: select_subset
+  category: word
+  visibility: internal
+  description: Keep candidate names only when they occur in a declared vocabulary.
+  signature:
+    input: builtin-types-core.NoParameters
+    output: builtin-types-collections.SubsetSelection
+    emits: [SubsetSelected, SubsetPartial, SubsetEmpty, CommandError]
+  output:
+    description: Candidate names divided by declared membership with the corresponding trusted values.
+  errors:
+  - signal: CommandError
+    condition: A selector does not resolve, a selected value is not an array, or an element has an invalid shape.
+    message_shape: 'select_subset: <error>'
+    state_after_failure: No successful subset output is published.
+  relationships:
+    before: [machine-selected successor]
+    after: [candidate-producing and vocabulary-producing predecessors]
+  config:
+    candidates: $from(candidates).names
+    vocabulary: $from(vocabulary).values
+    match_field: name
+    all_matched: SubsetSelected
+    partial: SubsetPartial
+    empty: SubsetEmpty

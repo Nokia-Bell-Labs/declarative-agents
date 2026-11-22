@@ -1469,7 +1469,7 @@ document_types:
       prose_containment:
         keywords: [MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, OPTIONAL, shall, shall not]
         outside: [document_field, section]
-  srd:
+  srd: &srd_type
     location: docs/specs/software-requirements/srdNNN-short-name.md
     converts_from: docs/specs/software-requirements/srdNNN-short-name.yaml
     required_fields:
@@ -4676,7 +4676,7 @@ document_types:
       prose_containment:
         keywords: [MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY, OPTIONAL, shall, shall not]
         outside: [document_field, action_semantic, builtin_field, check_kind, child_agent_config_field, cli_mapping_field, command_state_step_labels_field, config_file, data_driven_iteration_field, declaration_file, declaration_placement_field, document_resource_config_field, engine_policy_audit_field, example, example_tools_field, exec_field, grouped_declaration_loading_field, implementation_status_field, kind_required_field, machine_composition_field, machine_presentation_views_field, metric_declaration_fields_field, parameter_extensions_field, parse_response_config_field, provider_behavior_field, release_03_0_support_field, required_contract_sections_field, rollback_model_field, schema_entry, schema_field, selection_file, startup_sequence_entry, state_scoped_dynamic_dispatch_field, target_grouped_layout_field, timeout_envelope_field, workflow_metric_labels_field, action_semantic_field, async_client_config_field, attribute_field, auth_profile_field, bad_sentence_field, builtin_field_field, check_kind_field, compensatable_boundary_field, config_file_field, declaration_file_field, document_category_rule_field, document_resource_field, document_resource_operation_field, document_resource_ui_field, domain_policy_hook, endpoint_field, enforcement_field, event_source_field, example_field, examples_field, exec_field_field, fixed_engine_invariant, flag, good_boundary_field, good_word_field, instrument_field, irreversible_confirmation_field, json_schema_field, kind_required_field_field, legacy_fields_field, lifecycle_control_config_field, lifecycle_exit_injection_config_field, lifecycle_infrastructure_entry, limit_profile_field, machine_request_config_field, machine_request_input_mapping_field, machine_request_response_mapping_field, machine_request_terminal_response_field, migration_candidate, network_policy_field, openapi_import_field, operation_field, persistence_field, queue_config_field, readonly_noop_word_field, receipt_field, redirect_policy_field, request_binding_field, requirements_field, resource_field, resource_field_2, resource_operation_field, response_mapping_field, rest_await_event_config_field, rest_client_field, rest_server_field, retry_policy_field, reversible_state_word_field, rollback_field, schema_entry_field, selection_file_field, shutdown_config_field, signal_source_config_field, signal_source_response_field, signal_source_response_mappings_field, startup_sequence_entry_field, status_mapping_field, attribute_field_field, config_field, domain_policy_hook_field, fixed_engine_invariant_field, flag_field, instrument_field_field, item_field, lifecycle_infrastructure_entry_field, migration_candidate_field, resource_field_field, undo_field, config_field_field, item_field_field, field_entry, field_entry_deep, field_entry_field, sub_field_entry, field_entry_deep_field, sub_field_entry_field, format_examples_field, invalid_examples_field, fragment_files_field, tool_categories_field, word_field, stateful_internal_field, boundary_field, sentence_field]
-  constitution:
+  constitution: &constitution_type
     location: docs/constitutions/name.md
     converts_from: docs/constitutions/name.yaml
     required_fields:
@@ -5325,6 +5325,54 @@ document_types:
     - checks
     purpose: Names the specification-corpus checks this module's audit gates on.
     markdown: stays YAML; executable check plans the audit runs (spec.Charter), not prose a person reads.
+  conformance_constitution:
+    <<: *constitution_type
+    location: docs/conformance/name.md
+    converts_from: docs/conformance/name.yaml
+    purpose: Binds a component of this repository to the application DSL specification, citing each statement it upholds (application-dsl-spec 06); kept apart from docs/constitutions, which holds the corpus format constitution scrum-master lays down (GH-2943).
+  planning_theme:
+    <<: *srd_type
+    location: docs/specs/themes/thNNN-short-name.md
+    converts_from: docs/specs/themes/thNNN-short-name.yaml
+    purpose: A scrum-master planning theme, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+  planning_initiative:
+    <<: *srd_type
+    location: docs/specs/initiatives/inNNN-short-name.md
+    converts_from: docs/specs/initiatives/inNNN-short-name.yaml
+    purpose: A scrum-master planning initiative, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+  planning_epic:
+    <<: *srd_type
+    location: docs/specs/epics/epNNN-short-name.md
+    converts_from: docs/specs/epics/epNNN-short-name.yaml
+    purpose: A scrum-master planning epic, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+  planning_feature:
+    <<: *srd_type
+    location: docs/specs/features/ftNNN-short-name.md
+    converts_from: docs/specs/features/ftNNN-short-name.yaml
+    purpose: A scrum-master planning feature, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+  planning_story:
+    <<: *srd_type
+    location: docs/specs/stories/stNNN-short-name.md
+    converts_from: docs/specs/stories/stNNN-short-name.yaml
+    purpose: A scrum-master planning story, an SRD in the pinned parent release's format (scrum-master design constitution; GH-2943).
+  planning_folder_readme:
+    location: docs/specs/name/README.md
+    format: markdown
+    required_fields: []
+    purpose: Says what the documents of one scrum-master planning folder (themes, initiatives, epics) are; laid down by scrum-master init (GH-2943).
+    markdown: native Markdown already (format markdown); it declares no structure, so it takes no rule data.
+  engineering_readme:
+    location: docs/engineering/README.md
+    format: markdown
+    required_fields: []
+    purpose: Says what the engineering documents are; laid down by scrum-master init (GH-2943).
+    markdown: native Markdown already (format markdown); it declares no structure, so it takes no rule data.
+  external_pins:
+    location: docs/external-pins.yaml
+    format: yaml
+    required_fields: []
+    purpose: Pins the scrum-master release whose format this corpus follows (srd043 R3.3); written by scrum-master init and upgrade (GH-2943).
+    markdown: stays YAML; a machine-read release pin, not prose a person reads.
 manual_invariant_schema:
   purpose: |
     A judge may adjudicate a manual pattern invariant only after the invariant

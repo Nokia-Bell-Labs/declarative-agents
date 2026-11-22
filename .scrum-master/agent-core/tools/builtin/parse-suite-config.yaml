@@ -1,0 +1,37 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-parse-suite-config
+imports:
+- ../units/types-core.yaml
+tools:
+- name: parse_suite_config
+  type: builtin
+  init: parse_suite_config
+  visibility: internal
+  description: Read and validate evaluator suite YAML metadata without discovering samples or creating session artifacts.
+  signature:
+    output: builtin-types-core.Text
+    emits: [SuiteConfigParsed, CommandError]
+  category: word
+  side_effects:
+  - kind: state_mutation
+    target: eval_session_state
+    state: suite_config_parsed
+    description: Sets EvalSessionState.Suite with suite metadata and resolved samples directory.
+  undo:
+    strategy: evaluator_session_restore
+    description: Restore evaluator session state from the persisted pre-command receipt.
+    payload: evaluator_session_snapshot
+    captures: [suite, session_dir, result, point_context, iterator_state]
+  output:
+    description: Human-readable confirmation naming the parsed suite.
+  errors:
+  - signal: CommandError
+    condition: no suite path is configured, the file cannot be read, or ParseSuiteConfig rejects its content
+    message_shape: 'parse_suite_config: <error>'
+    state_after_failure: EvalSessionState.Suite is not replaced by an invalid or unreadable configuration
+  relationships:
+    before: [machine-selected suite input]
+    after: [discover_suite_samples]
+  config:
+    input: $request.suite

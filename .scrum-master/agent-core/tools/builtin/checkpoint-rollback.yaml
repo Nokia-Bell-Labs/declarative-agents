@@ -1,0 +1,100 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: builtin-checkpoint-rollback
+tools:
+- name: checkpoint_rollback
+  type: builtin
+  contract: migrated
+  init: checkpoint_rollback
+  visibility: internal
+  # Target run id and rollback step arrive through the universal --request file,
+  # not CLI flags; declare them as request sources the composition root resolves.
+  config:
+    checkpoint: $request.checkpoint
+    to_iteration: $request.to_iteration
+  signature:
+    emits:
+    - ToolDone
+    - CommandError
+  description: Roll back a run to the last persisted step of a target iteration by reverting the Dolt branch and replaying receipts, then persist operator recovery context.
+  category: boundary
+  output:
+    description: Rollback result summary.
+    schema:
+      type: object
+      properties:
+        run:
+          type: string
+        target_step:
+          type: integer
+        reverted_entries:
+          type: integer
+        skipped_irreversible:
+          type: array
+          items:
+            type: string
+        pending_compensation:
+          type: array
+          description: Compensatable entries that require an operator or later machine action.
+          items:
+            type: object
+            properties:
+              step:
+                type: integer
+              command:
+                type: string
+              description:
+                type: string
+              requires:
+                type: array
+                items:
+                  type: string
+              data:
+                type: object
+                description: Concrete receipt-owned context needed to perform the compensation.
+            required:
+            - step
+            - command
+            - description
+            - requires
+      required:
+      - run
+      - target_step
+      - reverted_entries
+      - skipped_irreversible
+      - pending_compensation
+  side_effects:
+  - kind: state_mutation
+    target: checkpoint_backend
+    state: run_branch_reverted
+    description: Reverts DB-persisted state on the run branch to the target step commit (Dolt Revert). DB-only.
+  - kind: child_tool_execution
+    target: tool_receipts
+    state: external_effects_reversed
+    description: Replays each reverted entry's restored, receipt-bearing Result into its tool's receipt-consuming Undo to reverse external effects; irreversible entries are skipped and logged.
+  reversibility:
+    classification: compensatable
+    receipt: compensatable_boundary_compensation
+    requires_confirmation: true
+  undo:
+    strategy: compensating_action
+    description: Operator must choose the rollback checkpoint to resume, another rollback target, or the recorded prior checkpoint; the original forward execution is never replayed automatically.
+    payload: checkpoint_rollback_receipt
+    captures:
+    - declaration
+    - run
+    - target_iteration
+    - target_step
+    - prior_branch
+    - prior_checkpoint
+    - rollback_checkpoint
+    - requires
+    requires:
+    - run
+    - operator_decision
+    - resume_checkpoint_or_rollback_target
+  errors:
+  - signal: CommandError
+    condition: rollback fails to resolve the run/step, revert the branch, or replay a receipt-consuming Undo
+    message_shape: "rollback <component>: <error>"
+    state_after_failure: the run branch is reverted, but a failed receipt-walk Undo may leave some external effects unreversed; the report names them

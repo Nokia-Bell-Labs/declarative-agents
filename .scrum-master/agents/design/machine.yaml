@@ -1,0 +1,152 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+name: design
+purpose: |-
+  Change the intended state ahead of implementation (srd047): a design
+  decision becomes one issue whose only changes are to docs/ARCHITECTURE.md
+  and docs/engineering/, with its Design Decisions. Use when a person asks to
+  design, add or reshape a component or subsystem, or when planning stopped
+  with "this needs a design decision".
+
+  Invoking this profile files the issue; the change itself lands through
+  the ordinary pop, implement, and reviewed merge, ahead of the plan that
+  cites it. In the system repository it shapes subsystem boundaries, in a
+  team's repository a component's shape. It writes no hierarchy document,
+  SRD, or code. The model reads the plan-vs-architecture guide first, and
+  the one model step is writing the issue (design.md D10, D15).
+configuration:
+  machine: plugin/agents/design/machine.yaml
+  tools: plugin/agents/design/tools.yaml
+  llm_configs: plugin/agents/design/llm/*.yaml
+invariants:
+- The issue's only paths are docs/ARCHITECTURE.md and files under docs/engineering/
+- The model writes no hierarchy document, SRD, or code; implementation moves the actual state later
+- The model acts only in the Design state, through the declared tools
+- A refusal from the word is fed back to the model, which fixes the body and lints again
+lifecycle: |-
+  1. Idle → Guide (Seed): scrum-master backlog guide puts the plan-vs-architecture
+     guide before the request (GH-59)
+  2. Guide → Design (ToolDone): the model writes the design issue and files it
+     through scrum-master
+  3. Design ↔ Parse: the model loop — invoke_llm, parse_response, $tool
+  4. Parse → Done (TaskCompleted): the model called done with the issue's
+     reference
+external_labels:
+- seed
+initial_state: Idle
+budget:
+  command_timeout: 16m
+  max_iterations: 100
+  max_consecutive_parse_errors: 5
+states:
+- name: Idle
+  meaning: Initial state before the request is read.
+- name: Guide
+  meaning: |
+    The guide word: scrum-master backlog guide prints the plan-vs-architecture
+    guide followed by the request, the model's first message, so the model
+    plans against the architecture before it acts (GH-59).
+- name: Design
+  meaning: |
+    Write the design as a title and a body: ## Requirements naming each
+    component or engineering rule added, changed, or removed in
+    docs/ARCHITECTURE.md and docs/engineering/, with its boundary and
+    interfaces; ## Design Decisions, each choice with its reason and the
+    alternatives set aside; and ## Acceptance Criteria, each ending
+    (test: <name>; environment: <local|dev|staging>). Check the components
+    that exist with backlog_components first, so the design names what it
+    adds and what it changes. Save the body to issue.md and file it with
+    issue_file, one --path per document it changes, only
+    docs/ARCHITECTURE.md and files under docs/engineering/. Write no
+    hierarchy document, SRD, or code. When admission did not admit it, fix
+    the body from the reasons and run issue_lint, then call done.
+- name: Parse
+  meaning: |
+    The model's response is parsed into one tool call. A parse failure is
+    reported back to the model; the done call ends the run.
+- name: Done
+  run_status: succeeded
+  meaning: |
+    Terminal. The design issue's URL and whether admission admitted it are
+    the run's report (srd047).
+- name: Failed
+  run_status: failed
+  meaning: Terminal. An infrastructure error outside the word's refusals.
+- name: BudgetExceeded
+  run_status: budget_exceeded
+  meaning: Terminal. The iteration or parse-error budget was exhausted.
+terminal_states:
+- Done
+- Failed
+- BudgetExceeded
+signals:
+- name: Seed
+  trigger: Loop initialization.
+- name: LLMResponded
+  trigger: The model returned a response (invoke_llm completed).
+- name: ToolDone
+  trigger: A tool executed successfully.
+- name: ToolFailed
+  trigger: A tool executed but reported failure — for words, a refusal the model fixes.
+- name: ParseFailed
+  trigger: The model response could not be parsed as a valid tool call.
+- name: TaskCompleted
+  trigger: The model called the done tool, declaring the issue filed.
+- name: EditDone
+  trigger: A file edit tool completed — triggers a re-read nudge.
+- name: CommandError
+  trigger: Infrastructure-level error (not a tool failure).
+- name: BudgetExhausted
+  trigger: Iteration or parse-error budget limit reached.
+transitions:
+- state: Idle
+  signal: Seed
+  next: Guide
+  action: backlog_guide
+  label: guide
+- state: Guide
+  signal: ToolDone
+  next: Design
+  action: invoke_llm
+- state: Guide
+  signal: ToolFailed
+  next: Failed
+- state: Guide
+  signal: CommandError
+  next: Failed
+- state: Design
+  signal: LLMResponded
+  next: Parse
+  action: parse_response
+- state: Parse
+  signal: ToolDone
+  next: Design
+  action: $tool
+- state: Parse
+  signal: ParseFailed
+  next: Design
+  action: report_parse_error
+- state: Parse
+  signal: TaskCompleted
+  next: Done
+- state: Design
+  signal: ToolDone
+  next: Design
+  action: invoke_llm
+- state: Design
+  signal: ToolFailed
+  next: Design
+  action: invoke_llm
+- state: Design
+  signal: EditDone
+  next: Design
+  action: nudge_reread
+- state: Design
+  signal: BudgetExhausted
+  next: BudgetExceeded
+- state: Design
+  signal: CommandError
+  next: Failed
+- state: Parse
+  signal: CommandError
+  next: Failed

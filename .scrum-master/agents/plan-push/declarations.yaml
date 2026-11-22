@@ -1,0 +1,213 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan-push machine's words (GH-206, srd031 R4.7): the milestone, the
+# sprint issue, the sprint-end issues, and the planned events. Each word
+# rereads the road map in the checkout and recomputes its scope, and each
+# upserts by marker or ensures by title, so a re-run of any word — or of
+# the whole machine — updates and creates nothing. SCRUM_MASTER_SYSTEM, SCRUM_MASTER_VERSION,
+# and SCRUM_MASTER_END come from the environment; SCRUM_MASTER_REF defaults to main.
+unit: scrum-master-plan-push-declarations
+tools:
+- name: plan_milestone
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - milestone
+  - --json
+  - --system
+  - ${SCRUM_MASTER_SYSTEM}
+  - --version
+  - ${SCRUM_MASTER_VERSION}
+  - --end
+  - ${SCRUM_MASTER_END}
+  - --ref
+  - ${SCRUM_MASTER_REF:-main}
+  visibility: internal
+  parameters:
+    type: object
+    properties:
+      group:
+        type: string
+        description: The program group the milestone lives on; empty is the group control/trackers.md records, else the system repository's group (GH-103).
+        flag: --group
+  description: Date the release's milestone in the program group and each releasing repository's group outside it (srd031 R4.2).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The word's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Creates or updates the milestone in every group it serves.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Every push word upserts, so a re-run updates and creates nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'plan_milestone: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the road map names no such release, its publication has no milestone or tag, or the word exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: what the earlier words pushed stands; a re-run of the push finishes it
+
+- name: plan_sprint_issue
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - sprint-issue
+  - --json
+  - --system
+  - ${SCRUM_MASTER_SYSTEM}
+  - --version
+  - ${SCRUM_MASTER_VERSION}
+  - --end
+  - ${SCRUM_MASTER_END}
+  - --ref
+  - ${SCRUM_MASTER_REF:-main}
+  visibility: internal
+  parameters:
+    type: object
+    properties:
+      group:
+        type: string
+        description: The program group the milestone lives on; empty is the group control/trackers.md records, else the system repository's group (GH-103).
+        flag: --group
+  description: Keep the release's one sprint issue with its exit checklist, found by its marker; a ticked item stays ticked (srd001 R7).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The word's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Files or updates the sprint issue in the system repository.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Every push word upserts, so a re-run updates and creates nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'plan_sprint_issue: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the sprint issue cannot be filed or updated and the word exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: what the earlier words pushed stands; a re-run of the push finishes it
+
+- name: plan_sprint_ends
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - sprint-ends
+  - --json
+  - --system
+  - ${SCRUM_MASTER_SYSTEM}
+  - --version
+  - ${SCRUM_MASTER_VERSION}
+  - --end
+  - ${SCRUM_MASTER_END}
+  - --ref
+  - ${SCRUM_MASTER_REF:-main}
+  visibility: internal
+  parameters:
+    type: object
+    properties:
+      group:
+        type: string
+        description: The program group the milestone lives on; empty is the group control/trackers.md records, else the system repository's group (GH-103).
+        flag: --group
+  description: Keep one sprint-end issue per releasing repository, each found by its marker (srd038 R1.1).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The word's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Files or updates the sprint-end issues in the releasing repositories.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Every push word upserts, so a re-run updates and creates nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'plan_sprint_ends: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: a sprint-end issue cannot be filed or updated and the word exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: what the earlier words pushed stands; a re-run of the push finishes it
+
+- name: plan_events
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - events
+  - --json
+  - --system
+  - ${SCRUM_MASTER_SYSTEM}
+  - --version
+  - ${SCRUM_MASTER_VERSION}
+  - --end
+  - ${SCRUM_MASTER_END}
+  - --ref
+  - ${SCRUM_MASTER_REF:-main}
+  visibility: internal
+  parameters:
+    type: object
+    properties:
+      group:
+        type: string
+        description: The program group the milestone lives on; empty is the group control/trackers.md records, else the system repository's group (GH-103).
+        flag: --group
+  description: Post a planned event on each open Sprint Goal the release moves, once (srd031 R4.3).
+  category: boundary
+  signature:
+    emits: [ToolDone, ToolFailed, CommandError]
+  output:
+    description: The word's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Posts planned events on the Sprint Goals' ledgers.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: Every push word upserts, so a re-run updates and creates nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words — or an environment variable is unset
+    message_shape: 'plan_events: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: an event cannot be posted and the word exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: what the earlier words pushed stands; a re-run of the push finishes it

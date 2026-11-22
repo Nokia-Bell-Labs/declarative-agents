@@ -1,0 +1,53 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: exec-test
+tools:
+- name: test
+  type: exec
+  binary: go
+  args:
+  - test
+  - -count=1
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+  description: Run go test -count=1 on the workspace. Returns test output including pass/fail results.
+  output:
+    description: Raw go test command output.
+    schema:
+      type: string
+  output_cap: 200
+  parameters:
+    type: object
+    properties:
+      package:
+        type: string
+        description: Go package path (default ./...)
+        positional: true
+        default: ./...
+  category: boundary
+  side_effects:
+  - kind: child_process
+    target: go_toolchain
+    state: read_only
+    description: Runs `go test -count=1` as a child process. Read-only because the
+      command compiles and runs tests without a repository mutation to reverse.
+  - kind: filesystem_read
+    target: workspace
+    description: Reads Go source, module, and test files from the workspace.
+  reversibility:
+    classification: reversible
+    requires_confirmation: false
+  errors:
+  - signal: CommandError
+    condition: the command cannot be started or the workspace is invalid
+    message_shape: 'test: <error>'
+    state_after_failure: workspace unchanged by agent-core
+  - signal: ToolFailed
+    condition: the command exits non-zero
+    message_shape: <captured command output>
+    state_after_failure: workspace unchanged by agent-core
+  undo:
+    strategy: noop
+    description: Validation command has no direct repository mutations to reverse.

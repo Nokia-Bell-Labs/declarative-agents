@@ -1,0 +1,24 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Full shared builtin declaration bundle.
+unit: builtin-all
+imports:
+  - partition.yaml
+  - select-subset.yaml
+  - render-each.yaml
+  - project.yaml
+  - normalize-vector.yaml
+  - flat-map.yaml
+  - reorder-by-index.yaml
+  - filesystem/all.yaml
+  - llm/all.yaml
+  - lifecycle/all.yaml
+  - planner/all.yaml
+  - critic-session/all.yaml
+  - critic-point/all.yaml
+  - spec-validation/all.yaml
+  - otlp/all.yaml
+
+# REST declarations live in rest/all.yaml and are selected explicitly by
+# profiles that load REST definition files.
+tools: []

@@ -1,0 +1,67 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The plan-backlog machine's one word (GH-48), as the model profiles declare it;
+# its parameters come from the run's request.
+unit: scrum-master-plan-backlog-declarations
+tools:
+- name: plan_backlog
+  type: exec
+  binary: scrum-master
+  args:
+  - plan
+  - backlog
+  - --json
+  visibility: internal
+  description: Record the chosen stories on the team's Sprint Goal at Sprint Planning (srd045 R5).
+  category: boundary
+  parameters:
+    type: object
+    properties:
+      project:
+        type: string
+        description: The team's repository, where tasks filed its Sprint Goal.
+        flag: --project
+      release:
+        type: string
+        description: The release the Sprint Goal counts toward.
+        flag: --release
+      stories:
+        type: string
+        description: The chosen stories' ids, comma-separated.
+        flag: --stories
+      dir:
+        type: string
+        description: The team repository's checkout, holding its stories.
+        flag: --dir
+    required:
+    - project
+    - release
+    - stories
+  signature:
+    emits:
+    - ToolDone
+    - ToolFailed
+    - CommandError
+  output:
+    description: scrum-master plan backlog's JSON report.
+    schema:
+      type: string
+  side_effects:
+  - kind: external_api_call
+    target: tracker
+    description: Updates the team's Sprint Goal in the tracker.
+  reversibility:
+    classification: irreversible
+    requires_confirmation: false
+  undo:
+    strategy: noop
+    description: the words' own policy governs what follows; the run reverses nothing.
+  errors:
+  - signal: CommandError
+    condition: the word cannot start — this agent does not serve the scrum-master words
+    message_shape: 'plan_backlog: <error>'
+    state_after_failure: nothing ran in a process that did not start
+  - signal: ToolFailed
+    condition: the word refuses the update and exits non-zero
+    message_shape: <the word's refusal reason, as printed>
+    state_after_failure: the tracker and the checkout are as the word's refusal left them

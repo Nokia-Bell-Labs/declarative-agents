@@ -1,0 +1,26 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the draft workflow. The words and file words are
+# model-invoked in the Converse state via $tool dispatch (design.md D10, D14).
+tools:
+  # words -- model-invoked
+  - backlog_list
+  - backlog_check
+  - backlog_template
+
+  # File words
+  - read
+  - write
+  - edit
+  - find
+  - list_files
+
+  # Model loop -- direct transition actions
+  - invoke_llm
+  - parse_response
+  - report_parse_error
+  - reset_history
+  - nudge_reread
+
+  # Completion -- emits TaskCompleted via parse_response
+  - done

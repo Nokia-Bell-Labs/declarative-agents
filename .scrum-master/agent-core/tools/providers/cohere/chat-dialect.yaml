@@ -1,0 +1,31 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Cohere's v2 chat dialect (srd058 R2, R5.1): POST /v2/chat with a bearer
+# credential named COHERE_API_KEY, the reply joined from the text content
+# blocks, and usage under usage.tokens. A reply with no text is a failure, as
+# it was for the compiled adapter. Command models parse with the embedded
+# cohere profile, which their prefix selects.
+unit: provider-cohere-chat-dialect
+provider_name: cohere
+path: /v2/chat
+auth:
+  type: bearer
+  token_ref: COHERE_API_KEY
+body:
+  model: "{{ params.model }}"
+  messages: "{{ params.messages }}"
+  stream: false
+  temperature: "{{ params.temperature }}"
+  seed: "{{ params.seed }}"
+response:
+  text: $.message.content.type=text.text
+  text_required: true
+  input_tokens: $.usage.tokens.input_tokens
+  output_tokens: $.usage.tokens.output_tokens
+failures:
+- status: [401, 403]
+  signal: ProviderUnauthorized
+- status: [429]
+  signal: ProviderThrottled
+- status: [500, 502, 503, 504]
+  signal: ProviderUnavailable

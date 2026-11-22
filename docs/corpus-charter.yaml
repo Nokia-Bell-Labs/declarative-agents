@@ -1,0 +1,42 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The checks the parent's specification-corpus audit gates this corpus on.
+# The audit binds docs/corpus-charter.yaml relative to the directory it
+# audits, so this file decides what gates here. The init profile wrote it with the
+# checks a new corpus passes; add a check here as the corpus grows into it.
+id: program-corpus-charter
+title: Program Specification Corpus Checks
+checks:
+  - id: program-spec-corpus
+    kind: spec_corpus
+    severity: error
+    checks:
+      - markdown-format
+      - not-canonical
+      - broken-touchpoint
+      - broken-citation
+      - group-level-citation
+      - uncovered-req-item
+      - untraced-success-criterion
+      - index-broken-path
+      - index-missing-use-case
+      - index-missing-test-suite
+      - roadmap-missing-use-case
+      - roadmap-summary-missing-release
+      - index-document-mismatch
+      - release-without-test-suite
+      - test-case-missing-use-case
+      - test-suite-missing-uc-trace
+      - docspec-broken-example-path
+      - docspec-broken-implementation-path
+      - docspec-broken-related-document
+      - docspec-broken-requirement-source
+      - retired-id-missing
+      - citation-of-retired-id
+      - unresolved-clarification
+      - invalid-priority
+      - unverifiable-external-reference
+      - broken-external-reference
+      - retired-external-reference
+      - stale-external-reference
+      - unpinned-external-reference

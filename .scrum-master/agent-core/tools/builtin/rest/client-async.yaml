@@ -1,0 +1,121 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# REST client words that dispatch and collect a reply separately.
+unit: builtin-rest-client-async
+tools:
+  - name: rest_client_invoke
+    type: builtin
+    init: rest_client_invoke
+    category: boundary
+    description: Invoke a configured RPC-shaped REST operation.
+    parameters:
+      type: object
+      properties:
+        params: {type: object}
+    signature:
+      emits: [RESTResponded, RESTAccepted, RESTDomainFailed, RESTMissing, CommandError]
+    output:
+      description: Structured REST invoke result.
+      schema:
+        type: object
+        properties:
+          operation: {type: string}
+          status: {type: integer}
+          domain_error_code: {type: string}
+          body: {type: object}
+    side_effects:
+      - kind: external_api
+        target: configured_rest_client
+        state: configured_operation_invoked
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Noop unless the REST operation declares compensation.
+    errors:
+      - signal: CommandError
+        condition: REST definition, schema, auth, network, timeout, or mapping failure.
+        message_shape: "rest_client_invoke: <stage>: <redacted diagnostic>"
+        state_after_failure: Remote state depends on configured operation semantics.
+    config:
+      rest_ref: ""
+      operation: ""
+  - name: rest_client_send
+    type: builtin
+    init: rest_client_send
+    category: boundary
+    description: Start a configured asynchronous REST operation.
+    parameters:
+      type: object
+      properties:
+        params: {type: object}
+    signature:
+      emits: [RESTAccepted, CommandError]
+    output:
+      description: Structured async submission result.
+      schema:
+        type: object
+        properties:
+          request_id: {type: string}
+          operation_id: {type: string}
+          status: {type: integer}
+          correlation: {type: string}
+          idempotency_token: {type: string}
+    side_effects:
+      - kind: external_api
+        target: configured_rest_client
+        state: async_request_submitted
+      - kind: state_mutation
+        target: rest_command_state
+        state: async_request_recorded
+    reversibility:
+      classification: compensatable
+    undo:
+      strategy: compensating_action
+      description: Cancel or compensate when the configured operation supports it.
+    errors:
+      - signal: CommandError
+        condition: REST definition, schema, auth, network, timeout, or async state failure.
+        message_shape: "rest_client_send: <stage>: <redacted diagnostic>"
+        state_after_failure: Async state is recorded only after accepted submission.
+    config:
+      rest_ref: ""
+      operation: ""
+  - name: rest_client_await
+    type: builtin
+    init: rest_client_await
+    category: boundary
+    description: Await completion of a configured asynchronous REST operation.
+    parameters:
+      type: object
+      properties:
+        request_id: {type: string}
+        correlation: {type: string}
+    signature:
+      emits: [RESTResponded, RESTDomainFailed, RESTMissing, RESTAwaitTimedOut, CommandError]
+    output:
+      description: Structured async completion result.
+      schema:
+        type: object
+        properties:
+          request_id: {type: string}
+          operation_id: {type: string}
+          status: {type: integer}
+          body: {type: object}
+    side_effects:
+      - kind: state_mutation
+        target: rest_command_state
+        state: async_request_consumed
+    reversibility:
+      classification: reversible
+    undo:
+      strategy: noop
+      description: Await does not mutate remote state.
+    errors:
+      - signal: CommandError
+        condition: Async state, timeout, transport, status mapping, or response mapping failure.
+        message_shape: "rest_client_await: <stage>: <redacted diagnostic>"
+        state_after_failure: Async state remains according to configured retention policy.
+    config:
+      rest_ref: ""
+      operation: ""

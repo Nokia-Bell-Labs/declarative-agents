@@ -1,0 +1,5 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# The parent release this corpus's format follows (srd043 R3.3).
+pins:
+  github.com/Nokia-Bell-Labs/declarative-agents: v0.20261121.0

@@ -1,0 +1,41 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+unit: exec-git-init
+imports:
+- ../units/types-core.yaml
+tools:
+- name: git_init
+  type: exec
+  binary: git
+  args:
+  - init
+  description: Initialize a new git repository in the current directory.
+  signature:
+    output: builtin-types-core.Text
+    emits: [ToolDone, ToolFailed, CommandError]
+  category: word
+  side_effects:
+  - kind: filesystem_write
+    target: workspace_git_metadata
+    paths:
+    - .git
+    description: Creates .git metadata in the workspace.
+  undo:
+    strategy: workspace_restore
+    description: Restore the workspace ref captured before git init.
+    requires:
+    - Workspace
+  output:
+    description: Combined stdout and stderr from `git init`.
+  errors:
+  - signal: CommandError
+    condition: the git process cannot be started
+    message_shape: 'git_init: <error>'
+    state_after_failure: no Git metadata is created by a process that did not start
+  - signal: ToolFailed
+    condition: "`git init` exits non-zero"
+    message_shape: '<captured git output>'
+    state_after_failure: "`.git` may be partially created or updated and must be restored from the workspace checkpoint"
+  relationships:
+    before: [copy_dir]
+    after: [stage_all]

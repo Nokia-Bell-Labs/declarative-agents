@@ -1,0 +1,8 @@
+# Copyright (c) 2026 Nokia
+# SPDX-License-Identifier: BSD-3-Clause
+# Tool selection for the upgrade machine: three words, no model anywhere
+# (design.md D10, D14; GH-2719).
+tools:
+  - vendor
+  - repair
+  - skills
